@@ -2007,7 +2007,9 @@ class MusicRepository(context: Context) {
                     dateModified = dateModified
                 ))
             }
-        }.sortedBy { it.title.lowercase(Locale.ROOT) }
+        }.map { album -> album.copy(artworkUri = catalog.preferredArtwork(album.artworkUri,
+            catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ALBUM, catalog.albumKey(album.title, album.artist))))) }
+            .sortedBy { it.title.lowercase(Locale.ROOT) }
 
         Log.d(TAG, "Loaded ${albums.size} albums from songs directly")
         albums
@@ -2037,7 +2039,7 @@ class MusicRepository(context: Context) {
         val cachedArtists = loadArtistsFromRoom(groupByAlbumArtist)
         if (cachedArtists != null && cachedArtists.isNotEmpty()) {
             Log.d(TAG, "Loaded ${cachedArtists.size} artists from Room cache (groupByAlbumArtist=$groupByAlbumArtist)")
-            return@withContext cachedArtists
+            return@withContext cachedArtists.map(::storedArtist)
         }
 
         Log.d(TAG, "Recomputing artists for ${currentSongs.size} songs (groupByAlbumArtist=$groupByAlbumArtist)")
@@ -2060,8 +2062,11 @@ class MusicRepository(context: Context) {
         saveArtistsToRoom(artists, groupByAlbumArtist)
         Log.d(TAG, "Cached ${artists.size} artists to Room (groupByAlbumArtist=$groupByAlbumArtist)")
 
-        artists
+        artists.map(::storedArtist)
     }
+
+    private fun storedArtist(artist: Artist): Artist = artist.copy(artworkUri = catalog.preferredArtwork(artist.artworkUri,
+        catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ARTIST, catalog.artistKey(artist.name)))))
 
     private var cachedArtistSplitConfig: String? = appSettings.getArtistSeparatorCacheSignature()
 
