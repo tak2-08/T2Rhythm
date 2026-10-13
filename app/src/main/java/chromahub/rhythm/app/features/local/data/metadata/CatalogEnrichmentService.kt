@@ -70,6 +70,11 @@ class CatalogEnrichmentService private constructor(private val context: Context)
     }))
     fun artworkRemoved(song: Song) = context.getSharedPreferences("artwork_overrides", Context.MODE_PRIVATE)
         .getBoolean("removed_${song.id}", false)
+    fun acceptForcedArtwork(song: Song, uri: Uri?) {
+        if (preferences.options.value.replaces(CatalogField.TRACK_IMAGE) && uri?.scheme == "file" && usableArtwork(uri)) {
+            context.getSharedPreferences("artwork_overrides", Context.MODE_PRIVATE).edit { remove("removed_${song.id}") }
+        }
+    }
     fun effectiveAlbumArtist(song: Song) = song.albumArtist?.takeUnless(CatalogIdentity::missing) ?: song.artist
     fun image(record: StoredCatalog?): Uri? = record?.imageFile?.let {
         val file = File(File(root, "images"), File(it).name)
@@ -227,7 +232,7 @@ class CatalogEnrichmentService private constructor(private val context: Context)
                 else -> null
             } ?: current
         val autoArt = (if (verifiedTrack) image(storedTrack) else null) ?: image(album)
-        val removed = artworkRemoved(song)
+        val removed = artworkRemoved(song) && !preferences.options.value.replaces(CatalogField.TRACK_IMAGE)
         return song.copy(title = text(CatalogField.TRACK_TITLE, song.title).orEmpty(),
             artist = text(CatalogField.TRACK_ARTISTS, song.artist).orEmpty(),
             album = text(CatalogField.TRACK_ALBUM_TITLE, song.album).orEmpty(), genre = text(CatalogField.TRACK_GENRES, song.genre),

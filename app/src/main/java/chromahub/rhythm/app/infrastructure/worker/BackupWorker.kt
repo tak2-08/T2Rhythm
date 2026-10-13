@@ -65,7 +65,7 @@ class BackupWorker(
             val archive = chromahub.rhythm.app.features.local.data.metadata.PersonalArchive(applicationContext)
             archive.sync()
             appSettings.setLastBackupTimestamp(System.currentTimeMillis())
-            appSettings.setBackupLocation(archive.tree ?: "Documents/RhythmBackups/T2Rhythm/settings/${file.name}")
+            appSettings.setBackupLocation(archive.tree ?: "Documents/RhythmBackups/T2Rhythm/music_metadata/settings/${file.name}")
             // Personal metadata and listening journals are never subject to the legacy 30-day cleanup.
 
             Log.d(TAG, "Automatic backup completed successfully")

@@ -2572,11 +2572,12 @@ class MusicRepository(context: Context) {
     suspend fun fetchTrackArtwork(songs: List<Song>): List<Song> = withContext(Dispatchers.IO) {
         songs.map { original ->
             val song = catalog.apply(original)
-            if (catalog.artworkRemoved(song)) return@map song.copy(artworkUri = null)
+            if (catalog.artworkRemoved(song) && !catalog.preferences.options.value.replaces(kr.co.metadata.crawler.CatalogField.TRACK_IMAGE)) return@map song.copy(artworkUri = null)
             var uri = if (catalog.preferences.options.value.replaces(kr.co.metadata.crawler.CatalogField.TRACK_IMAGE)) null else song.artworkUri?.takeIf(catalog::usableArtwork)
             if (uri == null && catalog.preferences.options.value.artwork) uri = catalog.fetchedImage(kr.co.metadata.crawler.EntityKind.TRACK, catalog.songKey(song), song.title, song.artist, song.duration, song.album)
             if (uri == null) uri = fetchTrackArtworkLegacy(listOf(song)).firstOrNull()?.artworkUri
             if (catalog.usableArtwork(uri)) uri = catalog.persistArtwork(kr.co.metadata.crawler.EntityKind.TRACK, catalog.songKey(song), uri)
+            catalog.acceptForcedArtwork(song, uri)
             song.copy(artworkUri = uri)
         }
     }

@@ -22,6 +22,14 @@ fun PersonalArchivePanel() {
     val archive = remember { PersonalArchive(context) }
     var selected by remember { mutableStateOf(archive.tree) }
     var status by remember { mutableStateOf(archive.status) }
+    DisposableEffect(archive) {
+        val prefs = context.getSharedPreferences("personal_archive", android.content.Context.MODE_PRIVATE)
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "status" || key == "lastSync") status = archive.status
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
         if (tree != null) {
             runCatching {
