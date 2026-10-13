@@ -48,4 +48,11 @@
     <string name="catalog_duration_tolerance">Track length tolerance: %1$.1f%% (minimum 1 second)</string>
     <string name="personal_rules_updates">Data-only rule updates over Wi-Fi (no listening data uploaded)</string>
     <string name="personal_history_storage_error">Listening records could not be written. Check free space; pending records are being retried.</string>
+    <string name="personal_mix_title">Made for you</string>
+    <string name="personal_reason_artist">An artist you return to</string>
+    <string name="personal_reason_genre">A genre you enjoy</string>
+    <string name="personal_reason_audio">Similar audio texture</string>
+    <string name="personal_reason_favorite">From your favorites</string>
+    <string name="personal_reason_rediscovery">Time to rediscover</string>
+    <string name="personal_reason_unplayed">Still waiting to be heard</string>
 </resources>

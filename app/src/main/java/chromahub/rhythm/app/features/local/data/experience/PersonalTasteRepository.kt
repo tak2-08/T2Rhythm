@@ -7,6 +7,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object PersonalTasteRepository {
+    @Volatile private var reasons: Map<String, List<String>> = emptyMap()
+    fun reasons(key: String): List<String> = reasons[key].orEmpty()
     fun recommend(context: Context, songs: List<Song>, favoriteIds: List<String>, currentId: String?, count: Int): List<Song> {
         val ledger = ListeningLedger.get(context)
         val history = ledger.affinities().map { h ->
@@ -20,7 +22,9 @@ object PersonalTasteRepository {
         }
         val byKey = songs.associateBy { it.uri.toString() }
         // Limit adjacent artist repetition while retaining the original ranking within each group.
-        val ranked = PersonalRecommendation.rank(candidates, history, profile).mapNotNull { byKey[it.key] }.toMutableList()
+        val scores = PersonalRecommendation.rank(candidates, history, profile)
+        reasons = scores.take(count * 2).associate { it.key to it.reasons }
+        val ranked = scores.mapNotNull { byKey[it.key] }.toMutableList()
         val result = mutableListOf<Song>()
         while (result.size < count && ranked.isNotEmpty()) {
             val index = ranked.indexOfFirst { it.artist != result.lastOrNull()?.artist }.takeIf { it >= 0 } ?: 0

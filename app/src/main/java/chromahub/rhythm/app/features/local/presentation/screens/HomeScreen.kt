@@ -1743,6 +1743,7 @@ private fun ModernScrollableContent(
 
                         ModernRecommendedSection(
                             recommendedSongs = recommendedSongs,
+                            personalized = true,
                             artists = availableArtists,
                             onSongClick = onSongClick,
                             onPlayClick = { songsToPlay ->
@@ -3038,7 +3039,8 @@ private fun ModernRecommendedSection(
     recommendedSongs: List<Song>,
     artists: List<Artist>,
     onSongClick: (Song) -> Unit,
-    onPlayClick: (List<Song>) -> Unit
+    onPlayClick: (List<Song>) -> Unit,
+    personalized: Boolean = false
 ) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
@@ -3052,9 +3054,15 @@ private fun ModernRecommendedSection(
     ) {
         ModernSectionTitle(
             title = context.getString(R.string.home_recommended_title),
-            subtitle = context.getString(R.string.personal_recommendation_hint)
+            subtitle = context.getString(if (personalized) R.string.personal_recommendation_hint else R.string.home_recommended_subtitle)
         )
 
+        if (personalized) recommendedSongs.firstOrNull()?.let { song ->
+            val reasons = chromahub.rhythm.app.features.local.data.experience.PersonalTasteRepository.reasons(song.uri.toString()).map { reason ->
+                context.getString(when (reason) { "artist" -> R.string.personal_reason_artist; "genre" -> R.string.personal_reason_genre; "audio" -> R.string.personal_reason_audio; "favorite" -> R.string.personal_reason_favorite; "rediscovery" -> R.string.personal_reason_rediscovery; else -> R.string.personal_reason_unplayed })
+            }
+            if (reasons.isNotEmpty()) Text(reasons.joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        }
         Spacer(modifier = Modifier.height(20.dp))
 
         if (recommendedSongs.isNotEmpty()) {
@@ -3104,7 +3112,7 @@ private fun ModernRecommendedSection(
                         .padding(24.dp)
                 ) {
                     RecommendedArtistHeadline(
-                        artistName = artistName,
+                        artistName = if (personalized) context.getString(R.string.personal_mix_title) else artistName,
                         style = artistNameStyle,
                         color = onCardBgColor,
                         modifier = Modifier

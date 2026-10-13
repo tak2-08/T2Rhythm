@@ -48,4 +48,11 @@
     <string name="catalog_duration_tolerance">곡 길이 허용 오차: %1$.1f%% (최소 1초)</string>
     <string name="personal_rules_updates">Wi-Fi로 규칙 데이터 갱신 (청취 기록 전송 없음)</string>
     <string name="personal_history_storage_error">청취 기록을 저장하지 못했습니다. 여유 공간을 확인하세요. 대기 중인 기록의 저장을 재시도하고 있습니다.</string>
+    <string name="personal_mix_title">나를 위한 믹스</string>
+    <string name="personal_reason_artist">자주 듣는 아티스트</string>
+    <string name="personal_reason_genre">즐겨 듣는 장르</string>
+    <string name="personal_reason_audio">비슷한 음향 특성</string>
+    <string name="personal_reason_favorite">즐겨찾기 기반</string>
+    <string name="personal_reason_rediscovery">오랜만에 다시 듣기</string>
+    <string name="personal_reason_unplayed">아직 듣지 않은 곡</string>
 </resources>
