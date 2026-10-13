@@ -32,9 +32,9 @@ class AutomaticLyricsStore private constructor(private val context: Context) {
         locks.computeIfAbsent(key(song)) { Mutex() }.withLock {
             root.mkdirs()
             write(File(root, "${key(song)}.data.json"), Gson().toJson(data))
-            data.syncedLyrics?.takeIf(String::isNotBlank)?.let { write(File(root, "${key(song)}.lrc"), it) }
-            data.plainLyrics?.takeIf(String::isNotBlank)?.let { write(File(root, "${key(song)}.txt"), it) }
-            data.wordByWordLyrics?.takeIf(String::isNotBlank)?.let { write(File(root, "${key(song)}.json"), it) }
+            saveFormat(File(root, "${key(song)}.lrc"), data.syncedLyrics)
+            saveFormat(File(root, "${key(song)}.txt"), data.plainLyrics)
+            saveFormat(File(root, "${key(song)}.json"), data.wordByWordLyrics)
             if (embed && catalog.preferences.options.value.embedLyrics) {
                 prefs.edit(commit = true) { putString("pending:${key(song)}", CatalogSongCodec.encode(song)) }
                 attemptEmbedding(song, data)
@@ -49,6 +49,9 @@ class AutomaticLyricsStore private constructor(private val context: Context) {
         val stream = file.startWrite()
         try { stream.write(text.toByteArray(Charsets.UTF_8)); file.finishWrite(stream) }
         catch (error: Exception) { file.failWrite(stream); throw error }
+    }
+    private fun saveFormat(destination: File, text: String?) {
+        if (text.isNullOrBlank()) destination.delete() else write(destination, text)
     }
     private fun lyricText(data: LyricsData): String? = data.syncedLyrics?.takeIf(String::isNotBlank)
         ?: data.plainLyrics?.takeIf(String::isNotBlank) ?: data.wordByWordLyrics?.takeIf(String::isNotBlank)

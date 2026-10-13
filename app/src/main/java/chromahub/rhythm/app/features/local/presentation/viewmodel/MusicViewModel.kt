@@ -1223,7 +1223,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 _artists.value = artwork.second
                 _currentSong.value?.let { song ->
                     val saved = withContext(Dispatchers.IO) { chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(application).read(song) }
-                    if (saved != null && saved.hasLyrics()) _currentLyrics.value = saved
+                    if (saved != null && saved.hasLyrics() &&
+                        (_currentLyrics.value?.hasLyrics() != true || _currentLyrics.value?.isErrorMessage() == true)) _currentLyrics.value = saved
                 }
             }
         }
