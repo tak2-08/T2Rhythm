@@ -94,7 +94,14 @@ class SignalAnalysis(private val sampleRate: Int, private val expectedDurationMs
             val spectral = a.spectralBands.zip(b.spectralBands).sumOf { (x, y) -> sqrt(x * y) }.coerceIn(0.0, 1.0)
             val energy = exp(-abs(a.rmsDb - b.rmsDb) / 12)
             val texture = exp(-abs(a.zeroCrossingRate - b.zeroCrossingRate) * 10)
-            return (spectral * .6 + energy * .25 + texture * .15).coerceIn(0.0, 1.0)
+            val pairs = a.waveform.zip(b.waveform)
+            val meanA = pairs.map { it.first }.average().takeIf { it.isFinite() } ?: 0.0
+            val meanB = pairs.map { it.second }.average().takeIf { it.isFinite() } ?: 0.0
+            val varianceA = pairs.sumOf { (x, _) -> (x - meanA).pow(2) }
+            val varianceB = pairs.sumOf { (_, y) -> (y - meanB).pow(2) }
+            val envelope = if (varianceA * varianceB <= 1e-20) .5 else
+                ((pairs.sumOf { (x, y) -> (x - meanA) * (y - meanB) } / sqrt(varianceA * varianceB)).coerceIn(-1.0, 1.0) + 1) / 2
+            return (spectral * .5 + energy * .2 + texture * .15 + envelope * .15).coerceIn(0.0, 1.0)
         }
     }
 }

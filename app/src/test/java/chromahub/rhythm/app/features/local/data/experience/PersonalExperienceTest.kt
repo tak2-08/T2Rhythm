@@ -61,4 +61,11 @@ class PersonalExperienceTest {
         assertEquals(1.0, SignalAnalysis.similarity(a, a), 0.0)
         assertEquals(256, a.waveform.size)
     }
+    @Test fun `waveform dynamics distinguish matching envelopes from opposing envelopes`() {
+        val feature = AudioFeatures(songKey = "a", pcmSha256 = "a", sampleRate = 8192, channels = 1, decodedDurationMs = 1000,
+            rmsDb = -9.0, peakDb = -6.0, zeroCrossingRate = .1, spectralBands = listOf(.5, .5), waveform = listOf(.1, .2, .4, .8))
+        val sameEnvelope = feature.copy(songKey = "b", pcmSha256 = "b")
+        val opposite = feature.copy(songKey = "c", pcmSha256 = "c", waveform = feature.waveform.reversed())
+        assertTrue(SignalAnalysis.similarity(feature, sameEnvelope) > SignalAnalysis.similarity(feature, opposite))
+    }
 }

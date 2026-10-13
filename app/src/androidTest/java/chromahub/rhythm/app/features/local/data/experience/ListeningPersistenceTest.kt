@@ -57,4 +57,30 @@ class ListeningPersistenceTest {
             assertTrue(features.rmsDb in -10.0..-8.0)
         } finally { file.delete() }
     }
+    @Test fun explicitArtworkReplacementOverridesAnEarlierRemovalWithoutChangingTheDefault() = runBlocking {
+        val catalog = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context)
+        val originalOptions = catalog.preferences.options.value
+        val id = UUID.randomUUID().toString()
+        val song = Song(id, "Test", "Test artist", "Test album", duration = 1000, uri = Uri.parse("content://media/external/audio/media/999999"), path = "/test/$id")
+        val images = File(catalog.root, "images").apply { mkdirs() }
+        val image = File(images, "$id.jpg")
+        android.graphics.Bitmap.createBitmap(2, 2, android.graphics.Bitmap.Config.ARGB_8888).let { bitmap ->
+            image.outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) }; bitmap.recycle()
+        }
+        val kind = kr.co.metadata.crawler.EntityKind.TRACK
+        kr.co.metadata.crawler.CatalogFileStore(File(catalog.root, "records")).merge(kind, catalog.songKey(song), kr.co.metadata.crawler.CatalogDocument(kind,
+            listOf(kr.co.metadata.crawler.CatalogValue(kr.co.metadata.crawler.CatalogField.TRACK_IMAGE, "https://example.com/cover.jpg", "test"),
+                kr.co.metadata.crawler.CatalogValue(kr.co.metadata.crawler.CatalogField.TRACK_DURATION_MS, "1000", "test"))), imageFile = image.name)
+        val prefs = context.getSharedPreferences("artwork_overrides", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("removed_$id", true).commit()
+        try {
+            val repository = chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(context)
+            catalog.preferences.update(originalOptions.copy(replaceTags = false, forceFields = emptySet()))
+            assertNull(repository.fetchTrackArtwork(listOf(song)).single().artworkUri)
+            assertTrue(catalog.artworkRemoved(song))
+            catalog.preferences.update(originalOptions.copy(forceFields = setOf(kr.co.metadata.crawler.CatalogField.TRACK_IMAGE)))
+            assertNotNull(repository.fetchTrackArtwork(listOf(song)).single().artworkUri)
+            assertFalse(catalog.artworkRemoved(song))
+        } finally { catalog.preferences.update(originalOptions); prefs.edit().remove("removed_$id").commit() }
+    }
 }
