@@ -7,11 +7,11 @@
         <item name="windowSplashScreenBackground">@color/launcher_bg</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/rhythm_logo</item>
         <item name="windowSplashScreenAnimationDuration">10</item>
-        <item name="postSplashScreenTheme">@style/Theme.Rhythm</item>
+        <item name="postSplashScreenTheme">@style/Theme.T2Rhythm</item>
     </style>
 
     <!-- Base app theme -->
-    <style name="Theme.Rhythm" parent="Theme.AppCompat.NoActionBar">
+    <style name="Theme.T2Rhythm" parent="Theme.AppCompat.NoActionBar">
         <!-- Window background adapts to the app theme to avoid a wrong-color flash on startup -->
         <item name="android:windowBackground">@color/launcher_bg</item>
         <item name="android:windowActivityTransitions">true</item>
