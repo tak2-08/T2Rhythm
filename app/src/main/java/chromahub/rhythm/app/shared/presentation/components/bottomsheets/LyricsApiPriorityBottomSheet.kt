@@ -42,7 +42,8 @@ fun LyricsApiPriorityBottomSheet(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    val apiPriority by appSettings.lyricsApiPriority.collectAsState()
+    val savedPriority by appSettings.lyricsApiPriority.collectAsState()
+    val apiPriority = if (appSettings.isLyricsApiPrioritySet()) savedPriority else chromahub.rhythm.app.shared.data.model.LyricsApiPriority.BETTERLYRICS_FIRST
 
     RhythmAdaptiveModalSheet(
         adaptiveType = SheetAdaptiveType.COMPACT_DIALOG,

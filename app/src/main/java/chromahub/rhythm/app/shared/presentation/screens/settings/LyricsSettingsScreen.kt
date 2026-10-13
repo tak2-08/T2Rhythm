@@ -444,7 +444,8 @@ fun LyricsSettingsScreen(onBackClick: () -> Unit) {
                     modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
                 )
 
-                val apiPriority by appSettings.lyricsApiPriority.collectAsState()
+                val savedPriority by appSettings.lyricsApiPriority.collectAsState()
+    val apiPriority = if (appSettings.isLyricsApiPrioritySet()) savedPriority else chromahub.rhythm.app.shared.data.model.LyricsApiPriority.BETTERLYRICS_FIRST
                 val apiFallback by appSettings.lyricsApiFallbackRetry.collectAsState()
 
                 Material3SettingsGroup(
