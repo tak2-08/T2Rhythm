@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Rhythm</string>
+    <string name="app_name">T2Rhythm</string>
     <!-- Common Labels -->
     <string name="home">首页</string>
     <string name="library">曲库</string>
@@ -293,7 +293,7 @@
     <!-- Status Labels -->
     <string name="status_disabled">已禁用</string>
     <!-- HomeScreen -->
-    <string name="home_title">Rhythm</string>
+    <string name="home_title">T2Rhythm</string>
     <string name="home_settings_cd">设置</string>
     <string name="home_no_featured_albums">没有精选专辑</string>
     <string name="home_no_featured_albums_desc">将一些专辑添加到您的媒体库中以查看精选内容</string>
@@ -391,7 +391,7 @@
     <!-- Common UI -->
     <string name="ui_dismiss">取消</string>
     <!-- Common Terms -->
-    <string name="common_rhythm">Rhythm</string>
+    <string name="common_rhythm">T2Rhythm</string>
     <string name="common_home">首页</string>
     <string name="common_library">音乐库</string>
     <!-- Splash/Loading -->
@@ -905,7 +905,7 @@
     <string name="cd_reorder_chips">重新排列小组件</string>
     <string name="cd_search">搜索</string>
     <string name="cd_view_all">查看全部</string>
-    <string name="cd_rhythm_splash">Rhythm</string>
+    <string name="cd_rhythm_splash">T2Rhythm</string>
     <string name="cd_remove_from_playlist">从播放列表中删除</string>
     <string name="cd_change_language">更改语言</string>
     <string name="cd_open_settings">打开</string>
@@ -2451,7 +2451,7 @@
     <string name="carousel_style_hero">英雄</string>
     <string name="carousel_style_hero_desc">1 侧视专辑</string>
     <!-- Theme names -->
-    <string name="theme_rhythm">Rhythm</string>
+    <string name="theme_rhythm">T2Rhythm</string>
     <string name="theme_expressive">富有表现力</string>
     <string name="settings_managed_by_expressive_shapes">由富有表现力的形状管理</string>
     <!-- Shape targets -->

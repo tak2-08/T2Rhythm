@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Rhythm</string>
+    <string name="app_name">T2Rhythm</string>
     <!-- Common Labels -->
     <string name="home">Página inicial</string>
     <string name="library">Biblioteca</string>
@@ -10,7 +10,7 @@
     <string name="media3_notification_channel_description">Controles de reprodução em primeiro plano, ações de busca e capa do álbum</string>
     <!-- Widget strings -->
     <string name="widget_description_glance">Veja o que está tocando e controle sua música direto da tela inicial — reproduzir, pausar, pular e muito mais.</string>
-    <string name="widget_name_glance">Rhythm Music</string>
+    <string name="widget_name_glance">T2Rhythm Music</string>
     <string name="unknown_artist">Artista desconhecido</string>
     <string name="play_pause">Tocar/pausar</string>
     <!-- Widget Settings -->
@@ -311,7 +311,7 @@
     <!-- Status Labels -->
     <string name="status_disabled">Desativado</string>
     <!-- HomeScreen -->
-    <string name="home_title">Rhythm</string>
+    <string name="home_title">T2Rhythm</string>
     <string name="home_settings_cd">Configurações</string>
     <string name="home_no_featured_albums">Nenhum álbum em destaque</string>
     <string name="home_no_featured_albums_desc">Adicione alguns álbuns à sua biblioteca para ver o conteúdo em destaque</string>
@@ -413,7 +413,7 @@
     <!-- Common UI -->
     <string name="ui_dismiss">Dispensar</string>
     <!-- Common Terms -->
-    <string name="common_rhythm">Rhythm</string>
+    <string name="common_rhythm">T2Rhythm</string>
     <string name="common_home">Início</string>
     <string name="common_library">Biblioteca</string>
     <!-- Splash/Loading -->
@@ -927,7 +927,7 @@
     <string name="cd_reorder_chips">Reordenar cards</string>
     <string name="cd_search">Pesquisar</string>
     <string name="cd_view_all">Ver tudo</string>
-    <string name="cd_rhythm_splash">Rhythm</string>
+    <string name="cd_rhythm_splash">T2Rhythm</string>
     <string name="cd_remove_from_playlist">Remover da playlist</string>
     <string name="cd_change_language">Alterar idioma</string>
     <string name="cd_open_settings">Abrir</string>
@@ -1005,7 +1005,7 @@
     <string name="service_rhythm_pulse">Dicas do Rhythm</string>
     <string name="service_rhythm_guard_alerts">Alertas do Rhythm Guard</string>
     <string name="service_rhythm_guard_timers">Temporizadores do Rhythm Guard</string>
-    <string name="service_rhythm_music">Rhythm Music</string>
+    <string name="service_rhythm_music">T2Rhythm Music</string>
     <string name="service_update_status_desc">Resultados das verificações de atualização em segundo plano</string>
     <string name="service_rhythm_pulse_desc">Lembretes e dicas de escuta amigáveis do Rhythm</string>
     <string name="service_rhythm_guard_alerts_desc">Alertas de segurança do Rhythm Guard</string>
@@ -2493,7 +2493,7 @@
     <string name="carousel_style_hero">Destaque</string>
     <string name="carousel_style_hero_desc">1 álbum visível na lateral</string>
     <!-- Theme names -->
-    <string name="theme_rhythm">Rhythm</string>
+    <string name="theme_rhythm">T2Rhythm</string>
     <string name="theme_expressive">Expressivo</string>
     <string name="settings_managed_by_expressive_shapes">Gerenciado por \"Formas expressivas\"</string>
     <!-- Shape targets -->

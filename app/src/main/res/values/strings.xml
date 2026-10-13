@@ -1,11 +1,11 @@
 <resources>
-    <string name="app_name">Rhythm</string>
+    <string name="app_name">T2Rhythm</string>
 <string name="home">Home</string>
     <string name="library">Library</string>
     <string name="search">Search</string>
-<string name="media3_notification_channel_name">Rhythm Now Playing</string>
+<string name="media3_notification_channel_name">T2Rhythm Now Playing</string>
     <string name="media3_notification_channel_description">Foreground playback controls, seek actions, and album artwork</string>    <string name="widget_description_glance">See what\'s playing and control your music from your home screen — play, pause, skip, and more.</string>
-    <string name="widget_name_glance">Rhythm Music</string>
+    <string name="widget_name_glance">T2Rhythm Music</string>
     <string name="unknown_artist">Unknown artist</string>
     <string name="play_pause">Play/Pause</string>
 <string name="settings_widget">Widget</string>
@@ -337,7 +337,7 @@
     <string name="settings_about_report_bug">Report Bug or Suggest Feature</string>
 
 <string name="status_disabled">Disabled</string>
-<string name="home_title">Rhythm</string>
+<string name="home_title">T2Rhythm</string>
     <string name="home_settings_cd">Settings</string>
     <string name="home_no_featured_albums">No Featured Albums</string>
     <string name="home_no_featured_albums_desc">Add some albums to your library to see featured content</string>
@@ -422,7 +422,7 @@
     <string name="search_recent_searches">Recent Searches</string>
     <string name="search_browse_by_genre">Browse by Genre</string>
 <string name="ui_dismiss">Dismiss</string>
-<string name="common_rhythm">Rhythm</string>
+<string name="common_rhythm">T2Rhythm</string>
     <string name="common_home">Home</string>
     <string name="common_library">Library</string>
 <string name="splash_tagline">Your Music, Your Rhythm</string>
@@ -900,7 +900,7 @@
     <string name="cd_reorder_chips">Reorder chips</string>
     <string name="cd_search">Search</string>
     <string name="cd_view_all">View all</string>
-    <string name="cd_rhythm_splash">Rhythm</string>
+    <string name="cd_rhythm_splash">T2Rhythm</string>
     <string name="cd_remove_from_playlist">Remove from playlist</string>
     <string name="cd_change_language">Change Language</string>
     <string name="cd_open_settings">Open</string>
@@ -954,7 +954,7 @@
     <string name="service_rhythm_pulse">Rhythm Tips</string>
     <string name="service_rhythm_guard_alerts">Rhythm Guard Alerts</string>
     <string name="service_rhythm_guard_timers">Rhythm Guard Timers</string>
-    <string name="service_rhythm_music">Rhythm Music</string>
+    <string name="service_rhythm_music">T2Rhythm Music</string>
     <string name="service_update_status_desc">Status results for background update checks</string>
     <string name="service_rhythm_pulse_desc">Friendly listening reminders and tips from Rhythm</string>
     <string name="service_rhythm_guard_alerts_desc">Safety alerts from Rhythm Guard</string>
@@ -2401,7 +2401,7 @@
     <string name="carousel_style_hero_desc">1 side peek album</string>
 
     <!-- Widget preview sample text (launcher picker previews only, not user-facing copy) -->
-    <string name="widget_preview_brand" translatable="false">Rhythm</string>
+    <string name="widget_preview_brand" translatable="false">T2Rhythm</string>
     <string name="widget_preview_title" translatable="false">Midnight Drive</string>
     <string name="widget_preview_subtitle" translatable="false">Neon Waves</string>
     <string name="widget_preview_lyric_active" translatable="false">Forever running through the night</string>
@@ -2409,7 +2409,7 @@
     <string name="widget_preview_stats_time" translatable="false">12h 30m</string>
     <string name="widget_preview_stats_label" translatable="false">listening</string>
     <string name="widget_preview_stats_streak" translatable="false">30</string>
-<string name="theme_rhythm">Rhythm</string>
+<string name="theme_rhythm">T2Rhythm</string>
     <string name="theme_expressive">Expressive</string>
     <string name="settings_managed_by_expressive_shapes">Managed by Expressive Shapes</string>
 <string name="shape_target_album_art">Album Artwork</string>

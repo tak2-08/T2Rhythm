@@ -31,9 +31,9 @@ class CatalogFileStore(private val root: File) {
         }.getOrNull()
     }
     fun merge(kind: EntityKind, key: String, incoming: CatalogDocument, retryAfter: Long = 0,
-              imageFile: String? = null, replace: Boolean = false, attemptedFields: Set<CatalogField> = emptySet()): StoredCatalog = synchronized(locks.computeIfAbsent(file(kind, key).path) { Any() }) {
+              imageFile: String? = null, replace: Boolean = false, attemptedFields: Set<CatalogField> = emptySet(), reset: Boolean = false): StoredCatalog = synchronized(locks.computeIfAbsent(file(kind, key).path) { Any() }) {
         require(incoming.kind == kind)
-        val existing = read(kind, key)
+        val existing = if (reset) null else read(kind, key)
         val fields = existing?.document?.values.orEmpty().associateBy { it.field }.toMutableMap()
         incoming.values.filter { replace || it.hasValue() }.forEach {
             if (replace || fields[it.field]?.hasValue() != true) fields[it.field] = it

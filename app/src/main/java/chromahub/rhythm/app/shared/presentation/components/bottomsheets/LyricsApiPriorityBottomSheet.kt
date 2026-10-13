@@ -97,7 +97,12 @@ fun LyricsApiPriorityBottomSheet(
                 )
             )
 
-            priorityOptions.forEachIndexed { index, (priority, info) ->
+            val siteOptions = listOf(
+                LyricsApiPriority.BUGS_FIRST to Pair("Bugs · 벅스", context.getString(R.string.catalog_site_lyrics_hint)),
+                LyricsApiPriority.MELON_FIRST to Pair("Melon · 멜론", context.getString(R.string.catalog_site_lyrics_hint)),
+                LyricsApiPriority.GENIE_FIRST to Pair("Genie · 지니", context.getString(R.string.catalog_site_lyrics_hint))
+            )
+            (priorityOptions + siteOptions).forEachIndexed { index, (priority, info) ->
                 val (title, description) = info
                 val isSelected = apiPriority == priority
 
@@ -105,6 +110,7 @@ fun LyricsApiPriorityBottomSheet(
                     onClick = {
                         HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
                         appSettings.setLyricsApiPriority(priority)
+                        if (priority in setOf(LyricsApiPriority.MUSIC_CRAWLER_FIRST, LyricsApiPriority.BUGS_FIRST, LyricsApiPriority.MELON_FIRST, LyricsApiPriority.GENIE_FIRST)) appSettings.setMusicCrawlerLyricsApiEnabled(true)
                         onDismiss()
                     },
                     colors = CardDefaults.cardColors(
@@ -113,7 +119,7 @@ fun LyricsApiPriorityBottomSheet(
                         else
                             MaterialTheme.colorScheme.surfaceContainerHigh
                     ),
-                    shape = groupedBottomSheetItemShape(index, priorityOptions.size),
+                    shape = groupedBottomSheetItemShape(index, priorityOptions.size + siteOptions.size),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(

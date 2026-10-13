@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Rhythm</string>
+    <string name="app_name">T2Rhythm</string>
     <!-- Common Labels -->
     <string name="home">الصفحة الرئيسية</string>
     <string name="library">المكتبة</string>
@@ -338,7 +338,7 @@
     <!-- Status Labels -->
     <string name="status_disabled">معطل</string>
     <!-- HomeScreen -->
-    <string name="home_title">Rhythm</string>
+    <string name="home_title">T2Rhythm</string>
     <string name="home_settings_cd">الإعدادات</string>
     <string name="home_no_featured_albums">لا توجد ألبومات مميزة</string>
     <string name="home_no_featured_albums_desc">أضف بعض الألبومات إلى مكتبتك لرؤية المحتوى المميز</string>
@@ -446,7 +446,7 @@
     <!-- Common UI -->
     <string name="ui_dismiss">استبعد</string>
     <!-- Common Terms -->
-    <string name="common_rhythm">Rhythm</string>
+    <string name="common_rhythm">T2Rhythm</string>
     <string name="common_home">الصفحة الرئيسية</string>
     <string name="common_library">المكتبة</string>
     <!-- Splash/Loading -->
@@ -960,7 +960,7 @@
     <string name="cd_reorder_chips">إعادة ترتيب الرقائق</string>
     <string name="cd_search">بحث</string>
     <string name="cd_view_all">عرض الكل</string>
-    <string name="cd_rhythm_splash">Rhythm</string>
+    <string name="cd_rhythm_splash">T2Rhythm</string>
     <string name="cd_remove_from_playlist">إزالة من قائمة التشغيل</string>
     <string name="cd_change_language">تغيير اللغة</string>
     <string name="cd_open_settings">مفتوح</string>
@@ -2556,7 +2556,7 @@
     <string name="carousel_style_hero">البطل</string>
     <string name="carousel_style_hero_desc">1 ألبوم نظرة خاطفة جانبية</string>
     <!-- Theme names -->
-    <string name="theme_rhythm">Rhythm</string>
+    <string name="theme_rhythm">T2Rhythm</string>
     <string name="theme_expressive">معبرة</string>
     <string name="settings_managed_by_expressive_shapes">تدار بواسطة الأشكال التعبيرية</string>
     <!-- Shape targets -->

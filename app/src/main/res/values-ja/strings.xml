@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Rhythm</string>
+    <string name="app_name">T2Rhythm</string>
     <!-- Common Labels -->
     <string name="home">ホーム</string>
     <string name="library">ライブラリー</string>
@@ -293,7 +293,7 @@
     <!-- Status Labels -->
     <string name="status_disabled">無効</string>
     <!-- HomeScreen -->
-    <string name="home_title">Rhythm</string>
+    <string name="home_title">T2Rhythm</string>
     <string name="home_settings_cd">設定</string>
     <string name="home_no_featured_albums">注目のアルバムはありません</string>
     <string name="home_no_featured_albums_desc">ライブラリにアルバムを追加して、注目のコンテンツを表示します</string>
@@ -391,7 +391,7 @@
     <!-- Common UI -->
     <string name="ui_dismiss">却下</string>
     <!-- Common Terms -->
-    <string name="common_rhythm">Rhythm</string>
+    <string name="common_rhythm">T2Rhythm</string>
     <string name="common_home">ホーム</string>
     <string name="common_library">ライブラリ</string>
     <!-- Splash/Loading -->
@@ -905,7 +905,7 @@
     <string name="cd_reorder_chips">チップの並べ替え</string>
     <string name="cd_search">検索</string>
     <string name="cd_view_all">全て見る</string>
-    <string name="cd_rhythm_splash">Rhythm</string>
+    <string name="cd_rhythm_splash">T2Rhythm</string>
     <string name="cd_remove_from_playlist">プレイリストから削除する</string>
     <string name="cd_change_language">言語を変更する</string>
     <string name="cd_open_settings">開く</string>
@@ -2451,7 +2451,7 @@
     <string name="carousel_style_hero">ヒーロー</string>
     <string name="carousel_style_hero_desc">サイドピークアルバム1枚</string>
     <!-- Theme names -->
-    <string name="theme_rhythm">Rhythm</string>
+    <string name="theme_rhythm">T2Rhythm</string>
     <string name="theme_expressive">Expressive</string>
     <string name="settings_managed_by_expressive_shapes">表現力豊かな形状による管理</string>
     <!-- Shape targets -->

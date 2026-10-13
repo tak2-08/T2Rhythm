@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Rhythm</string>
+    <string name="app_name">T2Rhythm</string>
     <!-- Common Labels -->
     <string name="home">घर</string>
     <string name="library">पुस्तकालय</string>
@@ -302,7 +302,7 @@
     <!-- Status Labels -->
     <string name="status_disabled">विकलांग</string>
     <!-- HomeScreen -->
-    <string name="home_title">Rhythm</string>
+    <string name="home_title">T2Rhythm</string>
     <string name="home_settings_cd">सेटिंग्स</string>
     <string name="home_no_featured_albums">कोई विशेष एल्बम नहीं</string>
     <string name="home_no_featured_albums_desc">चुनिंदा सामग्री देखने के लिए अपनी लाइब्रेरी में कुछ एल्बम जोड़ें</string>
@@ -402,7 +402,7 @@
     <!-- Common UI -->
     <string name="ui_dismiss">बर्खास्त करें</string>
     <!-- Common Terms -->
-    <string name="common_rhythm">Rhythm</string>
+    <string name="common_rhythm">T2Rhythm</string>
     <string name="common_home">घर</string>
     <string name="common_library">पुस्तकालय</string>
     <!-- Splash/Loading -->
@@ -916,7 +916,7 @@
     <string name="cd_reorder_chips">चिप्स को पुनः व्यवस्थित करें</string>
     <string name="cd_search">खोजें</string>
     <string name="cd_view_all">सभी देखें</string>
-    <string name="cd_rhythm_splash">Rhythm</string>
+    <string name="cd_rhythm_splash">T2Rhythm</string>
     <string name="cd_remove_from_playlist">प्लेलिस्ट से हटाएँ</string>
     <string name="cd_change_language">भाषा बदलें</string>
     <string name="cd_open_settings">खुला</string>
@@ -2472,7 +2472,7 @@
     <string name="carousel_style_hero">हीरो</string>
     <string name="carousel_style_hero_desc">1 साइड पीक एल्बम</string>
     <!-- Theme names -->
-    <string name="theme_rhythm">Rhythm</string>
+    <string name="theme_rhythm">T2Rhythm</string>
     <string name="theme_expressive">अभिव्यंजक</string>
     <string name="settings_managed_by_expressive_shapes">एक्सप्रेसिव शेप्स द्वारा प्रबंधित</string>
     <!-- Shape targets -->

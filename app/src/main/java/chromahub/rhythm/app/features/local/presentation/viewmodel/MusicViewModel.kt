@@ -4821,6 +4821,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         extras.putString(METADATA_EXTRA_ORIGINAL_TITLE, song.title)
         extras.putString(METADATA_EXTRA_ORIGINAL_ARTIST, song.artist)
         extras.putString(METADATA_EXTRA_ORIGINAL_ALBUM, song.album)
+        extras.putLong("t2rhythm.dateAdded", song.dateAdded)
+        extras.putString("t2rhythm.path", song.path)
         return extras
     }
 
@@ -4977,6 +4979,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     .setTitle(this.title)
                     .setArtist(this.artist)
                     .setAlbumTitle(this.album)
+                    .setGenre(this.genre)
+                    .setExtras(buildCanonicalMetadataExtras(this, null))
                     .setDurationMs(this.duration)
                     .setArtworkUri(this.artworkUri)
                     .build()
@@ -5587,10 +5591,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val song = _songs.value.find { it.id == songId } ?: _recentlyPlayed.value.find { it.id == songId }
                 if (song != null) {
                     Log.d(TAG, "Finalizing playback for '${song.title}': ${actualDuration}ms actual listening time")
-                    playbackStatsRepository.recordPlayback(
-                        song = song,
-                        durationMs = actualDuration
-                    )
+                    // Durable playback capture is owned by MediaPlaybackService, including background playback.
+
                     if (appSettings.defaultPlaylistsEnabled.value) {
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
