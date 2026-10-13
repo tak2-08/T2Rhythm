@@ -54,6 +54,7 @@ class CatalogEnrichmentService private constructor(private val context: Context)
     private val providers: Map<Provider, MusicProvider> = listOf(BugsMobileProvider(http), BugsPcProvider(http),
         GenieProvider(http), MelonProvider(http)).associateBy { it.provider }
 
+    fun onlineArtworkEnabled() = enabled() && preferences.options.value.artwork && preferences.options.value.artworkSource !in setOf("LOCAL_ONLY", "LEGACY", "DISABLED") && preferences.options.value.providers.isNotEmpty()
     fun enabled() = preferences.options.value.enabled && AppSettings.getInstance(context).integrationsEnabled.value
     fun songKey(song: Song): String = song.path?.takeIf(String::isNotBlank) ?: song.uri.toString().substringBefore('?')
     fun albumKey(title: String, artist: String) = "${CatalogIdentity.normalize(artist)}:${CatalogIdentity.normalize(title)}"
@@ -86,14 +87,14 @@ class CatalogEnrichmentService private constructor(private val context: Context)
     }
     private fun changed() { revision.update { it + 1 }; PersonalArchive.enqueue(context) }
     private fun save(kind: EntityKind, key: String, document: CatalogDocument, retryAfter: Long,
-                     imageFile: String? = null, replace: Boolean = false, attemptedFields: Set<CatalogField> = emptySet(), reset: Boolean = false): StoredCatalog {
-        val result = if (preferences.options.value.permanent) store.merge(kind, key, document, retryAfter, imageFile, replace, attemptedFields, reset)
+                     imageFile: String? = null, replace: Boolean = false, attemptedFields: Set<CatalogField> = emptySet(), reset: Boolean = false, matchingPolicy: String? = null): StoredCatalog {
+        val result = if (preferences.options.value.permanent) store.merge(kind, key, document, retryAfter, imageFile, replace, attemptedFields, reset, matchingPolicy)
             else {
                 val existing = if (reset) null else read(kind, key)
                 val fields = existing?.document?.values.orEmpty().associateBy { it.field }.toMutableMap()
                 document.values.filter { replace || it.hasValue() }.forEach { if (replace || fields[it.field]?.hasValue() != true) fields[it.field] = it }
                 StoredCatalog(CatalogDocument(kind, fields.values.toList()), retryAfter, imageFile = imageFile ?: existing?.imageFile,
-                    attemptedFields = attemptedFields + existing?.attemptedFields.orEmpty())
+                    attemptedFields = attemptedFields + existing?.attemptedFields.orEmpty(), matchingPolicy = matchingPolicy ?: existing?.matchingPolicy)
             }
         temporary[cacheKey(kind, key)] = result
         projections[cacheKey(kind, key)] = compact(result)
@@ -123,12 +124,13 @@ class CatalogEnrichmentService private constructor(private val context: Context)
                         durationMs: Long = 0, album: String? = null, selectedProviders: Set<Provider>? = null,
                         replace: Boolean = false): StoredCatalog? = withContext(Dispatchers.IO) {
         val selection = selectedProviders ?: preferences.options.value.providers
+        val policy = selection.sortedByDescending { it.priority }.joinToString { it.name } + if (kind == EntityKind.TRACK) ":${durationMs}:${preferences.options.value.strictDuration}:${preferences.options.value.durationTolerancePercent}" else ""
         val recordKey = if (selectedProviders == null) key else "source:${selection.sortedByDescending { it.priority }.joinToString { it.name }}:$key"
         entityLocks.computeIfAbsent(cacheKey(kind, recordKey)) { Mutex() }.withLock {
             var record = read(kind, recordKey)
             val lengthVerified = kind != EntityKind.TRACK || durationMs <= 0 || !preferences.options.value.strictDuration || CatalogIdentity.durationMatches(durationMs, record?.document?.get(CatalogField.TRACK_DURATION_MS)?.toLongOrNull(), preferences.options.value.durationTolerancePercent)
             if ((!replace && lengthVerified && wanted.all { record?.document?.has(it) == true }) || !enabled() || CatalogIdentity.missing(name)) return@withLock record
-            if (!replace && (record?.retryAfter ?: 0) > System.currentTimeMillis() && wanted.all {
+            if (!replace && record?.matchingPolicy == policy && (record?.retryAfter ?: 0) > System.currentTimeMillis() && wanted.all {
                     record?.document?.has(it) == true || it in record?.attemptedFields.orEmpty()
                 }) return@withLock record.takeIf { lengthVerified }
             val values = record?.document?.values.orEmpty().associateBy { it.field }.toMutableMap()
@@ -160,7 +162,7 @@ class CatalogEnrichmentService private constructor(private val context: Context)
                 doc.values.forEach { if (values[it.field]?.hasValue() != true && it.hasValue()) values[it.field] = it }
             }
             val next = System.currentTimeMillis() + 7 * 24 * 3600_000L
-            record = save(kind, recordKey, CatalogDocument(kind, values.values.toList()), next, replace = replace || !lengthVerified, attemptedFields = wanted, reset = !lengthVerified)
+            record = save(kind, recordKey, CatalogDocument(kind, values.values.toList()), next, replace = replace || !lengthVerified, attemptedFields = wanted, reset = !lengthVerified, matchingPolicy = policy)
             record.takeIf { kind != EntityKind.TRACK || durationMs <= 0 || !preferences.options.value.strictDuration || CatalogIdentity.durationMatches(durationMs, it?.document?.get(CatalogField.TRACK_DURATION_MS)?.toLongOrNull(), preferences.options.value.durationTolerancePercent) }
         }
     }

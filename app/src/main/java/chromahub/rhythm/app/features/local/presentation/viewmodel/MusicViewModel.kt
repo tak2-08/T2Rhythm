@@ -2022,7 +2022,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val artistSource1 = appSettings.artistArtworkSource.value
                 val shouldFetchArtists = hasMissingArtists &&
                     artistSource1 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.DISABLED &&
-                    (artistSource1 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY || appSettings.deezerApiEnabled.value)
+                    (artistSource1 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY || appSettings.deezerApiEnabled.value || chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).onlineArtworkEnabled())
                 val shouldFetchAlbumsAndSongs = (hasMissingAlbums || hasMissingSongs) && appSettings.isAutoFetchArtworkActive.value && (appSettings.ytMusicApiEnabled.value || appSettings.deezerApiEnabled.value)
 
                 if (shouldFetchArtists || shouldFetchAlbumsAndSongs) {
@@ -2193,7 +2193,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val artistSource2 = appSettings.artistArtworkSource.value
                 val shouldFetchArtists = hasMissingArtists &&
                     artistSource2 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.DISABLED &&
-                    (artistSource2 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY || appSettings.deezerApiEnabled.value)
+                    (artistSource2 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY || appSettings.deezerApiEnabled.value || chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).onlineArtworkEnabled())
                 val shouldFetchAlbumsAndSongs = (hasMissingAlbums || hasMissingSongs) && appSettings.isAutoFetchArtworkActive.value && (appSettings.ytMusicApiEnabled.value || appSettings.deezerApiEnabled.value)
 
                 if (shouldFetchArtists || shouldFetchAlbumsAndSongs) {
@@ -2544,7 +2544,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         val artistSource3 = appSettings.artistArtworkSource.value
                         val shouldFetchArtists = hasMissingArtists &&
                             artistSource3 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.DISABLED &&
-                            (artistSource3 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY || appSettings.deezerApiEnabled.value)
+                            (artistSource3 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY || appSettings.deezerApiEnabled.value || chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).onlineArtworkEnabled())
                         val shouldFetchAlbumsAndSongs = (hasMissingAlbums || hasMissingSongs) && appSettings.isAutoFetchArtworkActive.value && (appSettings.ytMusicApiEnabled.value || appSettings.deezerApiEnabled.value)
 
                         if (shouldFetchArtists || shouldFetchAlbumsAndSongs) {
