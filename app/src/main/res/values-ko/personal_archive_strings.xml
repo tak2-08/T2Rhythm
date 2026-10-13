@@ -55,4 +55,8 @@
     <string name="personal_reason_favorite">즐겨찾기 기반</string>
     <string name="personal_reason_rediscovery">오랜만에 다시 듣기</string>
     <string name="personal_reason_unplayed">아직 듣지 않은 곡</string>
+    <string name="personal_first_listen_delay">추가 후 %1$d시간 만에 첫 청취</string>
+    <string name="personal_reason_time">지금 시간대의 청취 취향</string>
+    <string name="personal_reason_transition">익숙한 장르 흐름</string>
+    <string name="personal_reason_routine">재청취 주기 반영</string>
 </resources>

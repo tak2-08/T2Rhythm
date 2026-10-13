@@ -55,4 +55,8 @@
     <string name="personal_reason_favorite">From your favorites</string>
     <string name="personal_reason_rediscovery">Time to rediscover</string>
     <string name="personal_reason_unplayed">Still waiting to be heard</string>
+    <string name="personal_first_listen_delay">First played %1$d hours after adding</string>
+    <string name="personal_reason_time">Fits your listening hour</string>
+    <string name="personal_reason_transition">A familiar genre transition</string>
+    <string name="personal_reason_routine">Matches your replay rhythm</string>
 </resources>

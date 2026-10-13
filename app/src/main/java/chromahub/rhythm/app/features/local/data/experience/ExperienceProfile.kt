@@ -40,11 +40,13 @@ data class ExperienceProfile(val version: Int = 1, val artistWeight: Double = 0.
 data class RecommendationCandidate(val key: String, val artist: String, val genre: String?, val addedAt: Long,
     val favorite: Boolean = false, val current: Boolean = false, val acousticSimilarity: Double = 0.0)
 data class RecommendationScore(val key: String, val score: Double, val reasons: List<String>)
+data class RecommendationContext(val hourlyGenres: Map<String, Double> = emptyMap(), val genreTransitions: Map<String, Double> = emptyMap(),
+    val skipRates: Map<String, Double> = emptyMap(), val replayDue: Map<String, Double> = emptyMap())
 
 /** Deterministic, explainable ranking over lifetime history; never uploads listening data. */
 object PersonalRecommendation {
     fun rank(candidates: List<RecommendationCandidate>, history: List<ListeningLedger.Affinity>, profile: ExperienceProfile,
-             now: Long = System.currentTimeMillis()): List<RecommendationScore> {
+             now: Long = System.currentTimeMillis(), context: RecommendationContext = RecommendationContext()): List<RecommendationScore> {
         val artist = history.groupBy { it.artist }.mapValues { it.value.sumOf { h -> h.listenedMs }.toDouble() }
         val genre = history.filter { !it.genre.isNullOrBlank() }.groupBy { it.genre }.mapValues { it.value.sumOf { h -> h.listenedMs }.toDouble() }
         val bySong = history.associateBy { it.songKey }
@@ -58,12 +60,19 @@ object PersonalRecommendation {
             val novelty = if (h == null) 1.0 else ((now - h.lastAt).coerceAtLeast(0).toDouble() / (14 * 24 * 3600_000L)).coerceIn(0.0, 1.0)
             val repeat = if (h == null) 0.0 else kotlin.math.ln(1 + h.plays.toDouble()) / 5.0
             val recentPenalty = if (h != null && now - h.lastAt < 2 * 3600_000) .4 else 0.0
+            val hour = context.hourlyGenres[c.genre.orEmpty()] ?: 0.0
+            val transition = context.genreTransitions[c.genre.orEmpty()] ?: 0.0
+            val skip = context.skipRates[c.key] ?: 0.0
+            val due = context.replayDue[c.key] ?: 0.0
+            val newlyAdded = if (h == null && c.addedAt > 0) (1 - (now - c.addedAt).coerceAtLeast(0).toDouble() / (30 * 24 * 3600_000L)).coerceIn(0.0, 1.0) else 0.0
             val score = a * profile.artistWeight + g * profile.genreWeight + novelty * profile.noveltyWeight +
-                repeat.coerceAtMost(1.0) * profile.repeatWeight + c.acousticSimilarity * profile.audioWeight + (if (c.favorite) .1 else 0.0) - recentPenalty
+                repeat.coerceAtMost(1.0) * profile.repeatWeight + c.acousticSimilarity * profile.audioWeight + (if (c.favorite) .1 else 0.0) - recentPenalty +
+                profile.genreWeight * .25 * (hour + transition) + profile.repeatWeight * .25 * due + profile.noveltyWeight * .2 * newlyAdded - .35 * skip
             RecommendationScore(c.key, score, buildList {
                 if (a > .4) add("artist"); if (g > .4) add("genre"); if (c.acousticSimilarity > .8) add("audio")
                 if (h == null) add("unplayed") else if (novelty > .7) add("rediscovery")
                 if (c.favorite) add("favorite")
+                if (hour > .5) add("time"); if (transition > .5) add("transition"); if (due > .5) add("routine")
             })
         }.sortedWith(compareByDescending<RecommendationScore> { it.score }.thenBy { it.key })
     }

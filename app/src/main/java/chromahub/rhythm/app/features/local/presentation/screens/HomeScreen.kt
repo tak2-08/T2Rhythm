@@ -3059,7 +3059,7 @@ private fun ModernRecommendedSection(
 
         if (personalized) recommendedSongs.firstOrNull()?.let { song ->
             val reasons = chromahub.rhythm.app.features.local.data.experience.PersonalTasteRepository.reasons(song.uri.toString()).map { reason ->
-                context.getString(when (reason) { "artist" -> R.string.personal_reason_artist; "genre" -> R.string.personal_reason_genre; "audio" -> R.string.personal_reason_audio; "favorite" -> R.string.personal_reason_favorite; "rediscovery" -> R.string.personal_reason_rediscovery; else -> R.string.personal_reason_unplayed })
+                context.getString(when (reason) { "time" -> R.string.personal_reason_time; "transition" -> R.string.personal_reason_transition; "routine" -> R.string.personal_reason_routine; "artist" -> R.string.personal_reason_artist; "genre" -> R.string.personal_reason_genre; "audio" -> R.string.personal_reason_audio; "favorite" -> R.string.personal_reason_favorite; "rediscovery" -> R.string.personal_reason_rediscovery; else -> R.string.personal_reason_unplayed })
             }
             if (reasons.isNotEmpty()) Text(reasons.joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }

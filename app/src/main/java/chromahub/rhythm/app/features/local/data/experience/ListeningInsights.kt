@@ -33,6 +33,7 @@ object ListeningInsightAnalysis {
             artists[r.artist] = (artists[r.artist] ?: 0) + r.listenedMs
         }
         val plays = segments.groupBy { it.playId }.values.sortedBy { it.minOf(ListeningRecord::startedAt) }
+        val actions = records.filter { it.kind == "action" }.groupBy { it.playId }
         val transitions = mutableMapOf<Pair<String, String>, Int>()
         plays.zipWithNext().forEach { (before, after) ->
             // Only transitions within a listening session, never infer a transition across days of silence.
@@ -49,8 +50,8 @@ object ListeningInsightAnalysis {
         val habits = plays.groupBy { it.first().songKey }.map { (key, group) ->
             val first = group.first().first(); val starts = group.map { it.minOf(ListeningRecord::startedAt) }.sorted()
             val gaps = starts.zipWithNext().map { (a, b) -> b - a }.sorted()
-            val completed = group.count { play -> play.any { it.completed } || first.audioDurationMs > 0 && play.sumOf { it.listenedMs } >= first.audioDurationMs * .9 }
-            val skips = group.count { play -> first.audioDurationMs > 0 && play.sumOf { it.listenedMs } < minOf(30_000, first.audioDurationMs / 4) && play.any { it.reason == "skip_or_queue_change" } }
+            val completed = group.count { play -> play.any { it.completed } || actions[play.first().playId].orEmpty().any { it.reason in setOf("ended", "next_auto", "repeat") } || first.audioDurationMs > 0 && play.sumOf { it.listenedMs } >= first.audioDurationMs * .9 }
+            val skips = group.count { play -> first.audioDurationMs > 0 && play.sumOf { it.listenedMs } < minOf(30_000, first.audioDurationMs / 4) && (play.any { it.reason == "skip_or_queue_change" } || actions[play.first().playId].orEmpty().any { it.reason == "track_change" }) }
             SongHabit(key, first.title, first.artist, group.size, group.flatten().sumOf { it.listenedMs },
                 gaps.takeIf { it.isNotEmpty() }?.get(gaps.size / 2), streaks[key] ?: 1, completed, skips,
                 first.libraryAddedAt.takeIf { it > 0 && starts.first() >= it }?.let { starts.first() - it })

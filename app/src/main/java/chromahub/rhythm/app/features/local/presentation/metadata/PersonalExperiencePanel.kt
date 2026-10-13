@@ -38,7 +38,7 @@ fun PersonalExperiencePanel() {
             val selected = YearMonth.parse(month); val zone = ZoneId.systemDefault()
             val start = selected.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
             val end = selected.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1
-            val result = ListeningInsightAnalysis.analyze(ledger.records(start, end))
+            val result = ListeningInsightAnalysis.analyze(ledger.records(start, end) + ledger.records(start, end, "action"))
             val allMonths = ledger.months()
             withContext(Dispatchers.Main) { insight = result; months = allMonths }
         }
@@ -73,6 +73,7 @@ fun PersonalExperiencePanel() {
                 data.habits.take(3).forEach { habit ->
                     Text(habit.title + " · " + context.getString(R.string.personal_song_habit, habit.plays, habit.completed, habit.earlySkips, habit.maxConsecutiveRepeats), style = MaterialTheme.typography.bodySmall)
                     habit.medianGapMs?.let { Text(context.getString(R.string.personal_interval, it / 3600_000), style = MaterialTheme.typography.labelSmall) }
+                    habit.firstListenDelayMs?.let { Text(context.getString(R.string.personal_first_listen_delay, it / 3600_000), style = MaterialTheme.typography.labelSmall) }
                 }
                 if (data.totalPlays == 0) Text(stringResource(R.string.personal_history_empty), style = MaterialTheme.typography.bodySmall)
             }

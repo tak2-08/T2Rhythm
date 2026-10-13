@@ -45,6 +45,12 @@ class PersonalExperienceTest {
         assertEquals("new", ranked.first().key); assertFalse(ranked.any { it.key == "current" })
         assertTrue("genre" in ranked.first().reasons)
     }
+    @Test fun `time preferences and genre transitions boost familiar flows while skips penalize songs`() {
+        val candidates = listOf(RecommendationCandidate("a", "Artist", "Rock", 0), RecommendationCandidate("b", "Artist", "Pop", 0))
+        val context = RecommendationContext(hourlyGenres = mapOf("Pop" to 1.0), genreTransitions = mapOf("Pop" to 1.0), skipRates = mapOf("a" to 1.0))
+        val ranked = PersonalRecommendation.rank(candidates, emptyList(), ExperienceProfile(), context = context)
+        assertEquals("b", ranked.first().key); assertTrue("time" in ranked.first().reasons); assertTrue("transition" in ranked.first().reasons)
+    }
     @Test fun `streaming spectrum recognizes a tone and remains finite for silence`() {
         val tone = SignalAnalysis(8192, 1000)
         val silence = SignalAnalysis(8192, 1000)
