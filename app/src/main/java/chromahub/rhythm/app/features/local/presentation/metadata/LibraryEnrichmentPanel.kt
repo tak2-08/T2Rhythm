@@ -152,16 +152,8 @@ fun LibraryEnrichmentPanel() {
             toggle(R.string.catalog_artwork_fields, options.artwork) { catalog.preferences.update(options.copy(artwork = it)) }
             toggle(R.string.catalog_profile_fields, options.profiles) { catalog.preferences.update(options.copy(profiles = it)) }
             toggle(R.string.catalog_lyrics_fields, options.lyrics) { catalog.preferences.update(options.copy(lyrics = it)) }
-            }
-            Text(stringResource(R.string.catalog_provider_hint), style = MaterialTheme.typography.labelLarge)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf(Provider.BUGS_MOBILE, Provider.MELON, Provider.GENIE).forEach { provider ->
-                    FilterChip(selected = provider in options.providers, enabled = !active && !busy,
-                        onClick = { catalog.preferences.update(options.copy(providers = if (provider in options.providers) options.providers - provider else options.providers + provider)) },
-                        label = { Text(if (provider == Provider.BUGS_MOBILE) "Bugs" else provider.label) })
-                }
-            }
             Text(stringResource(R.string.catalog_lyrics_follow_settings), style = MaterialTheme.typography.bodySmall)
+            }
             if (!integrations) Text(stringResource(R.string.catalog_integrations_off), color = MaterialTheme.colorScheme.error)
             plan?.let { snapshot ->
                 val done = progress?.getInt("done", snapshot.next) ?: snapshot.next
@@ -187,9 +179,7 @@ fun LibraryEnrichmentPanel() {
                     catch (_: Exception) { busy = false; afterGrant = null; message = context.getString(R.string.catalog_permission_error) }
                 }
             }, modifier = Modifier.fillMaxWidth()) { Text(context.getString(R.string.catalog_pending_writes, pending)) }
-            OutlinedButton(enabled = !active && !busy, onClick = { export.launch(options.exportTree?.let(android.net.Uri::parse)) }, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.personal_archive_choose))
-            }
+
         }
     }
 }

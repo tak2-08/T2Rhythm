@@ -66,8 +66,8 @@ fun CatalogLibrarySettingsScreen(onBackClick: () -> Unit) {
     ) { modifier ->
         androidx.compose.foundation.lazy.LazyColumn(modifier = modifier.fillMaxSize(),
             contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            item { CatalogSourceSettings() }
             item { LibraryEnrichmentPanel() }
+            item { CatalogSourceSettings() }
             item { PersonalArchivePanel() }
             item { PersonalExperiencePanel() }
         }
