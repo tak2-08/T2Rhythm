@@ -2,6 +2,8 @@
 package chromahub.rhythm.app.shared.presentation.components.player
 
 import android.content.Intent
+import android.view.TextureView
+import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,7 +26,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
+import androidx.media3.ui.AspectRatioFrameLayout
 import chromahub.rhythm.app.R
 import chromahub.rhythm.app.features.local.data.experience.RecommendationLearning
 import chromahub.rhythm.app.features.local.data.video.*
@@ -131,23 +133,46 @@ private fun MutedMusicVideo(video: MusicVideo, repository: MusicVideoRepository,
         lifecycle.addObserver(observer); onDispose { lifecycle.removeObserver(observer) }
     }
     val playing = foreground && isPlaying
+    val currentPosition by rememberUpdatedState(position)
     if (video.source == "local") {
         val player = remember(video.fileName) { ExoPlayer.Builder(context.applicationContext).build().apply {
             volume = 0f; setAudioAttributes(androidx.media3.common.AudioAttributes.DEFAULT, false)
             repository.uri(video)?.let { setMediaItem(MediaItem.fromUri(it)); prepare() }
         } }
-        DisposableEffect(player) { val listener = object : androidx.media3.common.Player.Listener { override fun onPlayerError(error: androidx.media3.common.PlaybackException) { onError() } }; player.addListener(listener); onDispose { player.removeListener(listener); player.release() } }
-        LaunchedEffect(player, playing, video.offsetMs) { player.playWhenReady = playing
+        var aspectRatio by remember(player) { mutableStateOf(0f) }
+        DisposableEffect(player) {
+            val listener = object : androidx.media3.common.Player.Listener {
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) { onError() }
+                override fun onVideoSizeChanged(size: androidx.media3.common.VideoSize) {
+                    if (size.height > 0) aspectRatio = size.width.toFloat() * size.pixelWidthHeightRatio / size.height
+                }
+            }
+            player.addListener(listener)
+            onDispose { player.removeListener(listener); player.release() }
+        }
+        LaunchedEffect(player, playing, video.offsetMs) {
+            var initialSeek = true
             while (true) {
-                val requested = position() + video.offsetMs
+                val requested = currentPosition() + video.offsetMs
                 val duration = player.duration
-                val target = if (duration > 0) requested.coerceIn(0, (duration - 100).coerceAtLeast(0)) else requested.coerceAtLeast(0)
                 player.playWhenReady = playing && requested >= 0 && (duration <= 0 || requested < duration)
-                if (kotlin.math.abs(player.currentPosition - target) > 1500 || player.playbackState == androidx.media3.common.Player.STATE_ENDED && requested < duration) player.seekTo(target)
-                delay(1000)
+                if (duration > 0) {
+                    val target = requested.coerceIn(0, (duration - 250).coerceAtLeast(0))
+                    if (initialSeek || kotlin.math.abs(player.currentPosition - target) > 1500) {
+                        player.seekTo(target); initialSeek = false
+                    }
+                }
+                delay(500)
             }
         }
-        AndroidView(factory = { PlayerView(it).apply { useController = false; this.player = player } }, update = { it.player = player }, modifier = modifier)
+        key(player) {
+            AndroidView(factory = { ctx -> AspectRatioFrameLayout(ctx).apply {
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                val texture = TextureView(ctx)
+                addView(texture, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                player.setVideoTextureView(texture)
+            } }, update = { it.setAspectRatio(aspectRatio) }, modifier = modifier)
+        }
     } else {
         val currentPlaying by rememberUpdatedState(playing)
         val currentError by rememberUpdatedState(onError)
@@ -164,13 +189,13 @@ private fun MutedMusicVideo(video: MusicVideo, repository: MusicVideoRepository,
                 override fun onReceivedError(view: WebView, request: android.webkit.WebResourceRequest, error: android.webkit.WebResourceError) { if (request.isForMainFrame) onError() }
                 override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean = true
             }
-            val start = ((position() + video.offsetMs).coerceAtLeast(0) / 1000)
+            val start = ((currentPosition() + video.offsetMs).coerceAtLeast(0) / 1000)
             val html = """<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#000"><div id="mv" style="position:absolute;width:100%;height:100%"></div><script src="https://www.youtube.com/iframe_api"></script><script>var player,shouldPlay=${playing};function setPlaying(value){shouldPlay=value;if(player&&player.mute){player.mute();if(value)player.playVideo();else player.pauseVideo();}}function setPosition(time){if(player&&player.getCurrentTime){var duration=player.getDuration();var target=Math.max(0,duration>0?Math.min(time,Math.max(0,duration-0.1)):time);if(Math.abs(player.getCurrentTime()-target)>1.5)player.seekTo(target,true);if(time<0||duration>0&&time>=duration)player.pauseVideo();else if(shouldPlay)player.playVideo();player.mute();}}function onYouTubeIframeAPIReady(){player=new YT.Player('mv',{videoId:'${video.videoId}',host:'https://www.youtube-nocookie.com',playerVars:{playsinline:1,controls:1,mute:1,start:$start,origin:'https://tak2-08.github.io'},events:{onReady:function(){setPlaying(shouldPlay);},onError:function(e){T2Video.failed(e.data);}}});}</script></body></html>"""
             loadDataWithBaseURL("https://tak2-08.github.io/T2Rhythm/", html, "text/html", "UTF-8", null)
         } }
         LaunchedEffect(web, playing, video.offsetMs) {
             web.evaluateJavascript("setPlaying($playing);", null)
-            while (true) { web.evaluateJavascript("setPosition(${(position() + video.offsetMs) / 1000.0});", null); delay(2000) }
+            while (true) { web.evaluateJavascript("setPosition(${(currentPosition() + video.offsetMs) / 1000.0});", null); delay(2000) }
         }
         DisposableEffect(web) { onDispose { web.evaluateJavascript("setPlaying(false);", null); web.stopLoading(); web.loadUrl("about:blank"); web.destroy() } }
         key(web) { AndroidView(factory = { web }, modifier = modifier) }

@@ -346,10 +346,11 @@ fun MaterialPlayerScreen(
     val onTapLyricsView = if (tapLyricsToFullScreen) onOpenFullScreenLyrics else null
     
     // Expressive shape for player artwork display
-    val playerArtworkShape = rememberExpressiveShapeFor(
+    val basePlayerArtworkShape = rememberExpressiveShapeFor(
         ExpressiveShapeTarget.PLAYER_ART,
         RoundedCornerShape(28.dp)
     )
+    val playerArtworkShape = if (musicVideoActive) RoundedCornerShape(16.dp) else basePlayerArtworkShape
     
     // Progress bar customization settings
     val playerProgressStyle by appSettingsInstance.playerProgressStyle.collectAsState()

@@ -645,7 +645,7 @@ fun ExpressivePlayerScreen(
     val line6Alpha = line6Fraction
     val line6TranslationY = with(LocalDensity.current) { 48.dp.toPx() * (1f - line6Fraction) }
 
-    val artworkClipShape = playerArtworkShape
+    val artworkClipShape = if (musicVideoActive) RoundedCornerShape(16.dp) else playerArtworkShape
 
     val needsDarkSurfaces = showDarkBg
     val darkScheme = remember { darkColorScheme() }
