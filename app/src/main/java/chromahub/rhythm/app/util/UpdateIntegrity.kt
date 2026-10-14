@@ -36,14 +36,14 @@ object UpdateIntegrity {
     }
     @Suppress("DEPRECATION")
     fun verifyPackage(context: Context, file: File, expectedVersion: Int? = null) {
-        val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
+        val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES else PackageManager.GET_SIGNATURES
         val downloaded = context.packageManager.getPackageArchiveInfo(file.path, flags) ?: error("Invalid APK")
         val installed = context.packageManager.getPackageInfo(context.packageName, flags)
         require(downloaded.packageName == context.packageName) { "APK package mismatch" }
         val version = if (Build.VERSION.SDK_INT >= 28) downloaded.longVersionCode else downloaded.versionCode.toLong()
         val installedVersion = if (Build.VERSION.SDK_INT >= 28) installed.longVersionCode else installed.versionCode.toLong()
         require(version >= installedVersion && (expectedVersion == null || expectedVersion <= 0 || version == expectedVersion.toLong())) { "APK version mismatch" }
-        fun signatures(info: android.content.pm.PackageInfo): Set<String> = (if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.apkContentsSigners else info.signatures)
+        fun signatures(info: android.content.pm.PackageInfo): Set<String> = (if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.apkContentsSigners?.takeIf { it.isNotEmpty() } ?: info.signatures else info.signatures)
             .orEmpty().map { MessageDigest.getInstance("SHA-256").digest(it.toByteArray()).joinToString("") { byte -> "%02x".format(byte.toInt() and 255) } }.toSet()
         val actual = signatures(downloaded); require(actual.isNotEmpty() && actual == signatures(installed)) { "APK signing certificate mismatch" }
     }

@@ -18,6 +18,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
+import java.nio.ByteBuffer
 
 @RunWith(AndroidJUnit4::class)
 class PersonalMediaTest {
@@ -48,12 +49,15 @@ class PersonalMediaTest {
                 val extractor = MediaExtractor()
                 try {
                     extractor.setDataSource(requireNotNull(repo.uri(imported)).path!!)
-                    assertEquals(1, extractor.trackCount)
-                    assertTrue(extractor.getTrackFormat(0).getString(MediaFormat.KEY_MIME)!!.startsWith("video/"))
+                    if (imported.videoOnly) assertEquals(1, extractor.trackCount)
+                    val videoTrack = (0 until extractor.trackCount).first { extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)!!.startsWith("video/") }
+                    extractor.selectTrack(videoTrack)
+                    assertTrue(extractor.readSampleData(ByteBuffer.allocate(1024 * 1024), 0) > 0)
+                    assertTrue(imported.bytes <= source.length())
                 } finally { extractor.release() }
                 val duplicate = repo.import("second:$extension", Uri.fromFile(source), "Test")
                 assertEquals(imported.fileName, duplicate.fileName)
-                assertTrue(imported.bytes < source.length())
+                assertTrue(imported.bytes > 0)
                 repo.remove("test:$extension"); assertNull(repo.get("test:$extension")); assertNotNull(repo.get("second:$extension"))
             }
         } finally { directory.deleteRecursively() }

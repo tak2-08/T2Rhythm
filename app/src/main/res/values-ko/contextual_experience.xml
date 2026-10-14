@@ -31,7 +31,7 @@
     <string name="mv_watch">뮤직비디오 보기</string>
     <string name="mv_show_art">아트워크 보기</string>
     <string name="mv_manage">뮤직비디오 관리</string>
-    <string name="mv_hint">영상은 무음으로 재생하고 기존 음원은 유지합니다. 검색 결과는 직접 확인해 선택하세요. YouTube는 공식 플레이어로 재생하며 다운로드하지 않습니다. 직접 추가한 영상은 오디오를 중복 저장하지 않고, VP8/VP9는 WebM, 다른 지원 코덱은 MP4로 보관합니다.</string>
+    <string name="mv_hint">영상은 무음으로 재생하고 기존 음원은 유지합니다. 검색 결과는 직접 확인해 선택하세요. YouTube는 공식 플레이어로 재생하며 다운로드하지 않습니다. 직접 추가한 영상은 VP8/VP9는 WebM, 다른 지원 코덱은 MP4로 보관합니다. 크기가 더 작은 호환 원본은 그대로 유지할 수 있습니다.</string>
     <string name="mv_link">YouTube 영상 링크</string>
     <string name="mv_save_link">링크 저장 후 보기</string>
     <string name="mv_search">뮤직비디오 후보 찾기</string>
@@ -51,4 +51,5 @@
     <string name="mv_open_external">YouTube에서 열기</string>
     <string name="mv_seconds">초</string>
     <string name="context_place_groups">%1$d개 장소 그룹의 청취 기록</string>
+    <string name="mv_original_smaller">변환 결과보다 작은 호환 원본을 보관했습니다. 재생은 무음으로 유지합니다.</string>
 </resources>

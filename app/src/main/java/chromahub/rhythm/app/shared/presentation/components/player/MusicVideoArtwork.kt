@@ -108,6 +108,7 @@ fun MusicVideoArtwork(song: Song, isPlaying: Boolean, positionMs: () -> Long, mo
             items(results, key = { it.id }) { hit -> TextButton(onClick = { scope.launch { video = withContext(Dispatchers.IO) { repository.link(key, "https://youtu.be/${hit.id}", hit.title) }; active = true; chooser = false; error = null } }) { Text(hit.title + "\n" + hit.artist) } }
             item { OutlinedButton(enabled = !busy, onClick = { pendingFileKey = key; pendingFileTitle = song.title; pick.launch(arrayOf("video/*")) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.mv_add_file)) } }
             if (video != null) {
+                if (video!!.source == "local" && !video!!.videoOnly) item { Text(stringResource(R.string.mv_original_smaller), style = MaterialTheme.typography.bodySmall) }
                 item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     TextButton(onClick = { video?.let { v -> scope.launch { val changed = v.copy(offsetMs = (v.offsetMs - 5000).coerceAtLeast(-600_000)); withContext(Dispatchers.IO) { repository.save(changed) }; video = changed } } }) { Text("−5 " + stringResource(R.string.mv_seconds)) }
                     Text((video!!.offsetMs / 1000).toString() + " " + stringResource(R.string.mv_seconds))

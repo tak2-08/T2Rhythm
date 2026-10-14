@@ -24,7 +24,7 @@ import java.nio.ByteBuffer
 
 @Keep
 data class MusicVideo(val songKey: String, val source: String, val videoId: String? = null, val fileName: String? = null,
-    val title: String = "", val offsetMs: Long = 0, val addedAt: Long = System.currentTimeMillis(), val bytes: Long = 0)
+    val title: String = "", val offsetMs: Long = 0, val addedAt: Long = System.currentTimeMillis(), val bytes: Long = 0, val videoOnly: Boolean = true)
 @Keep
 data class VideoCandidate(val id: String, val title: String, val artist: String)
 
@@ -117,11 +117,38 @@ class MusicVideoRepository(private val context: Context) {
                     muxer.writeSampleData(outputTrack, buffer, info); extractor.advance()
                 }
                 require(total > 0)
-            } finally { if (started) runCatching { muxer.stop() }; muxer.release() }
+            } finally { try { if (started) muxer.stop() } finally { muxer.release() } }
             val name = digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) } + ".$extension"
             val target = File(root, name)
-            if (!target.exists()) check(temporary.renameTo(target))
-            MusicVideo(key, "local", fileName = name, title = title, bytes = target.length()).also(::save)
+            var original: File? = null
+            try {
+                // Platform WebM muxers can reserve substantial metadata space. Keep a smaller compatible
+                // original container instead of claiming that every stream-copy reduces storage.
+                val sourceSize = runCatching { context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length.takeIf { length -> length >= 0 } ?: it.parcelFileDescriptor.statSize } }.getOrNull() ?: -1
+                val videoTracks = (0 until extractor.trackCount).count { extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true }
+                if (sourceSize in 1 until temporary.length() && sourceSize <= 1024L * 1024 * 1024 && videoTracks == 1) {
+                    val header = context.contentResolver.openInputStream(uri)?.use { input -> ByteArray(256).let { bytes -> val count = input.read(bytes); if (count > 0) bytes.copyOf(count) else byteArrayOf() } } ?: byteArrayOf()
+                    val compatible = if (extension == "mp4") header.size >= 8 && String(header, 4, 4, Charsets.US_ASCII) == "ftyp"
+                        else header.size >= 4 && header.take(4) == listOf(0x1a.toByte(), 0x45.toByte(), 0xdf.toByte(), 0xa3.toByte()) && String(header, Charsets.ISO_8859_1).contains("webm")
+                    if (compatible) {
+                        original = File.createTempFile("original-", ".$extension", root)
+                        context.contentResolver.openInputStream(uri)?.use { input -> original!!.outputStream().use { output ->
+                            val buffer = ByteArray(8192); var size = 0L
+                            while (true) { coroutineContext.ensureActive(); val n = input.read(buffer); if (n < 0) break; size += n; require(size <= sourceSize); output.write(buffer, 0, n) }
+                            require(size == sourceSize)
+                        } } ?: error("Cannot read video")
+                    }
+                }
+                val chosen = original ?: temporary
+                if (!target.exists()) check(chosen.renameTo(target))
+                else if (chosen.length() < target.length()) {
+                    val atomic = android.util.AtomicFile(target); val output = atomic.startWrite()
+                    try { chosen.inputStream().use { it.copyTo(output) }; atomic.finishWrite(output) } catch (error: Exception) { atomic.failWrite(output); throw error }
+                }
+                val actual = MediaExtractor()
+                val onlyVideo = try { actual.setDataSource(target.path); actual.trackCount == 1 } finally { actual.release() }
+                MusicVideo(key, "local", fileName = name, title = title, bytes = target.length(), videoOnly = onlyVideo).also(::save)
+            } finally { original?.delete() }
         } finally { extractor.release(); temporary?.delete() }
     }
 }
