@@ -77,7 +77,7 @@ fun MusicVideoArtwork(song: Song, isPlaying: Boolean, positionMs: () -> Long, mo
                 error?.let { Text(it, color = Color.White, modifier = Modifier.align(Alignment.TopCenter).background(Color.Black.copy(alpha = .8f)).padding(12.dp)) }
             }
         }
-        Row(Modifier.align(Alignment.BottomEnd).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.align(Alignment.BottomCenter).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             FilledTonalIconButton(onClick = { feedback = true }) { Icon(MaterialSymbolIcon("tune"), stringResource(R.string.context_feedback)) }
             FilledTonalIconButton(onClick = { if (active) active = false else if (video != null) { active = true; error = null } else chooser = true }) {
                 Icon(MaterialSymbolIcon(if (active) "image" else "smart_display"), stringResource(if (active) R.string.mv_show_art else R.string.mv_watch))
