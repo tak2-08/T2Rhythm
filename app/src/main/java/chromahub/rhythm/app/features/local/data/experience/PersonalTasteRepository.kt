@@ -36,11 +36,19 @@ object PersonalTasteRepository {
         val learning = RecommendationLearning.get(context)
         val model = learning.model()
         val combined = behavior.copy(hourlyGenres = contextual.hourlyGenres, placeGenres = contextual.placeGenres, outputGenres = contextual.outputGenres,
-            weekdayGenres = contextual.weekdayGenres, recentGenres = contextual.recentGenres, completionRates = contextual.completionRates,
+            weekdayGenres = contextual.weekdayGenres, recentGenres = contextual.recentGenres, completionRates = contextual.completionRates, weatherGenres = contextual.weatherGenres, brightnessGenres = contextual.brightnessGenres, volumeGenres = contextual.volumeGenres, ambientGenres = contextual.ambientGenres,
             learnedWeights = model.weights, learnedSamples = model.samples, explicitFeedback = model.explicit)
         val anchors = (listOfNotNull(songs.firstOrNull { it.id == currentId }?.uri?.toString()) + history.take(3).map { it.songKey }).distinct().mapNotNull { ledger.feature(it) }
-        val candidates = songs.map { song ->
-            val acoustic = if (profile.audioWeight > 0 && anchors.isNotEmpty()) ledger.feature(song.uri.toString())?.let { f -> anchors.maxOf { SignalAnalysis.similarity(f, it) } } ?: 0.0 else 0.0
+        val tasteVector = AudioVectors.taste(history.take(50).mapNotNull { h ->
+            ledger.feature(h.songKey)?.let { feature ->
+                val completion = combined.completionRates[h.songKey] ?: .5
+                val decay = kotlin.math.exp(-(now - h.lastAt).coerceAtLeast(0).toDouble() / (90 * 86_400_000L))
+                feature to (kotlin.math.ln(1 + h.listenedMs.toDouble()) * completion * decay * (1 - (combined.skipRates[h.songKey] ?: 0.0)).coerceAtLeast(.05))
+            }
+        })
+        val exclusions = PersonalCollections.options(context)
+        val candidates = songs.filterNot { PersonalCollections.excluded(exclusions, it.uri.toString(), now) }.map { song ->
+            val acoustic = if (profile.audioWeight > 0 && anchors.isNotEmpty()) ledger.feature(song.uri.toString())?.let { f -> maxOf(anchors.maxOf { SignalAnalysis.similarity(f, it) }, tasteVector?.let { AudioVectors.cosine(AudioVectors.describe(f), it) } ?: 0.0) } ?: 0.0 else 0.0
             RecommendationCandidate(song.uri.toString(), song.artist, song.genre, song.dateAdded, song.id in favoriteIds, song.id == currentId, acoustic, title = song.title)
         }
         val byKey = songs.associateBy { it.uri.toString() }

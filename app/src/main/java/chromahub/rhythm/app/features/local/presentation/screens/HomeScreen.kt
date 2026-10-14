@@ -558,6 +558,7 @@ fun HomeScreen(
                 onViewAllArtists = onViewAllArtists,
                 onSearchClick = onSearchClick,
                 onSettingsClick = onSettingsClick,
+                onMovePersonalization = { showHomeSectionOrderSheet = true },
                 onNavigateToLibrary = onNavigateToLibrary,
                 onNavigateToPlaylist = onNavigateToPlaylist,
                 onNavigateToStats = onNavigateToStats,
@@ -594,6 +595,7 @@ private fun ModernScrollableContent(
     onViewAllArtists: () -> Unit,
     onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit = {},
+    onMovePersonalization: () -> Unit = {},
     onNavigateToLibrary: () -> Unit = {},
     onNavigateToPlaylist: (String) -> Unit = {},
     onNavigateToStats: () -> Unit = {},
@@ -609,7 +611,6 @@ private fun ModernScrollableContent(
     val heightSizeClass = windowSizeClass.heightSizeClass
     val scrollState = rememberScrollState()
     val allSongs by musicViewModel.filteredSongs.collectAsState()
-    val tasteRevision by remember { chromahub.rhythm.app.features.local.data.experience.ListeningLedger.get(context).changes }.collectAsState()
     val playingForRecommendations by musicViewModel.currentSong.collectAsState()
 
     // Home Screen Customization Settings
@@ -953,20 +954,8 @@ private fun ModernScrollableContent(
                 "RECOMMENDED" -> {
                     if (showRecommended) {
                         val favoriteSongsState = musicViewModel.favoriteSongs.collectAsState()
-                        val recommendedSongs by rememberOffMain(emptyList<Song>(), recentlyPlayed, songs, recommendedCount, favoriteSongsState.value, tasteRevision, playingForRecommendations?.id) {
-                            chromahub.rhythm.app.features.local.data.experience.PersonalTasteRepository.recommend(
-                                context, songs, favoriteSongsState.value.toList(), playingForRecommendations?.id, recommendedCount
-                            )
-                        }
-
-                        ModernRecommendedSection(
-                            recommendedSongs = recommendedSongs,
-                            personalized = true,
-                            artists = availableArtists,
-                            onSongClick = onSongClick,
-                            onPlayClick = { songsToPlay ->
-                                musicViewModel.playSongs(songsToPlay)
-                            }
+                        chromahub.rhythm.app.features.local.presentation.metadata.PersonalCollectionsPanel(
+                            songs, favoriteSongsState.value.toList(), playingForRecommendations?.id, musicViewModel, onMovePersonalization
                         )
                     }
                 }

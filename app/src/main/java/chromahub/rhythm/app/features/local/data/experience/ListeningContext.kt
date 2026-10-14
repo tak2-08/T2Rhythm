@@ -23,7 +23,9 @@ data class ListeningSituation(val place: String? = null, val latitude: Double? =
     val routeType: String = "unknown", val routeName: String? = null, val connectedOutputs: List<OutputSnapshot> = emptyList(),
     val routeEvidence: String = "system_route_inferred", val weekday: Int = 0, val hour: Int = 0,
     val altitudeM: Double? = null, val speedMps: Float? = null, val bearingDegrees: Float? = null,
-    val locationProvider: String? = null, val systemVolume: Int = 0, val systemVolumeMax: Int = 0, val charging: Boolean = false, val batteryPercent: Int? = null)
+    val locationProvider: String? = null, val systemVolume: Int = 0, val systemVolumeMax: Int = 0, val charging: Boolean = false, val batteryPercent: Int? = null,
+    val weather: WeatherSnapshot? = null, val brightnessSetting: Int? = null, val automaticBrightness: Boolean? = null,
+    val playerVolume: Float? = null, val ambientSound: AmbientSound? = null)
 @Keep
 data class OutputSnapshot(val type: Int, val name: String, val sampleRates: List<Int>, val channelCounts: List<Int>, val encodings: List<Int>)
 
@@ -82,7 +84,12 @@ class ListeningContext private constructor(private val context: Context) : Locat
             locationProvider = fix?.provider,
             systemVolume = audio.getStreamVolume(AudioManager.STREAM_MUSIC), systemVolumeMax = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC),
             charging = (context.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager).isCharging,
-            batteryPercent = (context.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager).getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 })
+            batteryPercent = (context.getSystemService(Context.BATTERY_SERVICE) as android.os.BatteryManager).getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 },
+            weather = ListeningWeather.get(context).snapshot(fix?.latitude, fix?.longitude, now),
+            brightnessSetting = runCatching { android.provider.Settings.System.getInt(context.contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS) }.getOrNull()?.coerceIn(0, 255),
+            automaticBrightness = runCatching { android.provider.Settings.System.getInt(context.contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE) == android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC }.getOrNull(),
+            playerVolume = chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).appVolume.value,
+            ambientSound = ListeningSound.get(context).snapshot(now))
     }
     companion object {
         @Volatile private var instance: ListeningContext? = null

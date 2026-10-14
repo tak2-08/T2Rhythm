@@ -23,6 +23,14 @@ fun ListeningContextPanel() {
     val context = LocalContext.current; val scope = rememberCoroutineScope()
     val collector = remember { ListeningContext.get(context) }
     val ledger = remember { ListeningLedger.get(context) }; val revision by ledger.changes.collectAsState()
+    val sound = remember { ListeningSound.get(context) }
+    var soundEnabled by remember { mutableStateOf(sound.enabled) }
+    var soundDenied by remember { mutableStateOf(false) }
+    val microphone = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        soundDenied = !granted; soundEnabled = granted; sound.configure(granted)
+    }
+    val weather = remember { ListeningWeather.get(context) }
+    var weatherEnabled by remember { mutableStateOf(weather.enabled) }
     var enabled by remember { mutableStateOf(collector.enabled) }; var precise by remember { mutableStateOf(collector.precise) }
     var place by remember { mutableStateOf(collector.place) }
     var model by remember { mutableStateOf(RecommendationModel()) }; var situation by remember { mutableStateOf(collector.snapshot()) }
@@ -56,6 +64,24 @@ fun ListeningContextPanel() {
         }
         Text(stringResource(R.string.context_location_hint), style = MaterialTheme.typography.bodySmall)
         if (permissionDenied) Text(stringResource(R.string.context_permission_denied), color = MaterialTheme.colorScheme.error)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.personal_weather), Modifier.weight(1f))
+            Switch(weatherEnabled, enabled = enabled, onCheckedChange = { weatherEnabled = it; weather.configure(it) })
+        }
+        Text(stringResource(R.string.personal_weather_hint), style = MaterialTheme.typography.bodySmall)
+        situation.weather?.let { w ->
+            val label = context.getString(when(w.group) { "clear" -> R.string.personal_weather_clear; "cloudy" -> R.string.personal_weather_cloudy; "fog" -> R.string.personal_weather_fog; "snow" -> R.string.personal_weather_snow; "storm" -> R.string.personal_weather_storm; else -> R.string.personal_weather_rain })
+            Text(context.getString(R.string.personal_weather_value, label, w.temperatureC), style = MaterialTheme.typography.labelLarge)
+        } ?: Text(stringResource(R.string.personal_weather_unknown), style = MaterialTheme.typography.labelSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.personal_noise), Modifier.weight(1f))
+            Switch(soundEnabled, onCheckedChange = { value ->
+                if (!value || sound.permitted()) { soundEnabled = value; sound.configure(value) }
+                else microphone.launch(Manifest.permission.RECORD_AUDIO)
+            })
+        }
+        Text(stringResource(R.string.personal_noise_hint), style = MaterialTheme.typography.bodySmall)
+        if (soundDenied) Text(stringResource(R.string.personal_noise_denied), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         OutlinedTextField(place, { place = it.take(80) }, label = { Text(stringResource(R.string.context_place)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         TextButton(onClick = { collector.configure(place = place); situation = collector.snapshot() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.context_place_save)) }
         Text(context.getString(R.string.context_output, context.getString(when (situation.routeType) { "bluetooth" -> R.string.context_route_bluetooth; "wired" -> R.string.context_route_wired; "usb" -> R.string.context_route_usb; "cast" -> R.string.context_route_cast; else -> R.string.context_route_speaker })), style = MaterialTheme.typography.bodySmall)

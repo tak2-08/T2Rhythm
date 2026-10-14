@@ -107,7 +107,7 @@ class PersonalArchive(private val context: Context) {
         var count = 0
         val metadata = base.findFile("music_metadata")
         val local = File(context.filesDir, "music_metadata")
-        listOf("records", "images", "lyrics", "originals", "audio_features", "recommendations", "videos", "entities").forEach { category ->
+        listOf("records", "images", "lyrics", "originals", "audio_features", "recommendations", "videos", "entities", "context", "personalization").forEach { category ->
             fun descend(folder: DocumentFile, prefix: String = ""): List<Pair<String, DocumentFile>> = folder.listFiles().flatMap { child ->
                 val name = child.name ?: return@flatMap emptyList()
                 require('/' !in name && '\\' !in name && name != ".." && name != ".")

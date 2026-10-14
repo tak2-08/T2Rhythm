@@ -287,6 +287,7 @@ fun ExpressivePlayerScreen(
     onBack: () -> Unit,
     location: PlaybackLocation?,
     appSettings: AppSettings,
+    videoControls: chromahub.rhythm.app.shared.presentation.components.player.MusicVideoControls? = null,
     modifier: Modifier = Modifier,
     canvasArtwork: CanvasArtwork? = null,
     canvasLoading: Boolean = false,
@@ -356,6 +357,7 @@ fun ExpressivePlayerScreen(
     val isFlexMode = postureState is DevicePosture.TableTop
 
     val context = LocalContext.current
+    val currentVideoControls = videoControls ?: remember(song?.uri) { chromahub.rhythm.app.shared.presentation.components.player.MusicVideoControls() }
     var musicVideoActive by remember(song?.id) { mutableStateOf(false) }
 
     var showAutoEQSuggestion by remember { mutableStateOf(false) }
@@ -1237,7 +1239,7 @@ fun ExpressivePlayerScreen(
                         ) {
                             if (song != null && !showLyricsView) {
                                 chromahub.rhythm.app.shared.presentation.components.player.MusicVideoArtwork(song, isPlaying,
-                                    positionMs = { (progress() * song.duration).toLong() }, modifier = Modifier.fillMaxSize().zIndex(5f), onActiveChange = { musicVideoActive = it })
+                                    positionMs = { (progress() * song.duration).toLong() }, modifier = Modifier.fillMaxSize().zIndex(5f), onActiveChange = { musicVideoActive = it }, controls = currentVideoControls)
                             }
                             val currentSongArt = debouncedSong.value?.artworkUri
 
@@ -1462,6 +1464,11 @@ fun ExpressivePlayerScreen(
                                         )
                                     }
                                 }
+                            }
+
+                            if (song != null && !showLyricsView) {
+                                chromahub.rhythm.app.shared.presentation.components.player.MusicVideoToggle(currentVideoControls, foreground = onSurfaceColor)
+                                Spacer(Modifier.height(12.dp))
                             }
 
                             // The whole controls card (play controls + progress) slides up as one unit.

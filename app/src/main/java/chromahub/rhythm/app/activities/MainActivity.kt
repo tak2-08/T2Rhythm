@@ -1063,6 +1063,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        chromahub.rhythm.app.features.local.data.experience.ListeningSound.get(this).visible(true)
         chromahub.rhythm.app.features.local.data.experience.ListeningContext.get(this).refresh()
         Log.d(TAG, "MainActivity onResume: refreshing audio devices")
         musicViewModel.refreshAudioDevices()
@@ -1078,6 +1079,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         chromahub.rhythm.app.features.local.data.experience.ListeningContext.get(this).stop()
+        chromahub.rhythm.app.features.local.data.experience.ListeningSound.get(this).visible(false)
         super.onPause()
     }
 

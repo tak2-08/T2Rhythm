@@ -38,17 +38,41 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@Stable
+class MusicVideoControls {
+    val active = mutableStateOf(false)
+    val managing = mutableStateOf(false)
+    val feedback = mutableStateOf(false)
+    var hasVideo by mutableStateOf(false)
+    fun toggle() { if (hasVideo) active.value = !active.value else managing.value = true }
+}
+
+@Composable
+fun MusicVideoToggle(controls: MusicVideoControls, foreground: Color = MaterialTheme.colorScheme.onSurface) {
+    val colors = SegmentedButtonDefaults.colors(inactiveContainerColor = Color.Transparent, inactiveContentColor = foreground,
+        inactiveBorderColor = foreground.copy(alpha = .5f), activeBorderColor = foreground.copy(alpha = .5f))
+    SingleChoiceSegmentedButtonRow {
+        SegmentedButton(selected = !controls.active.value, onClick = { controls.active.value = false }, shape = SegmentedButtonDefaults.itemShape(0, 2), colors = colors) {
+            Text(stringResource(R.string.personal_audio))
+        }
+        SegmentedButton(selected = controls.active.value, onClick = { controls.toggle() }, shape = SegmentedButtonDefaults.itemShape(1, 2), colors = colors,
+            icon = { Icon(MaterialSymbolIcon("smart_display"), null, Modifier.size(18.dp)) }) {
+            Text(stringResource(R.string.personal_video))
+        }
+    }
+}
+
 /** User-initiated video replaces the artwork area. The music playback service remains authoritative. */
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 @Composable
-fun MusicVideoArtwork(song: Song, isPlaying: Boolean, positionMs: () -> Long, modifier: Modifier = Modifier, onActiveChange: (Boolean) -> Unit = {}) {
+fun MusicVideoArtwork(song: Song, isPlaying: Boolean, positionMs: () -> Long, modifier: Modifier = Modifier, onActiveChange: (Boolean) -> Unit = {}, controls: MusicVideoControls = remember(song.uri) { MusicVideoControls() }) {
     val context = LocalContext.current; val scope = rememberCoroutineScope()
     val repository = remember { MusicVideoRepository(context) }
     val key = song.uri.toString()
     var video by remember(key) { mutableStateOf<MusicVideo?>(null) }
-    var active by remember(key) { mutableStateOf(false) }
-    var chooser by remember(key) { mutableStateOf(false) }
-    var feedback by remember(key) { mutableStateOf(false) }
+    var active by controls.active
+    var chooser by controls.managing
+    var feedback by controls.feedback
     var pendingFileKey by remember { mutableStateOf<String?>(null) }
     var pendingFileTitle by remember { mutableStateOf("") }
     var busy by remember(key) { mutableStateOf(false) }
@@ -57,6 +81,7 @@ fun MusicVideoArtwork(song: Song, isPlaying: Boolean, positionMs: () -> Long, mo
     var results by remember(key) { mutableStateOf(emptyList<VideoCandidate>()) }
     val currentKey by rememberUpdatedState(key)
     LaunchedEffect(active, key) { onActiveChange(active) }
+    LaunchedEffect(video) { controls.hasVideo = video != null }
     DisposableEffect(key) { onDispose { onActiveChange(false) } }
     LaunchedEffect(key) { video = withContext(Dispatchers.IO) { repository.get(key) } }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -79,17 +104,12 @@ fun MusicVideoArtwork(song: Song, isPlaying: Boolean, positionMs: () -> Long, mo
                 error?.let { Text(it, color = Color.White, modifier = Modifier.align(Alignment.TopCenter).background(Color.Black.copy(alpha = .8f)).padding(12.dp)) }
             }
         }
-        Row(Modifier.align(Alignment.BottomCenter).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            FilledTonalIconButton(onClick = { feedback = true }) { Icon(MaterialSymbolIcon("tune"), stringResource(R.string.context_feedback)) }
-            FilledTonalIconButton(onClick = { if (active) active = false else if (video != null) { active = true; error = null } else chooser = true }) {
-                Icon(MaterialSymbolIcon(if (active) "image" else "smart_display"), stringResource(if (active) R.string.mv_show_art else R.string.mv_watch))
-            }
-            FilledTonalIconButton(onClick = { chooser = true }) { Icon(MaterialSymbolIcon("video_settings"), stringResource(R.string.mv_manage)) }
-        }
     }
     if (feedback) AlertDialog(onDismissRequest = { feedback = false }, title = { Text(stringResource(R.string.context_feedback)) },
         text = { Column {
             Text(stringResource(R.string.context_feedback_hint))
+            TextButton(onClick = { scope.launch { withContext(Dispatchers.IO) { chromahub.rhythm.app.features.local.data.experience.PersonalCollections.snooze(context, key, song.title) }; feedback = false } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.personal_snooze)) }
+            TextButton(onClick = { scope.launch { withContext(Dispatchers.IO) { chromahub.rhythm.app.features.local.data.experience.PersonalCollections.hide(context, key, song.title) }; feedback = false } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.personal_hide)) }
             listOf(1.0 to R.string.context_feedback_more, 0.0 to R.string.context_feedback_less, null to R.string.context_feedback_reset).forEach { (reward, label) ->
                 TextButton(onClick = { scope.launch { withContext(Dispatchers.IO) { RecommendationLearning.get(context).feedback(key, reward) }; feedback = false } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(label)) }
             }

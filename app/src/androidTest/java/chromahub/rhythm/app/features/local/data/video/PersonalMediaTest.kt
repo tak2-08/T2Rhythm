@@ -68,7 +68,7 @@ class PersonalMediaTest {
         val constructor = RecommendationLearning::class.java.getDeclaredConstructor(Context::class.java).apply { isAccessible = true }
         val learning = constructor.newInstance(isolated(directory))
         try {
-            val feature = List(13) { if (it == 8) 1.0 else 0.0 }
+            val feature = List(AdaptiveRecommendation.featureNames.size) { if (it == 8) 1.0 else 0.0 }
             learning.offer(listOf(RecommendationScore("song", 1.0, listOf("place"), feature)))
             learning.feedback("song", 1.0)
             val model = learning.model(); assertEquals(1, model.samples); assertEquals(1.0, model.explicit["song"])
@@ -78,6 +78,94 @@ class PersonalMediaTest {
             assertEquals(model, restored)
             learning.feedback("song", 0.0); assertEquals(0.0, learning.model().explicit["song"])
             learning.feedback("song", null); assertFalse(learning.model().explicit.containsKey("song"))
+        } finally { directory.deleteRecursively() }
+    }
+    @Test fun previousRecommendationSchemaRemainsRecoverableAfterAddingWeather() {
+        val directory = File(context.cacheDir, "learning-migration-${System.nanoTime()}").apply { mkdirs() }
+        try {
+            val root = File(directory, "music_metadata/recommendations").apply { mkdirs() }
+            val event = RecommendationEvent("old-event", 1, "outcome", "song", schema = 1, features = List(13) { .5 }, reward = 1.0, prediction = .5)
+            File(root, "old.jsonl").writeText(Gson().toJson(event) + "\n")
+            val constructor = RecommendationLearning::class.java.getDeclaredConstructor(Context::class.java).apply { isAccessible = true }
+            val model = constructor.newInstance(isolated(directory)).model()
+            assertEquals(1, model.samples); assertEquals(AdaptiveRecommendation.featureNames.size, model.weights.size); assertEquals(0.0, model.weights.last(), .000001)
+        } finally { directory.deleteRecursively() }
+    }
+    @Test fun fixedPlayerThemesIgnoreObsoleteChoices() {
+        val settings = chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context)
+        val favorites = settings.favoriteSongs.value
+        settings.setPlayerThemeId("MATERIAL"); settings.setMiniPlayerThemeId("EXPRESSIVE")
+        assertEquals("EXPRESSIVE", settings.playerThemeId.value); assertEquals("MATERIAL", settings.miniPlayerThemeId.value)
+        assertEquals(favorites, settings.favoriteSongs.value)
+        val originalOrder = settings.homeSectionOrder.value
+        val legacyOrder = listOf("DISCOVER", "RECENTLY_PLAYED", "ARTISTS", "RHYTHM_GUARD", "NEW_RELEASES", "RECENTLY_ADDED", "RECOMMENDED", "STATS", "MOOD")
+        try {
+            settings.setHomeSectionOrder(legacyOrder); settings.prefs.edit().commit()
+            val constructor = chromahub.rhythm.app.shared.data.model.AppSettings::class.java.getDeclaredConstructor(Context::class.java).apply { isAccessible = true }
+            assertEquals(legacyOrder, constructor.newInstance(context).homeSectionOrder.value)
+        } finally { settings.setHomeSectionOrder(originalOrder) }
+    }
+    @Test fun personalizedInsertKeepsOriginalOrderAndNeverDuplicatesAQueuedSong() {
+        fun song(id: String) = chromahub.rhythm.app.shared.data.model.Song(id, id, "A", "B", duration = 2000, uri = Uri.parse("content://tests/$id"))
+        val original = (1..6).map { song(it.toString()) }
+        val mixed = PersonalCollections.smartInsert(original, listOf(song("3"), song("7"), song("7"), song("8")))
+        assertEquals(listOf("1", "2", "3", "7", "4", "5", "6", "8"), mixed.map { it.id })
+        assertEquals(original.map { it.id }, mixed.filter { it.id in original.map { row -> row.id } }.map { it.id })
+    }
+    @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
+    @Test fun seekingToTheEndDoesNotRecordAFullListen() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val file = File(context.cacheDir, "coverage-${System.nanoTime()}.mp4")
+        instrumentation.context.assets.open("video-test.mp4").use { input -> file.outputStream().use { input.copyTo(it) } }
+        val key = Uri.fromFile(file).toString()
+        val song = chromahub.rhythm.app.shared.data.model.Song(key, "Coverage test", "Test", "Test", duration = 2000, uri = Uri.fromFile(file))
+        val ready = java.util.concurrent.CountDownLatch(1); val ended = java.util.concurrent.CountDownLatch(1)
+        lateinit var player: androidx.media3.exoplayer.ExoPlayer
+        lateinit var recorder: ListeningRecorder
+        try {
+            instrumentation.runOnMainSync {
+                player = androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+                    volume = 0f
+                    addListener(object : androidx.media3.common.Player.Listener {
+                        override fun onPlaybackStateChanged(state: Int) { if (state == androidx.media3.common.Player.STATE_READY) ready.countDown(); if (state == androidx.media3.common.Player.STATE_ENDED) ended.countDown() }
+                        override fun onPlayerError(error: androidx.media3.common.PlaybackException) { ready.countDown(); ended.countDown() }
+                    })
+                    setMediaItem(androidx.media3.common.MediaItem.fromUri(song.uri)); prepare()
+                }
+                recorder = ListeningRecorder(context) { song }; recorder.attach(player)
+            }
+            assertTrue(ready.await(20, java.util.concurrent.TimeUnit.SECONDS))
+            instrumentation.runOnMainSync { player.play() }
+            Thread.sleep(200)
+            instrumentation.runOnMainSync { player.seekTo(1950) }
+            assertTrue(ended.await(20, java.util.concurrent.TimeUnit.SECONDS))
+            instrumentation.runOnMainSync { recorder.close(); player.release() }
+            var summary: ListeningRecord? = null
+            repeat(100) { if (summary == null) { Thread.sleep(50); summary = ListeningLedger.get(context).records(kind = "play", limit = 50).firstOrNull { it.songKey == key } } }
+            assertNotNull(summary); assertTrue(summary!!.playCompletionRatio!! < .3); assertFalse(summary!!.completed)
+        } finally {
+            instrumentation.runOnMainSync { runCatching { player.release() } }
+            file.delete()
+        }
+    }
+    @Test fun playlistFeedbackCanSwitchAndUndoWithoutPermanentlyHidingItsSongs() {
+        val directory = File(context.cacheDir, "mix-reactions-${System.nanoTime()}").apply { mkdirs() }
+        val constructor = RecommendationLearning::class.java.getDeclaredConstructor(Context::class.java).apply { isAccessible = true }
+        val learning = constructor.newInstance(isolated(directory))
+        try {
+            val features = List(AdaptiveRecommendation.featureNames.size) { if (it == 0) 1.0 else 0.0 }
+            learning.offer(listOf(RecommendationScore("song", 1.0, emptyList(), features)))
+            val id = "collection:DAYLIST:"
+            learning.collectionFeedback(id, listOf("song"), 0.0)
+            assertTrue(learning.model().weights[0] < 0); assertEquals(0.0, learning.model().collections[id])
+            learning.collectionFeedback(id, emptyList(), null)
+            assertTrue(learning.model().weights.all { it == 0.0 }); assertFalse(learning.model().collections.containsKey(id))
+            learning.collectionFeedback(id, emptyList(), 1.0)
+            assertTrue(learning.model().weights[0] > 0); assertEquals(1, learning.model().samples)
+            learning.collectionFeedback(id, emptyList(), 0.0)
+            assertTrue(learning.model().weights[0] < 0); assertEquals(1, learning.model().samples)
+            assertFalse(learning.model().explicit.containsKey("song"))
+            assertEquals(learning.model(), constructor.newInstance(isolated(directory)).model())
         } finally { directory.deleteRecursively() }
     }
     @Test fun updaterVerifiesTheInstalledPackageAndRejectsWrongVersionAndPackage() {

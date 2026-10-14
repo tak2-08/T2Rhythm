@@ -53,6 +53,8 @@ data class ListeningRecord(
     val trackNumber: Int = 0,
     val discNumber: Int = 1,
     val situation: ListeningSituation? = null,
+    val playedAudioMs: Long? = null,
+    val playCompletionRatio: Double? = null,
 )
 
 /** Indexed on-device source of truth. Raw journals are retained forever and can rebuild the DB. */

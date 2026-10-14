@@ -44,8 +44,9 @@ data class RecommendationContext(val hourlyGenres: Map<String, Double> = emptyMa
     val skipRates: Map<String, Double> = emptyMap(), val replayDue: Map<String, Double> = emptyMap(),
     val placeGenres: Map<String, Double> = emptyMap(), val outputGenres: Map<String, Double> = emptyMap(),
     val weekdayGenres: Map<String, Double> = emptyMap(), val completionRates: Map<String, Double> = emptyMap(),
-    val recentGenres: Map<String, Double> = emptyMap(), val learnedWeights: List<Double> = List(13) { 0.0 },
-    val learnedSamples: Long = 0, val explicitFeedback: Map<String, Double> = emptyMap())
+    val recentGenres: Map<String, Double> = emptyMap(), val learnedWeights: List<Double> = List(AdaptiveRecommendation.featureNames.size) { 0.0 },
+    val learnedSamples: Long = 0, val explicitFeedback: Map<String, Double> = emptyMap(), val weatherGenres: Map<String, Double> = emptyMap(), val brightnessGenres: Map<String, Double> = emptyMap(),
+    val volumeGenres: Map<String, Double> = emptyMap(), val ambientGenres: Map<String, Double> = emptyMap())
 
 /** Deterministic, explainable ranking over lifetime history; never uploads listening data. */
 object PersonalRecommendation {
@@ -75,18 +76,20 @@ object PersonalRecommendation {
             val day = context.weekdayGenres[normalizedGenre] ?: 0.0
             val completion = context.completionRates[c.key] ?: .5
             val recent = context.recentGenres[normalizedGenre] ?: 0.0
-            val features = listOf(a, g, novelty, repeat.coerceIn(0.0, 1.0), c.acousticSimilarity.coerceIn(0.0, 1.0), hour, transition, due, place, output, day, completion, recent).map { it.coerceIn(0.0, 1.0) }
+            val weather = context.weatherGenres[normalizedGenre] ?: 0.0
+            val brightness = context.brightnessGenres[normalizedGenre] ?: 0.0; val volume = context.volumeGenres[normalizedGenre] ?: 0.0; val ambient = context.ambientGenres[normalizedGenre] ?: 0.0
+            val features = listOf(a, g, novelty, repeat.coerceIn(0.0, 1.0), c.acousticSimilarity.coerceIn(0.0, 1.0), hour, transition, due, place, output, day, completion, recent, weather, brightness, volume, ambient).map { it.coerceIn(0.0, 1.0) }
             val learned = AdaptiveRecommendation.probability(context.learnedWeights, features) - .5
             val confidence = context.learnedSamples.toDouble() / (context.learnedSamples + 30)
             val score = a * profile.artistWeight + g * profile.genreWeight + novelty * profile.noveltyWeight +
                 repeat.coerceAtMost(1.0) * profile.repeatWeight + c.acousticSimilarity * profile.audioWeight + (if (c.favorite) .1 else 0.0) - recentPenalty +
-                profile.genreWeight * .25 * (hour + transition) + profile.repeatWeight * .25 * due + profile.noveltyWeight * .2 * newlyAdded - .35 * skip + profile.contextWeight * (place + output + day + recent) / 4 +
+                profile.genreWeight * .25 * (hour + transition) + profile.repeatWeight * .25 * due + profile.noveltyWeight * .2 * newlyAdded - .35 * skip + profile.contextWeight * (place + output + day + recent + weather + brightness + volume + ambient) / 8 +
                 profile.learningWeight * confidence * learned + .1 * (completion - .5) + .15 * (context.explicitFeedback[c.key] ?: .5)
             RecommendationScore(c.key, score, buildList {
                 if (a > .4) add("artist"); if (g > .4) add("genre"); if (c.acousticSimilarity > .8) add("audio")
                 if (h == null) add("unplayed") else if (novelty > .7) add("rediscovery")
                 if (c.favorite) add("favorite")
-                if (place > .2) add("place"); if (output > .2) add("output"); if (day > .2) add("weekday")
+                if (weather > .2) add("weather"); if (place > .2) add("place"); if (output > .2) add("output"); if (day > .2) add("weekday")
                 if (confidence > .5 && learned > .05) add("learned")
                 if (hour > .5) add("time"); if (transition > .5) add("transition"); if (due > .5) add("routine")
             }, features)
