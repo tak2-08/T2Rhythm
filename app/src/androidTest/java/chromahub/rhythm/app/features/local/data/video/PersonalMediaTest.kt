@@ -76,6 +76,13 @@ class PersonalMediaTest {
             learning.feedback("song", null); assertFalse(learning.model().explicit.containsKey("song"))
         } finally { directory.deleteRecursively() }
     }
+    @Test fun updaterVerifiesTheInstalledPackageAndRejectsWrongVersionAndPackage() {
+        val own = File(context.applicationInfo.sourceDir)
+        chromahub.rhythm.app.util.UpdateIntegrity.verifyPackage(context, own, chromahub.rhythm.app.BuildConfig.VERSION_CODE)
+        assertTrue(runCatching { chromahub.rhythm.app.util.UpdateIntegrity.verifyPackage(context, own, chromahub.rhythm.app.BuildConfig.VERSION_CODE + 1) }.isFailure)
+        val system = File(context.packageManager.getApplicationInfo("com.android.settings", 0).sourceDir)
+        assertTrue(runCatching { chromahub.rhythm.app.util.UpdateIntegrity.verifyPackage(context, system) }.isFailure)
+    }
     @Test fun locationOffProducesNoCoordinatesEvenIfPermissionExists() {
         val preferences = context.getSharedPreferences("listening_context", Context.MODE_PRIVATE)
         val original = preferences.all
