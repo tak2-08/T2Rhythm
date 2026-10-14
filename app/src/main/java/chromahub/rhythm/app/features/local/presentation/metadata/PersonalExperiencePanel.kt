@@ -65,6 +65,11 @@ fun PersonalExperiencePanel() {
                 Text(context.getString(R.string.personal_month_summary, data.totalPlays, data.habits.size, data.monthly.values.sum() / 60_000), style = MaterialTheme.typography.titleSmall)
                 data.artists.entries.take(3).forEach { Text(context.getString(R.string.personal_dimension_minutes, it.key, it.value / 60_000), style = MaterialTheme.typography.bodyMedium) }
                 data.genres.entries.take(3).forEach { Text(context.getString(R.string.personal_dimension_minutes, it.key, it.value / 60_000), style = MaterialTheme.typography.bodySmall) }
+                data.outputs.entries.sortedByDescending { it.value }.take(3).forEach { (route, duration) ->
+                    val label = context.getString(when (route) { "bluetooth" -> R.string.context_route_bluetooth; "wired" -> R.string.context_route_wired; "usb" -> R.string.context_route_usb; "cast" -> R.string.context_route_cast; else -> R.string.context_route_speaker })
+                    Text(context.getString(R.string.personal_dimension_minutes, label, duration / 60_000), style = MaterialTheme.typography.bodySmall)
+                }
+                if (data.places.isNotEmpty()) Text(context.getString(R.string.context_place_groups, data.places.size), style = MaterialTheme.typography.bodySmall)
                 val peak = data.hourly.indices.maxByOrNull { data.hourly[it] }
                 if (peak != null && data.hourly[peak] > 0) Text(context.getString(R.string.personal_peak_hour, peak), style = MaterialTheme.typography.bodySmall)
                 data.transitions.entries.sortedByDescending { it.value }.take(3).forEach {
@@ -77,6 +82,7 @@ fun PersonalExperiencePanel() {
                 }
                 if (data.totalPlays == 0) Text(stringResource(R.string.personal_history_empty), style = MaterialTheme.typography.bodySmall)
             }
+            ListeningContextPanel()
             HorizontalDivider()
             Text(stringResource(R.string.personal_audio_hint), style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { AudioAnalysisWorker.enqueue(context); message = context.getString(R.string.personal_audio_scheduled) }, modifier = Modifier.fillMaxWidth()) {

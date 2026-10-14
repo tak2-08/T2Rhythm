@@ -3,7 +3,7 @@
     <string name="app_name">T2Rhythm</string>
     <!-- Common Labels -->
     <string name="home">홈</string>
-    <string name="library">도서관</string>
+    <string name="library">라이브러리</string>
     <string name="search">검색</string>
     <!-- Media3 notification configuration -->
     <string name="media3_notification_channel_name">T2Rhythm 음악</string>
@@ -273,7 +273,7 @@
     <string name="settings_about_version_label">버전</string>
     <string name="settings_about_build">빌드</string>
     <string name="settings_about_target_sdk">타겟 SDK</string>
-    <string name="settings_about_architecture">건축</string>
+    <string name="settings_about_architecture">아키텍처</string>
     <string name="settings_about_architecture_value">ARM64 &amp; ARM32</string>
     <string name="settings_about_credits">개발자</string>
     <string name="settings_about_team_desc">혁신적인 경험을 창조하는 열정적인 개발자</string>
@@ -341,7 +341,7 @@
     <string name="update_whats_new">새로운 소식:</string>
     <string name="update_now">지금 업데이트</string>
     <!-- LibraryScreen -->
-    <string name="library_title">도서관</string>
+    <string name="library_title">라이브러리</string>
     <string name="library_your_playlists">재생 목록</string>
     <string name="library_your_albums">당신의 앨범</string>
     <string name="library_your_artists">당신의 아티스트</string>
@@ -393,7 +393,7 @@
     <!-- Common Terms -->
     <string name="common_rhythm">T2Rhythm</string>
     <string name="common_home">홈</string>
-    <string name="common_library">도서관</string>
+    <string name="common_library">라이브러리</string>
     <!-- Splash/Loading -->
     <string name="splash_tagline">내 음악과 기록을 내 기기에.</string>
     <string name="splash_ready">그루브 준비 완료!</string>
@@ -444,7 +444,7 @@
     <string name="onboarding_sleep_timer_desc">취침 타이머: 설정된 시간 이후 재생 자동 중지(지금 재생 중 화면에서 액세스)</string>
     <string name="onboarding_library_title">음악 라이브러리 정리</string>
     <string name="onboarding_library_desc">앨범, 아티스트 및 노래가 표시되는 방식을 사용자 정의하세요. 원하는 레이아웃, 정렬 순서, 탭 배열을 선택하세요.</string>
-    <string name="onboarding_library_how_works">도서관 조직의 작동 방식</string>
+    <string name="onboarding_library_how_works">라이브러리 조직의 작동 방식</string>
     <string name="onboarding_library_1">즐겨찾기에 빠르게 액세스할 수 있도록 라이브러리에서 탭 순서를 사용자 정의하세요.</string>
     <string name="onboarding_library_2">라이브러리 화면에서 직접 재생 목록 생성 및 관리</string>
     <string name="onboarding_theme_title">Rhythm을(를) 당신의 것으로 만드세요</string>
@@ -542,7 +542,7 @@
     <string name="option_stable">안정</string>
     <string name="option_beta">베타</string>
     <string name="option_home">홈</string>
-    <string name="option_library">도서관</string>
+    <string name="option_library">라이브러리</string>
     <!-- Onboarding Media Scan -->
     <string name="onboarding_how_it_works">작동 원리</string>
     <!-- Onboarding Setup Complete -->
@@ -815,7 +815,7 @@
     <string name="settings_queue_playback_desc">자동 추가, 반복</string>
     <string name="settings_equalizer_title">이퀄라이저</string>
     <string name="settings_equalizer_desc">저음, 고음</string>
-    <string name="settings_section_library_content">도서관 및 미디어</string>
+    <string name="settings_section_library_content">라이브러리 및 미디어</string>
     <string name="settings_media_scan_title">미디어 스캔</string>
     <string name="settings_media_scan_desc">폴더 스캔</string>
     <string name="settings_playlists_title">재생 목록</string>
@@ -1633,7 +1633,7 @@
     <string name="settings_shape_player_controls_desc">플레이어 컨트롤 모양</string>
     <string name="settings_shape_mini_player">미니 플레이어 모양</string>
     <string name="settings_shape_mini_player_desc">미니 플레이어 모양</string>
-    <string name="settings_library_settings">도서관 체험</string>
+    <string name="settings_library_settings">라이브러리 체험</string>
     <string name="settings_library_settings_desc">등급, 구성 및 작품 행위</string>
     <string name="settings_library_group_organization">조직 및 등급</string>
     <string name="settings_library_combine_discs">디스크 결합</string>
@@ -2225,7 +2225,7 @@
     <string name="dialog_switch_to_go">T2Rhythm Go로 전환할까요?</string>
     <string name="dialog_switch_to_local">로컬로 전환하시겠습니까?</string>
     <string name="dialog_switch_to_go_desc">This item belongs to T2Rhythm Go. 지금 스트리밍 모드로 전환하여 스트리밍하고 재생하시겠습니까?</string>
-    <string name="dialog_switch_to_local_desc">이 항목은 귀하의 지역 도서관에 속합니다. 오프라인 트랙을 재생하려면 지금 로컬 모드로 전환하시겠습니까?</string>
+    <string name="dialog_switch_to_local_desc">이 항목은 귀하의 지역 라이브러리에 속합니다. 오프라인 트랙을 재생하려면 지금 로컬 모드로 전환하시겠습니까?</string>
     <!-- Section order content descriptions -->
 
     <!-- Add To Playlist additions -->

@@ -22,6 +22,9 @@ class ListeningRecorder(private val context: Context, private val songOf: (Media
     private var startElapsed = 0L
     private var startPosition = 0L
     private var speed = 1f
+    private var situation: ListeningSituation? = null
+    private var playListenedMs = 0L
+    private var lastSegmentMs = 0L
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val records = Channel<ListeningRecord>(Channel.UNLIMITED)
     private val timerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -37,14 +40,23 @@ class ListeningRecorder(private val context: Context, private val songOf: (Media
                 catch (_: Exception) { ledger.storageIssue("write_failed"); delay(2_000) }
             }
         }
-        timerScope.launch { while (isActive) { delay(10_000); checkpoint("checkpoint") } }
+        timerScope.launch { while (isActive) {
+            delay(10_000)
+            val next = ListeningContext.get(context).snapshot()
+            val before = situation
+            val changed = before != null && (before.routeType != next.routeType || before.routeName != next.routeName ||
+                before.hour != next.hour || before.weekday != next.weekday || ListeningContext.region(before) != ListeningContext.region(next) ||
+                (next.precise && (before.latitude != next.latitude || before.longitude != next.longitude)))
+            if (changed && segmentId != null) { finish("context_change"); if (player?.isPlaying == true) start() }
+            else checkpoint("checkpoint")
+        } }
     }
     fun attach(next: Player) {
         finish("player_swap")
         player?.removeListener(this)
         player = next; next.addListener(this)
         val nextSong = next.currentMediaItem?.let(songOf)
-        if (song?.id != nextSong?.id) { song = nextSong; playId = UUID.randomUUID().toString() }
+        if (song?.id != nextSong?.id) { song = nextSong; playId = UUID.randomUUID().toString(); playListenedMs = 0L }
         if (next.isPlaying) start()
     }
     private fun start() {
@@ -55,19 +67,23 @@ class ListeningRecorder(private val context: Context, private val songOf: (Media
         segmentId = UUID.randomUUID().toString(); startWall = System.currentTimeMillis()
         startElapsed = SystemClock.elapsedRealtime(); startPosition = p.currentPosition.coerceAtLeast(0)
         speed = p.playbackParameters.speed
+        situation = ListeningContext.get(context).snapshot()
+        lastSegmentMs = 0L
     }
     private fun checkpoint(reason: String, completed: Boolean = false, endPosition: Long? = null) {
         val p = player ?: return; val s = song ?: return; val id = segmentId ?: return
         val elapsed = (SystemClock.elapsedRealtime() - startElapsed).coerceAtLeast(0)
         if (elapsed == 0L) return
+        playListenedMs += (elapsed - lastSegmentMs).coerceAtLeast(0)
+        lastSegmentMs = elapsed
         val settings = AppSettings.getInstance(context)
-        val outputs = (context.getSystemService(Context.AUDIO_SERVICE) as AudioManager).getDevices(AudioManager.GET_DEVICES_OUTPUTS).map { it.type }.distinct()
+        val outputs = situation?.connectedOutputs.orEmpty().map { it.type }.distinct()
         val key = if (s.uri.scheme in listOf("http", "https")) s.uri.buildUpon().clearQuery().fragment(null).build().toString() else s.uri.toString()
         records.trySend(ListeningRecord(id, playId, "segment", s.id, key, s.title, s.artist, s.album, s.genre,
             startWall, startWall + elapsed, elapsed, s.duration, startPosition, (endPosition ?: p.currentPosition).coerceAtLeast(0), speed,
             reason, completed, s.dateAdded, outputTypes = outputs, repeatMode = p.repeatMode,
             shuffled = p.shuffleModeEnabled, volume = p.volume, favorite = settings.favoriteSongs.value?.let { json -> runCatching { com.google.gson.JsonParser.parseString(json).asJsonArray.any { it.asString == s.id } }.getOrDefault(false) } ?: false,
-            albumArtist = s.albumArtist, libraryModifiedAt = s.dateModified, codec = s.codec, sampleRate = s.sampleRate, channels = s.channels, bitrate = s.bitrate, year = s.year, trackNumber = s.trackNumber, discNumber = s.discNumber))
+            albumArtist = s.albumArtist, libraryModifiedAt = s.dateModified, codec = s.codec, sampleRate = s.sampleRate, channels = s.channels, bitrate = s.bitrate, year = s.year, trackNumber = s.trackNumber, discNumber = s.discNumber, situation = situation))
     }
     private fun finish(reason: String, completed: Boolean = false, endPosition: Long? = null) { checkpoint(reason, completed, endPosition); segmentId = null }
     private fun action(reason: String, position: Long = player?.currentPosition ?: 0) {
@@ -85,6 +101,14 @@ class ListeningRecorder(private val context: Context, private val songOf: (Media
         val completed = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
         finish(if (completed) "completed" else "skip_or_queue_change", completed, if (completed) song?.duration else null)
         action(if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) "repeat" else if (completed) "next_auto" else "track_change")
+        song?.let { previous ->
+            val listened = playListenedMs
+            val positive = completed || (previous.duration > 0 && listened >= previous.duration * .8)
+            val negative = !completed && listened in 1000..minOf(30_000L, previous.duration / 4)
+            val outcomeId = playId
+            if (positive || negative) ioScope.launch { RecommendationLearning.get(context).playOutcome(previous.uri.toString(), if (positive) 1.0 else 0.0, outcomeId) }
+        }
+        playListenedMs = 0L
         song = next; playId = UUID.randomUUID().toString()
         if (player?.isPlaying == true) start()
     }
@@ -95,7 +119,11 @@ class ListeningRecorder(private val context: Context, private val songOf: (Media
         }
     }
     override fun onPlaybackStateChanged(playbackState: Int) {
-        if (playbackState == Player.STATE_ENDED) { finish("completed", true); action("ended") }
+        if (playbackState == Player.STATE_ENDED) {
+            finish("completed", true); action("ended")
+            val key = song?.uri?.toString(); val outcomeId = playId
+            if (key != null) ioScope.launch { RecommendationLearning.get(context).playOutcome(key, 1.0, outcomeId) }
+        }
     }
     override fun onPlaybackParametersChanged(playbackParameters: androidx.media3.common.PlaybackParameters) {
         finish("speed_change"); action("speed_change"); if (player?.isPlaying == true) start()

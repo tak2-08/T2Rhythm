@@ -9,14 +9,17 @@ data class SongHabit(val songKey: String, val title: String, val artist: String,
     val listenedMs: Long, val medianGapMs: Long?, val maxConsecutiveRepeats: Int, val completed: Int,
     val earlySkips: Int, val firstListenDelayMs: Long?)
 data class ListeningInsights(val monthly: Map<String, Long>, val hourly: List<Long>, val genres: Map<String, Long>,
-    val artists: Map<String, Long>, val transitions: Map<Pair<String, String>, Int>, val habits: List<SongHabit>, val totalPlays: Int)
+    val artists: Map<String, Long>, val transitions: Map<Pair<String, String>, Int>, val habits: List<SongHabit>, val totalPlays: Int, val places: Map<String, Long> = emptyMap(), val outputs: Map<String, Long> = emptyMap())
 
 object ListeningInsightAnalysis {
     fun analyze(records: List<ListeningRecord>): ListeningInsights {
         val segments = records.filter { it.kind == "segment" && it.listenedMs > 0 }
         val monthly = mutableMapOf<String, Long>(); val hours = LongArray(24)
         val genres = mutableMapOf<String, Long>(); val artists = mutableMapOf<String, Long>()
+        val places = mutableMapOf<String, Long>(); val outputs = mutableMapOf<String, Long>()
         segments.forEach { r ->
+            ListeningContext.region(r.situation)?.let { place -> places[place] = (places[place] ?: 0) + r.listenedMs }
+            r.situation?.routeType?.let { route -> outputs[route] = (outputs[route] ?: 0) + r.listenedMs }
             val zone = runCatching { ZoneId.of(r.timezone) }.getOrDefault(ZoneId.systemDefault())
             var cursor = r.startedAt
             // Split across calendar boundaries instead of assigning a whole overnight play to one hour.
@@ -57,6 +60,6 @@ object ListeningInsightAnalysis {
                 first.libraryAddedAt.takeIf { it > 0 && starts.first() >= it }?.let { starts.first() - it })
         }.sortedByDescending { it.listenedMs }
         return ListeningInsights(monthly.toSortedMap(), hours.toList(), genres.toList().sortedByDescending { it.second }.toMap(),
-            artists.toList().sortedByDescending { it.second }.toMap(), transitions, habits, plays.size)
+            artists.toList().sortedByDescending { it.second }.toMap(), transitions, habits, plays.size, places, outputs)
     }
 }
