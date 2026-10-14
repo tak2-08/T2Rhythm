@@ -40,7 +40,7 @@ object AdaptiveRecommendation {
             val distance = abs(date.hour - situation.hour).let { minOf(it, 24 - it) }
             if (distance <= 1) hour[genre] = (hour[genre] ?: 0.0) + value * if (distance == 0) 1.0 else .5
             if (region != null && region == ListeningContext.region(r.situation)) place[genre] = (place[genre] ?: 0.0) + value
-            if (r.situation?.routeType == situation.routeType && situation.routeType != "unknown") output[genre] = (output[genre] ?: 0.0) + value
+            if (r.situation?.let(ListeningContext::outputGroup) == ListeningContext.outputGroup(situation) && situation.routeType != "unknown") output[genre] = (output[genre] ?: 0.0) + value
             if (date.dayOfWeek.value == situation.weekday) day[genre] = (day[genre] ?: 0.0) + value
             recent[genre] = (recent[genre] ?: 0.0) + value
             val previous = completions[r.songKey] ?: (0.0 to 0.0)

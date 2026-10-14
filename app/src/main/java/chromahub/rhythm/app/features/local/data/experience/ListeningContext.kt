@@ -87,6 +87,11 @@ class ListeningContext private constructor(private val context: Context) : Locat
     companion object {
         @Volatile private var instance: ListeningContext? = null
         fun get(context: Context): ListeningContext = instance ?: synchronized(this) { instance ?: ListeningContext(context.applicationContext).also { instance = it } }
+        fun outputGroup(situation: ListeningSituation): String {
+            val types = when (situation.routeType) { "bluetooth" -> setOf(7, 8, 26, 27); "wired" -> setOf(3, 4); "usb" -> setOf(11, 12, 22); else -> emptySet() }
+            val names = situation.connectedOutputs.filter { it.type in types }.map { it.name.trim().lowercase(java.util.Locale.ROOT) }.filter { it.isNotBlank() }.distinct().sorted()
+            return situation.routeType + ":" + (names.takeIf { it.isNotEmpty() }?.joinToString("|") ?: situation.routeName.orEmpty().lowercase(java.util.Locale.ROOT))
+        }
         fun region(situation: ListeningSituation?): String? = situation?.let { s ->
             if (s.latitude != null && s.longitude != null) "${round(s.latitude * 100) / 100}:${round(s.longitude * 100) / 100}" else s.place?.takeIf { it.isNotBlank() }
         }

@@ -29,6 +29,11 @@ class AdaptiveRecommendationTest {
         assertTrue(result.outputGenres.getValue("pop") < .3)
         assertTrue(result.completionRates.getValue("a") > result.completionRates.getValue("b"))
     }
+    @Test fun `different headphones retain separate learned output contexts`() {
+        fun device(name: String) = ListeningSituation(routeType = "bluetooth", connectedOutputs = listOf(OutputSnapshot(8, name, listOf(48000), listOf(2), emptyList())))
+        assertNotEquals(ListeningContext.outputGroup(device("Headphones A")), ListeningContext.outputGroup(device("Headphones B")))
+        assertEquals(ListeningContext.outputGroup(device("HEADPHONES A")), ListeningContext.outputGroup(device("headphones a")))
+    }
     @Test fun `explicit negative feedback excludes a song even if taste strongly matches`() {
         val ranked = PersonalRecommendation.rank(listOf(RecommendationCandidate("a", "Artist", "Pop", 0), RecommendationCandidate("b", "Other", "Rock", 0)),
             emptyList(), ExperienceProfile(), context = RecommendationContext(explicitFeedback = mapOf("a" to 0.0)))

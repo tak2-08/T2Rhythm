@@ -282,6 +282,12 @@ class AppUpdaterViewModel(
                     }.isSuccess
 
                     if (isValid) {
+                        val info = getApplication<Application>().packageManager.getPackageArchiveInfo(file.path, 0)
+                        val code = if (Build.VERSION.SDK_INT >= 28) info?.longVersionCode else info?.versionCode?.toLong()
+                        if (code != null && code <= BuildConfig.VERSION_CODE) {
+                            clearDownloadState(); _downloadProgress.value = 0f
+                            return
+                        }
                         _downloadedFile.value = file
                         _downloadProgress.value = 100f
                         Log.d(tag, "Found completed download: ${file.absolutePath}")

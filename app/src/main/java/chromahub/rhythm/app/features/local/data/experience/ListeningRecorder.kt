@@ -44,7 +44,7 @@ class ListeningRecorder(private val context: Context, private val songOf: (Media
             delay(10_000)
             val next = ListeningContext.get(context).snapshot()
             val before = situation
-            val changed = before != null && (before.routeType != next.routeType || before.routeName != next.routeName ||
+            val changed = before != null && (ListeningContext.outputGroup(before) != ListeningContext.outputGroup(next) ||
                 before.hour != next.hour || before.weekday != next.weekday || ListeningContext.region(before) != ListeningContext.region(next) ||
                 (next.precise && (before.latitude != next.latitude || before.longitude != next.longitude)))
             if (changed && segmentId != null) { finish("context_change"); if (player?.isPlaying == true) start() }
