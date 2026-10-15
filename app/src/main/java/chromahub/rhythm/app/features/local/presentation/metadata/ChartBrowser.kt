@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -29,6 +30,7 @@ import kr.co.metadata.crawler.*
 @Composable
 fun ChartBrowser(onDismiss: () -> Unit) {
     val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
     val scope = rememberCoroutineScope()
     val repository = remember { ChartRepository(context) }
     var provider by remember { mutableStateOf(Provider.BUGS_PC) }
@@ -129,7 +131,7 @@ fun ChartBrowser(onDismiss: () -> Unit) {
                                 java.text.DateFormat.getDateTimeInstance(
                                         java.text.DateFormat.SHORT,
                                         java.text.DateFormat.SHORT,
-                                        context.resources.configuration.locales[0],
+                                        locale,
                                     )
                                     .format(java.util.Date(data.fetchedAt)),
                             ),

@@ -40,7 +40,8 @@ fun SearchDiscoveryPanel(
                 }
         } catch (cancel: CancellationException) {
             throw cancel
-        } catch (_: Exception) {
+        } catch (failure: Exception) {
+            android.util.Log.w("DiscoveryKeywords", "Unable to load suggestion projection", failure)
             keywords = emptyList()
         } finally {
             loading = false

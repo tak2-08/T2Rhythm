@@ -78,6 +78,14 @@ class DiscoveryScreensTest {
         val proposal = store.proposal(song, "GENRE", "R&B", .82, "local_neighbors", 4)
         store.propose(proposal)
         try {
+            val initialKeywords =
+                kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+                    DiscoveryKeywords.suggest(context, listOf(song), emptyList(), null)
+                }
+            assertTrue(
+                "Expected artist among keyword suggestions: $initialKeywords",
+                song.artist in initialKeywords,
+            )
             compose.setContent {
                 val activityResults =
                     checkNotNull(androidx.activity.compose.LocalActivityResultRegistryOwner.current)
@@ -102,8 +110,14 @@ class DiscoveryScreensTest {
                 }
             }
             compose.onNodeWithText(context.getString(R.string.discovery_charts)).assertIsDisplayed()
-            compose.waitUntil(15000) {
-                compose.onAllNodesWithText(song.artist).fetchSemanticsNodes().isNotEmpty()
+            compose.mainClock.advanceTimeBy(300)
+            try {
+                compose.waitUntil(15000) {
+                    compose.onAllNodesWithText(song.artist).fetchSemanticsNodes().isNotEmpty()
+                }
+            } catch (failure: Throwable) {
+                capture("discovery-search-failure.png")
+                throw AssertionError(compose.onRoot().printToString(), failure)
             }
             compose.onNodeWithText(song.artist).performClick()
             assertEquals(song.artist, keyword.get())
