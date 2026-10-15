@@ -81,3 +81,10 @@
 -dontwarn java.awt.**
 -dontwarn javax.sound.**
 -dontwarn javax.swing.**
+# NewPipeExtractor signature JavaScript runtime (upstream required rules).
+-keep class org.mozilla.javascript.** { *; }
+-keep class org.mozilla.classfile.ClassFileWriter
+-dontwarn org.mozilla.javascript.tools.**
+
+# Pair is used in portable Gson decision and detailed-insight projections.
+-keepclassmembers class kotlin.Pair { <fields>; }
