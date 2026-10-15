@@ -54,8 +54,16 @@ class MusicVideoRepository(private val context: Context) {
     fun get(key: String): MusicVideo? = runCatching { gson.fromJson(record(key).readText(), MusicVideo::class.java) }.getOrNull()?.takeIf {
         it.songKey == key && (it.source == "youtube" && MusicVideoLinks.validId(it.videoId) || it.source == "local" && it.fileName?.let { name -> File(name).name == name && File(root, name).isFile } == true)
     }
+    internal fun pendingLinks(): List<MusicVideo> = records.listFiles().orEmpty().asSequence().filter { it.length() in 1..16000 }
+        .mapNotNull { file -> runCatching { gson.fromJson(file.readText(),MusicVideo::class.java) }.getOrNull() }
+        .filter { it.source=="youtube" && MusicVideoLinks.validId(it.videoId) }.take(1000).toList()
     fun save(video: MusicVideo) = synchronized(downloadInstallLock) { require(video.offsetMs in -600_000..600_000); require(video.source == "local" || MusicVideoLinks.validId(video.videoId)); PersonalArchive.atomicWrite(record(video.songKey), gson.toJson(video).toByteArray()); PersonalArchive.enqueue(context) }
-    fun link(key: String, url: String, title: String): MusicVideo = MusicVideo(key, "youtube", MusicVideoLinks.youtubeId(url) ?: error("Invalid YouTube link"), title = title).also(::save)
+    suspend fun link(key: String, url: String, title: String): MusicVideo = withContext(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+        val linked = MusicVideo(key, "youtube", MusicVideoLinks.youtubeId(url) ?: error("Invalid YouTube link"), title = title)
+        save(linked)
+        YouTubeVideoDownload.enqueue(context, key, linked.videoId!!, title)
+        linked
+    }
     fun uri(video: MusicVideo): Uri? = video.fileName?.takeIf { File(it).name == it }?.let { Uri.fromFile(File(root, it)) }
     fun remove(key: String) = synchronized(downloadInstallLock) { PersonalArchive.atomicWrite(record(key), gson.toJson(MusicVideo(key, "removed")).toByteArray()); PersonalArchive.enqueue(context) } // Shared video assets are preserved for recovery.
     fun installDownload(key: String, expectedId: String, imported: MusicVideo): Boolean = synchronized(downloadInstallLock) {

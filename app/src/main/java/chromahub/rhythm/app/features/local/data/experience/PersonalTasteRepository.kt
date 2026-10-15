@@ -48,8 +48,10 @@ object PersonalTasteRepository {
         val likedArtists = memory.weights(TasteKind.ARTIST, now)
         val likedAlbums = memory.weights(TasteKind.ALBUM, now)
         val likedSongs = memory.weights(TasteKind.SONG, now)
+        val inferred=chromahub.rhythm.app.features.local.data.discovery.InferredGenres.read(context)
         val candidates = pool.values.map { song ->
-            RecommendationCandidate(song.uri.toString(), song.artist, song.genre, song.dateAdded,
+            val hint=inferred[song.uri.toString()]?.takeIf { it.confidence>=.6 }
+            RecommendationCandidate(song.uri.toString(), song.artist, song.genre?.takeIf(String::isNotBlank) ?: hint?.genre, song.dateAdded,
                 song.id in favorites, song.id == currentId, title = song.title,
                 entityAffinity = .35 * (likedArtists[TasteMemory.artistKey(song.artist)] ?: 0.0) +
                     .35 * (likedAlbums[TasteMemory.albumKey(song.album, song.albumArtist ?: song.artist)] ?: 0.0) +

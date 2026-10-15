@@ -9,7 +9,7 @@ import com.google.gson.Gson
 import java.io.File
 
 @Keep enum class PersonalCollection { DAYLIST, DAILY_MIX, REDISCOVERY, SIMILAR, FAVORITES, FEWER_REPEATS }
-@Keep data class PersonalOptions(val snoozed: Map<String, Long> = emptyMap(), val hidden: Set<String> = emptySet(), val autoplay: Boolean = false, val labels: Map<String, String> = emptyMap())
+@Keep data class PersonalOptions(val snoozed: Map<String, Long> = emptyMap(), val hidden: Set<String> = emptySet(), val autoplay: Boolean = false, val labels: Map<String, String> = emptyMap(), val refreshHours: Int = 6)
 
 object PersonalCollections {
     private val gson = Gson()

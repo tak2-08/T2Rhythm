@@ -69,6 +69,7 @@ fun CatalogLibrarySettingsScreen(onBackClick: () -> Unit) {
             item { LibraryEnrichmentPanel() }
             item { CatalogSourceSettings() }
             item { PersonalArchivePanel() }
+            item { LearningPreferences() }
             item { PersonalExperiencePanel() }
         }
     }

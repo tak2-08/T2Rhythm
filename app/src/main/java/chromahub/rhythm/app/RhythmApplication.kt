@@ -68,6 +68,8 @@ class RhythmApplication : Application(), ImageLoaderFactory {
         Log.d(TAG, "✓ AppSettings initialized")
         chromahub.rhythm.app.features.local.data.metadata.ArtworkPrivacyWorker.enqueue(this)
         chromahub.rhythm.app.features.local.data.experience.RecommendationTrainingWorker.enqueue(this)
+        chromahub.rhythm.app.features.local.data.experience.RecommendationRefreshWorker.enqueue(this)
+        chromahub.rhythm.app.features.local.data.discovery.EnrichmentLearningWorker.enqueue(this)
 
         // Apply the user's theme preference to the system configuration so the
         // system splash screen and window background match the app theme

@@ -309,6 +309,9 @@ fun UniversalSearchScreen(
                             ),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
+                            item(key = "personal_discovery") {
+                                chromahub.rhythm.app.features.local.presentation.metadata.SearchDiscoveryPanel(localSongs, favoriteSongs.toList(), localViewModel) { query = it }
+                            }
                             item(key = "history_header") {
                                 Row(
                                     modifier = Modifier
@@ -414,6 +417,9 @@ fun UniversalSearchScreen(
                         ),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        item(key = "personal_discovery") {
+                            chromahub.rhythm.app.features.local.presentation.metadata.SearchDiscoveryPanel(localSongs, favoriteSongs.toList(), localViewModel) { query = it }
+                        }
                         if (searchHistory.isNotEmpty()) {
                             item(key = "history_header") {
                                 Row(

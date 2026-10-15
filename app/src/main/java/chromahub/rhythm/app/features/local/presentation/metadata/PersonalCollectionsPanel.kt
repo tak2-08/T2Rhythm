@@ -55,7 +55,7 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
         try {
             val value = withContext(Dispatchers.IO) {
                 val existing = if (refresh == 0L) RecommendationShelf.current(context) else null
-                val current = existing?.takeIf { it.createdAt / 3600_000L == hour && it.songKeys.any(catalog::containsKey) } ?: run {
+                val current = existing?.takeIf { !RecommendationShelf.refreshDue(context, it) && it.songKeys.any(catalog::containsKey) } ?: run {
                     val mode = proposalMode
                     val seed = System.currentTimeMillis() xor System.nanoTime()
                     val picks = PersonalCollections.generate(context, songs, favorites, currentId, mode, 20, seed = seed)
@@ -73,6 +73,7 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
     }
     fun rate(value: Double?) {
         val target = snapshot ?: return
+        RecommendationShelf.interacted(context, target.id)
         ratingBusy = true
         scope.launch(operationError) { try {
             withContext(Dispatchers.IO) { RecommendationLearning.get(context).collectionFeedback(target.feedbackKey, target.songKeys, value) }
@@ -116,7 +117,7 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
             IconButton(onClick = onMoveSection) { Icon(MaterialSymbolIcon("swap_vert"), stringResource(R.string.personal_move_section), Modifier.size(24.dp)) }
         }
         Text(stringResource(R.string.personal_collections_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Card(onClick = { sheetSnapshot = snapshot; selected = proposalMode; genre = snapshot?.genre }, shape = RoundedCornerShape(24.dp),
+        Card(onClick = { snapshot?.let { RecommendationShelf.interacted(context,it.id) }; sheetSnapshot = snapshot; selected = proposalMode; genre = snapshot?.genre }, shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -146,7 +147,7 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
                         leadingIcon = { Icon(MaterialSymbolIcon("thumb_down", filled = reaction == 0.0), null, Modifier.size(18.dp)) })
                     Spacer(Modifier.weight(1f))
                     FilledTonalIconButton(enabled = !proposalBusy && proposal.isNotEmpty(), onClick = {
-                        val picks = proposal.toList(); scope.launch(operationError) { withContext(Dispatchers.IO) { RecommendationLearning.get(context).selected(picks.first().uri.toString()) }; onPlayQueue(picks, 0) }
+                        snapshot?.let { RecommendationShelf.interacted(context,it.id) }; val picks = proposal.toList(); scope.launch(operationError) { withContext(Dispatchers.IO) { RecommendationLearning.get(context).selected(picks.first().uri.toString()) }; onPlayQueue(picks, 0) }
                     }) { Icon(MaterialSymbolIcon("play_arrow"), stringResource(R.string.action_play), Modifier.size(24.dp)) }
                 }
                 Text(stringResource(R.string.personal_feedback_short), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -204,7 +205,7 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(enabled = !busy && collection.isNotEmpty(), onClick = {
-                    val queue = collection.toList(); scope.launch(operationError) { withContext(Dispatchers.IO) { queue.firstOrNull()?.let { RecommendationLearning.get(context).selected(it.uri.toString()) } }; onPlayQueue(queue, 0) }; selected = null
+                    sheetSnapshot?.let { RecommendationShelf.interacted(context,it.id) }; val queue = collection.toList(); scope.launch(operationError) { withContext(Dispatchers.IO) { queue.firstOrNull()?.let { RecommendationLearning.get(context).selected(it.uri.toString()) } }; onPlayQueue(queue, 0) }; selected = null
                 }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.action_play)) }
                 OutlinedButton(enabled = !busy && collection.isNotEmpty(), onClick = { onCreatePlaylist(label(selected!!), collection); message = context.getString(R.string.personal_collection_saved) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.personal_save_playlist)) }
             }
@@ -222,7 +223,7 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
                     ListItem(headlineContent = { Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(song.artist, maxLines = 1) },
                         leadingContent = { chromahub.rhythm.app.util.M3ImageUtils.M3MediaImage(data = song.artworkUri, contentDescription = null, modifier = Modifier.size(44.dp), shape = RoundedCornerShape(8.dp), type = chromahub.rhythm.app.shared.presentation.components.common.M3PlaceholderType.TRACK, name = song.title) }, modifier = Modifier.clickable {
                             val queue = collection.toList(); val index = queue.indexOf(song)
-                            scope.launch(operationError) { withContext(Dispatchers.IO) { RecommendationLearning.get(context).selected(song.uri.toString()) }; onPlayQueue(queue, index) }; selected = null
+                            sheetSnapshot?.let { RecommendationShelf.interacted(context,it.id) }; scope.launch(operationError) { withContext(Dispatchers.IO) { RecommendationLearning.get(context).selected(song.uri.toString()) }; onPlayQueue(queue, index) }; selected = null
                         })
                 }
             }

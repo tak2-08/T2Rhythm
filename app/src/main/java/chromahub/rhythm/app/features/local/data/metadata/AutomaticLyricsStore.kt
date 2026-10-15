@@ -27,8 +27,8 @@ class AutomaticLyricsStore private constructor(private val context: Context) {
         val file = File(root, "${key(song)}.data.json")
         if (!file.isFile || file.length() > 2_000_000) null else Gson().fromJson(file.readText(), LyricsData::class.java)
     }.getOrNull()
-    suspend fun saveFetched(song: Song, data: LyricsData, embed: Boolean = true) = withContext(Dispatchers.IO) {
-        if (!catalog.preferences.options.value.autoLyrics || !data.hasLyrics() || data.isErrorMessage()) return@withContext
+    suspend fun saveFetched(song: Song, data: LyricsData, embed: Boolean = true, reviewed: Boolean = false) = withContext(Dispatchers.IO) {
+        if ((!reviewed && !catalog.preferences.options.value.autoLyrics) || !data.hasLyrics() || data.isErrorMessage()) return@withContext
         locks.computeIfAbsent(key(song)) { Mutex() }.withLock {
             root.mkdirs()
             write(File(root, "${key(song)}.data.json"), Gson().toJson(data))
@@ -42,6 +42,7 @@ class AutomaticLyricsStore private constructor(private val context: Context) {
             catalog.notifyChanged()
         }
         chromahub.rhythm.app.infrastructure.worker.CatalogWriteWorker.enqueue(context)
+        chromahub.rhythm.app.features.local.data.discovery.EnrichmentLearningWorker.enqueue(context)
     }
     private fun write(destination: File, text: String) {
         if (destination.isFile && destination.readText() == text) return

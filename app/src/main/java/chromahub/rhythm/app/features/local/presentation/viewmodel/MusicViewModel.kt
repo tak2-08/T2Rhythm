@@ -3097,7 +3097,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             albumArtist = albumArtist,
             composer = composer,
             discNumber = discNumber,
-            onSuccess = onSuccess,
+            onSuccess = { result -> chromahub.rhythm.app.features.local.data.discovery.EnrichmentLearningWorker.enqueue(getApplication<Application>()); onSuccess(result) },
             onError = onError,
             onPermissionRequired = onPermissionRequired
         )
@@ -8293,6 +8293,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Save edited lyrics for the current song to cache
      */
+    suspend fun applyReviewedLyrics(song: Song, proposal: chromahub.rhythm.app.features.local.data.discovery.EnrichmentProposal, undo: Boolean) {
+        val previous = withContext(Dispatchers.IO) { repository.peekLocalLyrics(song) }
+        if (undo) check(previous?.syncedLyrics == proposal.value)
+        else {
+            check(previous?.syncedLyrics == proposal.beforeLyrics?.syncedLyrics && previous?.plainLyrics == proposal.beforeLyrics?.plainLyrics)
+            check(proposal.beforeLyrics?.wordByWordLyrics.isNullOrBlank())
+        }
+        val value = if (undo) requireNotNull(proposal.beforeLyrics) else LyricsData(
+            chromahub.rhythm.app.features.local.data.discovery.LocalLyricAlignment.parse(proposal.value).joinToString("\n") { it.text },
+            proposal.value, source = "T2Rhythm reviewed alignment", isCorrected = true)
+        withContext(Dispatchers.IO) {
+            chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(getApplication<Application>()).saveFetched(song, value, reviewed = true)
+            repository.updateLyricsCache(song.artist, song.title, song.id, value)
+        }
+        if (currentSong.value?.uri == song.uri) { _currentLyrics.value = value; currentFetchingSongId = song.id }
+    }
+
     fun saveEditedLyrics(editedLyrics: String, timeOffset: Int = 0, format: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             try {

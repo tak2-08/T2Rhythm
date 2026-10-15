@@ -126,7 +126,7 @@ class PersonalArchive(private val context: Context) {
         var count = 0
         val metadata = base.findFile("music_metadata")
         val local = File(context.filesDir, "music_metadata")
-        listOf("records", "images", "lyrics", "originals", "audio_features", "recommendations", "videos", "entities", "context", "personalization", "preferences").forEach { category ->
+        listOf("records", "images", "lyrics", "originals", "audio_features", "recommendations", "videos", "entities", "context", "personalization", "preferences", "speech", "charts", "downloads").forEach { category ->
             fun descend(folder: DocumentFile, prefix: String = ""): List<Pair<String, DocumentFile>> = folder.listFiles().flatMap { child ->
                 val name = child.name ?: return@flatMap emptyList()
                 require('/' !in name && '\\' !in name && name != ".." && name != ".")
@@ -167,7 +167,7 @@ class PersonalArchive(private val context: Context) {
                     } finally { pending.delete() }
                     return@forEach
                 }
-                val bytes = context.contentResolver.openInputStream(remote.uri)?.use { it.readBytesBounded(if (category == "images" || category == "originals") 20 * 1024 * 1024 else 2 * 1024 * 1024) } ?: return@forEach
+                val bytes = context.contentResolver.openInputStream(remote.uri)?.use { it.readBytesBounded(if (category == "images" || category == "originals") 20 * 1024 * 1024 else if(category=="speech") 3_000_000 else 2 * 1024 * 1024) } ?: return@forEach
                 if (category == "records") {
                     val root = com.google.gson.JsonParser.parseString(bytes.toString(Charsets.UTF_8)).asJsonObject
                     require(root.get("version").asInt == 1)

@@ -6,7 +6,7 @@ import kotlin.math.*
 
 @Keep
 data class AudioFeatures(
-    val version: Int = 2,
+    val version: Int = 3,
     val songKey: String,
     val pcmSha256: String,
     val sampleRate: Int,
@@ -23,6 +23,7 @@ data class AudioFeatures(
     val tempoConfidence: Double = 0.0,
     val estimatedKey: String? = null,
     val keyConfidence: Double = 0.0,
+    val alignmentEnvelope: List<Double> = emptyList(),
 )
 
 /** Bounded streaming analysis: no complete PCM waveform is ever held in memory. */
@@ -106,7 +107,8 @@ class SignalAnalysis(private val sampleRate: Int, private val expectedDurationMs
             zeroCrossingRate = crossings.toDouble() / samples, spectralBands = bands.map { it / total },
             waveform = waveEnergy.indices.map { if (waveCounts[it] == 0L) 0.0 else sqrt(waveEnergy[it] / waveCounts[it]) },
             estimatedBpm = tempo.first, tempoConfidence = tempo.second,
-            estimatedKey = keyEstimate.first, keyConfidence = keyEstimate.second)
+            estimatedKey = keyEstimate.first, keyConfidence = keyEstimate.second,
+            alignmentEnvelope = envelope.chunked(10).map { it.average() })
     }
     companion object {
         /** These are DSP estimates, not authoritative tags or neural audio embeddings. */
@@ -137,7 +139,7 @@ class SignalAnalysis(private val sampleRate: Int, private val expectedDurationMs
             return if (best.third < .5 || confidence < .1) null to confidence else "${notes[best.first]} ${best.second}" to confidence
         }
         fun similarity(a: AudioFeatures?, b: AudioFeatures?): Double {
-            if (a == null || b == null || a.version !in 1..2 || b.version !in 1..2) return 0.0
+            if (a == null || b == null || a.version !in 1..3 || b.version !in 1..3) return 0.0
             if (a.pcmSha256 == b.pcmSha256) return 1.0
             val spectral = a.spectralBands.zip(b.spectralBands).sumOf { (x, y) -> sqrt(x * y) }.coerceIn(0.0, 1.0)
             val energy = exp(-abs(a.rmsDb - b.rmsDb) / 12)

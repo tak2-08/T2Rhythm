@@ -232,6 +232,9 @@ fun SettingsScreen(
     val hapticFeedback = LocalHapticFeedback.current
     val context = LocalContext.current
     val appSettings = AppSettings.getInstance(context)
+    var showDownloads by remember { mutableStateOf(false) }
+    if (showDownloads) chromahub.rhythm.app.features.local.presentation.metadata.DownloadCenter { showDownloads = false }
+
 
     // Collect states for toggles
     val updatesEnabled by appSettings.updatesEnabled.collectAsState()
@@ -408,6 +411,7 @@ fun SettingsScreen(
             SettingGroup(
                 title = context.getString(R.string.settings_section_storage_data),
                 items = buildList {
+                    add(SettingItem(MaterialSymbolIcon("download"), context.getString(R.string.discovery_downloads), context.getString(R.string.discovery_downloads_short), palette = SettingsPalettes.SkyBlue, onClick = { showDownloads = true }))
                     // Listening Stats and Rhythm Guard are shared across LOCAL and STREAMING modes
                     add(SettingItem(MaterialSymbolIcon("auto_graph"), context.getString(R.string.settings_rhythm_stats), context.getString(R.string.settings_rhythm_stats_desc), palette = SettingsPalettes.Purple, onClick = { onNavigateTo(SettingsRoutes.RHYTHM_STATS) }))
                     add(SettingItem(RhythmIcons.Security, context.getString(R.string.settings_rhythm_guard), context.getString(R.string.settings_rhythm_guard_list_desc), palette = SettingsPalettes.Emerald, onClick = { onNavigateTo(SettingsRoutes.RHYTHM_GUARD) }))

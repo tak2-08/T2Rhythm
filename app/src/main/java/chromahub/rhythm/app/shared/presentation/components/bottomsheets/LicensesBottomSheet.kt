@@ -59,6 +59,10 @@ fun LicensesBottomSheet(
     val haptic = LocalHapticFeedback.current
 
     val licenseItems = listOf(
+        licenseItem(name = "Vosk Android / Korean model", description = context.getString(R.string.discovery_license_vosk), license = "Apache-2.0",
+            url = "https://github.com/alphacep/vosk-api", icon = RhythmIcons.Connectivity.OpenInNew, context = context, haptic = haptic),
+        licenseItem(name = "JNA", description = context.getString(R.string.discovery_license_jna), license = "Apache-2.0 / LGPL-2.1-or-later",
+            url = "https://github.com/java-native-access/jna", icon = RhythmIcons.Connectivity.OpenInNew, context = context, haptic = haptic),
         licenseItem(name = "NewPipe Extractor", description = context.getString(R.string.licenses_newpipe), license = "GPL-3.0-or-later",
             url = "https://github.com/TeamNewPipe/NewPipeExtractor", icon = RhythmIcons.Connectivity.OpenInNew, context = context, haptic = haptic),
         licenseItem(

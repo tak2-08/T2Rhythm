@@ -10,7 +10,7 @@ import com.google.gson.Gson
 
 /** Disposable, bounded-memory projection. Only charging workers visit the raw listening history. */
 internal class ContextPreferenceIndex(context: Context) : SQLiteOpenHelper(context,
-    java.io.File(context.cacheDir, "context-preferences-v1.db").absolutePath, null, 2) {
+    java.io.File(context.cacheDir, "context-preferences-v1.db").absolutePath, null, 3) {
     private val gson = Gson()
     @Keep data class Contribution(val dimension: String, val bucket: String, val key: String, val value: Double, val count: Double = 0.0)
     override fun onCreate(db: SQLiteDatabase) {
@@ -106,6 +106,12 @@ internal class ContextPreferenceIndex(context: Context) : SQLiteOpenHelper(conte
         s.ambientSound?.let { put("ambient", (it.rmsDbfs / 10).toInt().toString()) }
         s.motion?.takeIf { it.confidence >= .4 && it.kind != "unknown" }?.let { put("motion", it.kind) }
         s.daylight?.let { put("daylight", it.isDay.toString()) }
+        // Joint observations retain combinations that marginal preferences cannot describe.
+        val dimensions = toMap()
+        listOf("motion" to "daylight", "hour" to "output", "place" to "weather", "output" to "volume", "motion" to "weather").forEach { (a, b) ->
+            val x = dimensions[a]; val y = dimensions[b]
+            if (x != null && y != null) put("joint:$a:$b", "$x|$y")
+        }
     }
     fun preferences(situation: ListeningSituation, previousGenre: String?): RecommendationContext {
         val buckets = buckets(situation)
@@ -137,7 +143,12 @@ internal class ContextPreferenceIndex(context: Context) : SQLiteOpenHelper(conte
                 if (gap > 0) due[c.getString(0)] = ((now - c.getLong(2)).coerceAtLeast(0) / gap).coerceIn(0.0, 1.0)
             }
         }
-        return RecommendationContext(hourlyGenres = values("hour"), weekdayGenres = values("weekday"),
+        val joint = buckets.filterKeys { it.startsWith("joint:") }.map { (dimension, bucket) -> values(dimension, bucket) }
+        val jointlyObserved = joint.flatMap { it.keys }.distinct().associateWith { genre ->
+            val support = joint.mapNotNull { it[genre] }
+            if (support.isEmpty()) 0.0 else support.average() * (support.size.toDouble() / (support.size + 1))
+        }
+        return RecommendationContext(jointGenres = jointlyObserved, hourlyGenres = values("hour"), weekdayGenres = values("weekday"),
             placeGenres = values("place"), outputGenres = values("output"), weatherGenres = values("weather"),
             brightnessGenres = values("brightness"), volumeGenres = values("volume"), ambientGenres = values("ambient"),
             motionGenres = values("motion"), daylightGenres = values("daylight"), completionRates = completion,

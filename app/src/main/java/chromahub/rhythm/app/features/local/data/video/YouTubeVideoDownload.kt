@@ -21,23 +21,49 @@ import java.util.concurrent.TimeUnit
 /** NewPipeExtractor GPL-3.0+: native Android extraction, no bundled Python or re-encoding. */
 object YouTubeVideoDownload {
     const val MAX_BYTES = 96L * 1024 * 1024
-    internal val lock = Mutex()
+    internal val extraction = Mutex()
+    internal val installation = Mutex()
+    private val enqueueLock = Mutex()
     private var initialized = false
+    private val extractionScope = ThreadLocal<CoroutineScope?>()
+    internal suspend fun <T> extract(block: () -> T): T = withContext(Dispatchers.IO) {
+        extraction.withLock {
+            initialize()
+            withContext(extractionScope.asContextElement(CoroutineScope(currentCoroutineContext()))) {
+                currentCoroutineContext().ensureActive(); block()
+            }
+        }
+    }
     fun name(key: String, id: String) = "youtube_video:${kr.co.metadata.crawler.CatalogFileStore.hash(key)}:$id"
     private fun songTag(key: String) = "video_song:${kr.co.metadata.crawler.CatalogFileStore.hash(key)}"
-    suspend fun enqueue(context: Context, key: String, id: String, title: String, mobile: Boolean = false, force: Boolean = false) {
-        require(MusicVideoLinks.validId(id))
-        val manager = WorkManager.getInstance(context)
-        if (!force && manager.getWorkInfosForUniqueWorkFlow(name(key, id)).first().any { !it.state.isFinished }) return
-        manager.cancelAllWorkByTag(songTag(key))
-        manager.enqueueUniqueWork(name(key, id), ExistingWorkPolicy.REPLACE,
-            OneTimeWorkRequestBuilder<YouTubeVideoDownloadWorker>().addTag(songTag(key))
+    suspend fun enqueue(context: Context, key: String, id: String, title: String, mobile: Boolean = false, force: Boolean = false): java.util.UUID =
+        withContext(Dispatchers.IO + NonCancellable) { enqueueLock.withLock {
+            require(MusicVideoLinks.validId(id))
+            val manager = WorkManager.getInstance(context)
+            val existing = manager.getWorkInfosForUniqueWork(name(key, id)).get(15, TimeUnit.SECONDS).lastOrNull { !it.state.isFinished }
+            if (!force && existing != null) {
+                if (DownloadRegistry.get(context, existing.id.toString()) == null) DownloadRegistry.save(context,
+                    DownloadRecord(existing.id.toString(), "VIDEO", key, id, title))
+                return@withLock existing.id
+            }
+            manager.getWorkInfosByTag(songTag(key)).get(15,TimeUnit.SECONDS).filter { !it.state.isFinished }.forEach {
+                DownloadRegistry.update(context,it.id.toString()) { record -> record.copy(state="CANCELLED") }
+            }
+            manager.cancelAllWorkByTag(songTag(key)).result.get(15, TimeUnit.SECONDS)
+            val request = OneTimeWorkRequestBuilder<YouTubeVideoDownloadWorker>().addTag(songTag(key)).addTag(DownloadRegistry.TAG)
                 .setInputData(workDataOf("key" to key, "id" to id, "title" to title))
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.MINUTES)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(if (mobile) NetworkType.CONNECTED else NetworkType.UNMETERED)
-                    .setRequiresStorageNotLow(true).setRequiresBatteryNotLow(true).build()).build())
+                    .setRequiresStorageNotLow(true).setRequiresBatteryNotLow(true).build()).build()
+            DownloadRegistry.save(context, DownloadRecord(request.id.toString(), "VIDEO", key, id, title))
+            manager.enqueueUniqueWork(name(key, id), ExistingWorkPolicy.REPLACE, request).result.get(15, TimeUnit.SECONDS)
+            request.id
+        } }
+    fun cancel(context: Context, key: String) {
+        DownloadRegistry.recent(context,1000).filter { it.kind=="VIDEO" && it.key==key && it.state !in setOf("SUCCEEDED","FAILED","CANCELLED") }
+            .forEach { DownloadRegistry.cancel(context,it.id) }
+        WorkManager.getInstance(context).cancelAllWorkByTag(songTag(key))
     }
-    fun cancel(context: Context, key: String) { WorkManager.getInstance(context).cancelAllWorkByTag(songTag(key)) }
     @Synchronized internal fun initialize() {
         if (initialized) return
         NewPipe.init(object : org.schabi.newpipe.extractor.downloader.Downloader() {
@@ -45,12 +71,15 @@ object YouTubeVideoDownload {
                 val builder = okhttp3.Request.Builder().url(request.url())
                 request.headers().forEach { (name, values) -> values.forEach { builder.addHeader(name, it) } }
                 builder.method(request.httpMethod(), request.dataToSend()?.toRequestBody())
-                return NetworkClient.genericHttpClient.newCall(builder.build()).execute().use { response ->
+                val call=NetworkClient.genericHttpClient.newCall(builder.build())
+                val scope=extractionScope.get()
+                val cancellation=scope?.launch(Dispatchers.IO,start=CoroutineStart.UNDISPATCHED) { try { awaitCancellation() } finally { call.cancel() } }
+                try { return call.execute().use { response ->
                     require(response.body.contentLength() <= 8 * 1024 * 1024) { "Extractor response too large" }
                     val input = response.body.byteStream(); val output = java.io.ByteArrayOutputStream(); val buffer = ByteArray(16 * 1024)
                     while (true) { val count = input.read(buffer); if (count < 0) break; require(output.size() + count <= 8 * 1024 * 1024); output.write(buffer, 0, count) }
                     org.schabi.newpipe.extractor.downloader.Response(response.code, response.message, response.headers.toMultimap(), output.toString(Charsets.UTF_8.name()), response.request.url.toString())
-                }
+                } } finally { cancellation?.cancel();scope?.coroutineContext?.ensureActive() }
             }
         }, Localization("ko", "KR"))
         initialized = true
@@ -71,49 +100,51 @@ object YouTubeVideoDownload {
 }
 
 class YouTubeVideoDownloadWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result = withContext(Dispatchers.IO) { YouTubeVideoDownload.lock.withLock {
-        val key = inputData.getString("key") ?: return@withLock Result.failure()
-        val id = inputData.getString("id")?.takeIf(MusicVideoLinks::validId) ?: return@withLock Result.failure()
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) { DownloadSlots.run(applicationContext) {
+        val key = inputData.getString("key") ?: return@run Result.failure()
+        val sourceId = inputData.getString("id")?.takeIf(MusicVideoLinks::validId) ?: return@run Result.failure()
+        val taskId = id.toString()
         val repository = MusicVideoRepository(applicationContext)
-        if (repository.get(key)?.let { it.source != "youtube" || it.videoId != id } != false) return@withLock Result.success()
-        val temporary = File.createTempFile("youtube-video-", ".part", applicationContext.cacheDir)
+        if (DownloadRegistry.get(applicationContext,taskId)==null) DownloadRegistry.save(applicationContext,
+            DownloadRecord(taskId,"VIDEO",key,sourceId,inputData.getString("title").orEmpty()))
+        if (repository.get(key)?.let { it.source != "youtube" || it.videoId != sourceId } != false) {
+            DownloadRegistry.update(applicationContext,taskId) { it.copy(state="CANCELLED") }; return@run Result.success()
+        }
+        var completed = false
         try {
-            require(temporary.usableSpace > YouTubeVideoDownload.MAX_BYTES * 2) { "Not enough free storage" }
+            setForeground(MediaTransfer.foreground(applicationContext,DownloadRegistry.get(applicationContext,taskId)!!))
+            DownloadRegistry.update(applicationContext,taskId) { it.copy(state="RUNNING",error=null) }
             YouTubeVideoDownload.initialize()
-            val info = StreamInfo.getInfo(ServiceList.YouTube, "https://www.youtube.com/watch?v=$id")
-            val stream = YouTubeVideoDownload.choose(info.videoOnlyStreams, info.duration)
-            val client = NetworkClient.genericHttpClient.newBuilder().callTimeout(4, TimeUnit.MINUTES).build()
-            val call = client.newCall(okhttp3.Request.Builder().url(stream.content).build())
-            val cancellation = CoroutineScope(currentCoroutineContext()).launch(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
-                try { awaitCancellation() } finally { call.cancel() }
+            val info = YouTubeVideoDownload.extract {
+                StreamInfo.getInfo(ServiceList.YouTube,"https://www.youtube.com/watch?v=$sourceId")
             }
-            try { call.execute().use { response ->
-                check(response.isSuccessful) { "HTTP ${response.code}" }
-                val length = response.body.contentLength(); require(length <= YouTubeVideoDownload.MAX_BYTES)
-                response.body.byteStream().use { input -> temporary.outputStream().buffered().use { output ->
-                    val buffer = ByteArray(32 * 1024); var bytes = 0L; var lastProgress = 0L
-                    while (true) {
-                        currentCoroutineContext().ensureActive()
-                        val count = input.read(buffer); if (count < 0) break
-                        bytes += count; require(bytes <= YouTubeVideoDownload.MAX_BYTES)
-                        output.write(buffer, 0, count)
-                        if (bytes - lastProgress >= 256 * 1024) {
-                            setProgress(workDataOf("bytes" to bytes, "percent" to if (length > 0) (bytes * 100 / length).toInt() else -1))
-                            lastProgress = bytes; yield()
-                        }
-                    }
-                    require(bytes > 0 && (length < 0 || bytes == length))
-                } }
+            val stream=YouTubeVideoDownload.choose(info.videoOnlyStreams,info.duration)
+            val identity="$sourceId:${stream.height}:${stream.fps}:${stream.format?.suffix}:${stream.bitrate}"
+            val temporary=MediaTransfer.fetch(applicationContext,DownloadRegistry.get(applicationContext,taskId)!!,stream.content,identity,YouTubeVideoDownload.MAX_BYTES) { bytes,total ->
+                DownloadRegistry.update(applicationContext,taskId) { it.copy(bytes=bytes,totalBytes=total) }
+                setProgress(workDataOf("bytes" to bytes,"total" to total,"percent" to if(total>0)(bytes*100/total).toInt() else -1))
             }
-            } finally { cancellation.cancel() }
+            currentCoroutineContext().ensureActive();check(DownloadRegistry.get(applicationContext,taskId)?.state!="CANCELLED")
+            val imported=YouTubeVideoDownload.installation.withLock {
+                repository.import(key,Uri.fromFile(temporary),inputData.getString("title").orEmpty(),persist=false)
+                    .copy(videoId=sourceId,width=stream.width,height=stream.height)
+            }
             currentCoroutineContext().ensureActive()
-            val imported = repository.import(key, Uri.fromFile(temporary), inputData.getString("title").orEmpty(), persist = false)
-                .copy(videoId = id, width = stream.width, height = stream.height)
-            repository.installDownload(key, id, imported)
+            check(repository.installDownload(key,sourceId,imported)) { "Video link changed" }
+            DownloadRegistry.update(applicationContext,taskId) { it.copy(state="SUCCEEDED",bytes=temporary.length(),totalBytes=temporary.length(),
+                uri=repository.uri(imported)?.toString(),fileBytes=imported.bytes) }
+            completed=true
             Result.success()
-        } catch (cancelled: CancellationException) { throw cancelled }
-        catch (error: Exception) {
-            Result.failure(workDataOf("download_error" to (error.message?.take(160) ?: "Video download failed")))
-        } finally { temporary.delete() }
+        } catch(cancel:CancellationException) {
+            val explicit=DownloadRegistry.get(applicationContext,taskId)?.state=="CANCELLED"
+            if(explicit)MediaTransfer.discard(applicationContext,taskId)
+            else DownloadRegistry.update(applicationContext,taskId) { if(it.state=="SUCCEEDED")it else it.copy(state="ENQUEUED") }
+            throw cancel
+        } catch(error:Exception) {
+            if(DownloadRegistry.get(applicationContext,taskId)?.state=="CANCELLED") {MediaTransfer.discard(applicationContext,taskId);return@run Result.success()}
+            val retry=error is java.io.IOException && runAttemptCount<3
+            DownloadRegistry.update(applicationContext,taskId) { it.copy(state=if(retry)"ENQUEUED" else "FAILED",error=error.javaClass.simpleName) }
+            if(retry)Result.retry() else { MediaTransfer.discard(applicationContext,taskId);Result.failure(workDataOf("download_error" to error.javaClass.simpleName)) }
+        } finally { if(completed) MediaTransfer.discard(applicationContext,taskId) }
     } }
 }

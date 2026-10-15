@@ -10,8 +10,8 @@ import kotlin.math.*
 
 /** Fixed, versioned feature space allows old recommendation decisions to be replayed and evaluated. */
 object AdaptiveRecommendation {
-    const val SCHEMA = 4
-    val featureNames = listOf("artist", "genre", "novelty", "repeat", "audio", "hour", "transition", "routine", "place", "output", "weekday", "completion", "recentTaste", "weather", "brightness", "volume", "ambient", "motion", "daylight", "entity")
+    const val SCHEMA = 5
+    val featureNames = listOf("artist", "genre", "novelty", "repeat", "audio", "hour", "transition", "routine", "place", "output", "weekday", "completion", "recentTaste", "weather", "brightness", "volume", "ambient", "motion", "daylight", "entity", "jointContext", "contextAudio", "contextCompletion", "rediscoveryTaste")
     fun probability(weights: List<Double>, features: List<Double>): Double {
         require(weights.size == features.size && weights.size in 13..featureNames.size)
         val dot = weights.zip(features).sumOf { (w, x) -> w.coerceIn(-3.0, 3.0) * x.coerceIn(0.0, 1.0) }.coerceIn(-20.0, 20.0)

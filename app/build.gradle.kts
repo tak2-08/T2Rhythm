@@ -32,8 +32,8 @@ android {
         
         val overrideVersionCode = project.findProperty("versionCodeOverride")?.toString()?.toIntOrNull()
         val overrideVersionName = project.findProperty("versionNameOverride")?.toString()
-        versionCode = overrideVersionCode ?: 554981308
-        versionName = overrideVersionName ?: "5.5.498.1308"
+        versionCode = overrideVersionCode ?: 554981309
+        versionName = overrideVersionName ?: "5.5.498.1309"
 
         val overrideReleaseDate = project.findProperty("releaseDateOverride")?.toString()
         buildConfigField("String", "RELEASE_DATE", "\"${overrideReleaseDate ?: "2026-10-15"}\"")
@@ -224,6 +224,7 @@ androidComponents {
 
 dependencies {
     implementation(project(":crawler"))
+    implementation("com.alphacephei:vosk-android:0.3.75")
     implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5") {
         // Extractor uses Rhino's Android interpreter directly, never the desktop JSR-223 bridge.
         exclude(group = "org.mozilla", module = "rhino-engine")

@@ -26,7 +26,7 @@ object RecommendationShelf {
     }
     fun recent(context: Context, limit: Int = 50): List<MixSnapshot> = root(context).listFiles { f -> f.extension == "json" }.orEmpty()
         .sortedByDescending { it.lastModified() }.take(limit.coerceIn(1, 100)).mapNotNull(::read).sortedByDescending { it.createdAt }
-    fun create(context: Context, mode: PersonalCollection, genre: String?, keys: List<String>, seed: Long): MixSnapshot? {
+    @Synchronized fun create(context: Context, mode: PersonalCollection, genre: String?, keys: List<String>, seed: Long): MixSnapshot? {
         if (keys.isEmpty()) return null
         val selected = keys.distinct().take(500)
         val snapshot = MixSnapshot(java.util.UUID.randomUUID().toString(), mode, genre, System.currentTimeMillis(), seed, selected,
@@ -35,6 +35,17 @@ object RecommendationShelf {
         select(context, snapshot)
         PersonalArchive.enqueue(context)
         return snapshot
+    }
+    fun interacted(context: Context, id: String) { context.getSharedPreferences("recommendation_shelf", Context.MODE_PRIVATE).edit().putLong("interaction:$id", System.currentTimeMillis()).apply() }
+    fun refreshDue(context: Context, snapshot: MixSnapshot, now: Long = System.currentTimeMillis()): Boolean {
+        val interval=PersonalCollections.options(context).refreshHours.takeIf { it in 1..48 } ?: 6
+        val last=context.getSharedPreferences("recommendation_shelf", Context.MODE_PRIVATE).getLong("interaction:${snapshot.id}",snapshot.createdAt)
+        return now-snapshot.createdAt >= interval*3600_000L && now-last >= 30*60_000L
+    }
+    @Synchronized fun createIfCurrent(context: Context, expected: String, mode: PersonalCollection, genre: String?, keys: List<String>, seed: Long): MixSnapshot? {
+        val existing=current(context) ?: return null
+        if (existing.id != expected || !refreshDue(context,existing)) return null
+        return create(context,mode,genre,keys,seed)
     }
     fun select(context: Context, snapshot: MixSnapshot) { check(context.getSharedPreferences("recommendation_shelf", Context.MODE_PRIVATE).edit().putString("current", snapshot.id).commit()) }
 }

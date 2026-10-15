@@ -93,3 +93,7 @@
 
 # Pair is used in portable Gson decision and detailed-insight projections.
 -keepclassmembers class kotlin.Pair { <fields>; }
+
+# Vosk uses JNA to bind native recognition functions.
+-keep class org.vosk.** { *; }
+-keep class com.sun.jna.** { *; }
