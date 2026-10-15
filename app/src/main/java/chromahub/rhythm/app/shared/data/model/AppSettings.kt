@@ -106,7 +106,11 @@ private val RHYTHM_GUARD_POLICY_BANDS = RHYTHM_AURA_POLICY_BANDS
 enum class LyricsApiPriority(val displayName: String) {
     LYRICALLY_FIRST("Lyrically"),
     LRCLIB_FIRST("LRCLib"),
-    BETTERLYRICS_FIRST("Better Lyrics");
+    BETTERLYRICS_FIRST("Better Lyrics"),
+    MUSIC_CRAWLER_FIRST("Bugs → Melon → Genie"),
+    BUGS_FIRST("Bugs"),
+    MELON_FIRST("Melon"),
+    GENIE_FIRST("Genie");
 
     companion object {
         fun fromOrdinal(ordinal: Int): LyricsApiPriority {
@@ -213,7 +217,7 @@ class AppSettings private constructor(context: Context) {
         private const val KEY_EXPRESSIVE_HIDDEN_BOTTOM_BUTTONS_NORMAL = "expressive_hidden_bottom_buttons_normal"
         private const val KEY_EXPRESSIVE_BOTTOM_BUTTONS_MERGE = "expressive_bottom_buttons_merge"
         private const val KEY_EXPRESSIVE_HIDDEN_BOTTOM_BUTTONS_MERGE = "expressive_hidden_bottom_buttons_merge"
-        const val MAX_EXPRESSIVE_BOTTOM_PINS_NORMAL = 2
+        const val MAX_EXPRESSIVE_BOTTOM_PINS_NORMAL = 3
         const val MAX_EXPRESSIVE_BOTTOM_BUTTONS_MERGE = 5
         val fixedBottomButtonsNormal = listOf("LYRICS", "FAVORITE")
         private const val KEY_LYRICALLY_SOURCES_ORDER = "lyrically_sources_order"
@@ -325,6 +329,7 @@ class AppSettings private constructor(context: Context) {
         private const val KEY_INTEGRATIONS_ENABLED = "integrations_enabled"
         private const val KEY_DEEZER_API_ENABLED = "deezer_api_enabled"
         private const val KEY_LRCLIB_API_ENABLED = "lrclib_api_enabled"
+        private const val KEY_MUSIC_CRAWLER_LYRICS_API_ENABLED = "music_crawler_lyrics_api_enabled"
         private const val KEY_BETTERLYRICS_API_ENABLED = "better_lyrics_api_enabled"
         private const val KEY_YTMUSIC_API_ENABLED = "ytmusic_api_enabled"
         private const val KEY_SPOTIFY_API_ENABLED = "spotify_api_enabled"
@@ -890,11 +895,14 @@ class AppSettings private constructor(context: Context) {
     val customFontFamily: StateFlow<String> = _customFontFamily.asStateFlow()
     
     // Player Theme Settings
-    private val _playerThemeId = MutableStateFlow(prefs.getString(KEY_PLAYER_THEME_ID, "EXPRESSIVE") ?: "EXPRESSIVE")
+    private val _playerThemeId = MutableStateFlow("EXPRESSIVE")
     val playerThemeId: StateFlow<String> = _playerThemeId.asStateFlow()
     
-    private val _miniPlayerThemeId = MutableStateFlow(prefs.getString(KEY_MINI_PLAYER_THEME_ID, "EXPRESSIVE") ?: "EXPRESSIVE")
+    private val _miniPlayerThemeId = MutableStateFlow("MATERIAL")
     val miniPlayerThemeId: StateFlow<String> = _miniPlayerThemeId.asStateFlow()
+    init {
+        prefs.edit { putString(KEY_PLAYER_THEME_ID, "EXPRESSIVE"); putString(KEY_MINI_PLAYER_THEME_ID, "MATERIAL") }
+    }
     
     // Library Settings
     private val _albumViewType = MutableStateFlow(
@@ -1008,10 +1016,10 @@ class AppSettings private constructor(context: Context) {
     val hiddenPlayerChips: StateFlow<Set<String>> = _hiddenPlayerChips.asStateFlow()
 
     // Expressive Player Bottom Buttons
-    val defaultExpressiveBottomButtonsNormal = listOf("DEVICE", "QUEUE", "MORE")
-    val defaultExpressiveBottomButtonsMerge = listOf("LYRICS", "FAVORITE", "DEVICE", "QUEUE", "MORE")
+    val defaultExpressiveBottomButtonsNormal = listOf("DEVICE", "QUEUE")
+    val defaultExpressiveBottomButtonsMerge = listOf("LYRICS", "FAVORITE", "DEVICE", "QUEUE")
     val allExpressiveBottomButtons = listOf(
-        "LYRICS", "FAVORITE", "DEVICE", "QUEUE", "MORE",
+        "LYRICS", "FAVORITE", "DEVICE", "QUEUE",
         "SHUFFLE", "REPEAT", "EQUALIZER", "SPEED", "SLEEP_TIMER",
         "ADD_TO_PLAYLIST", "ALBUM", "ARTIST", "SONG_INFO", "SHARE"
     )
@@ -1031,9 +1039,6 @@ class AppSettings private constructor(context: Context) {
                     if (!result.contains(button)) {
                         result.add(defaultIndex.coerceAtMost(result.size), button)
                     }
-                }
-                if (!result.contains("MORE")) {
-                    result.add("MORE")
                 }
                 result
             }
@@ -1141,7 +1146,12 @@ class AppSettings private constructor(context: Context) {
     val showScrollToTop: StateFlow<Boolean> = _showScrollToTop.asStateFlow()
     
     // App Mode Settings (Local vs Streaming)
-    private val _appMode = MutableStateFlow(prefs.getString(KEY_APP_MODE, "LOCAL") ?: "LOCAL")
+    // Go mode was removed. Normalize old installations and imported settings.
+    private val _appMode = MutableStateFlow("LOCAL").also {
+        if (prefs.getString(KEY_APP_MODE, "LOCAL") != "LOCAL") {
+            prefs.edit { putString(KEY_APP_MODE, "LOCAL") }
+        }
+    }
     val appMode: StateFlow<String> = _appMode.asStateFlow()
     
     private val _streamingService = MutableStateFlow(prefs.getString(KEY_STREAMING_SERVICE, "SUBSONIC") ?: "SUBSONIC")
@@ -1715,6 +1725,13 @@ class AppSettings private constructor(context: Context) {
     private val _lrclibApiEnabled = MutableStateFlow(prefs.getBoolean(KEY_LRCLIB_API_ENABLED, false))
     val lrclibApiEnabled: StateFlow<Boolean> = _lrclibApiEnabled.asStateFlow()
     
+    private val _musicCrawlerLyricsApiEnabled = MutableStateFlow(prefs.getBoolean(KEY_MUSIC_CRAWLER_LYRICS_API_ENABLED, false))
+    val musicCrawlerLyricsApiEnabled: StateFlow<Boolean> = _musicCrawlerLyricsApiEnabled.asStateFlow()
+    fun setMusicCrawlerLyricsApiEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_MUSIC_CRAWLER_LYRICS_API_ENABLED, enabled) }
+        _musicCrawlerLyricsApiEnabled.value = enabled
+    }
+
     private val _betterLyricsApiEnabled = MutableStateFlow(prefs.getBoolean(KEY_BETTERLYRICS_API_ENABLED, false))
     val betterLyricsApiEnabled: StateFlow<Boolean> = _betterLyricsApiEnabled.asStateFlow()
     
@@ -2665,13 +2682,13 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
     
     // Player Theme Settings Methods
     fun setPlayerThemeId(themeId: String) {
-        prefs.edit { putString(KEY_PLAYER_THEME_ID, themeId) }
-        _playerThemeId.value = themeId
+        prefs.edit { putString(KEY_PLAYER_THEME_ID, "EXPRESSIVE") }
+        _playerThemeId.value = "EXPRESSIVE"
     }
     
     fun setMiniPlayerThemeId(themeId: String) {
-        prefs.edit { putString(KEY_MINI_PLAYER_THEME_ID, themeId) }
-        _miniPlayerThemeId.value = themeId
+        prefs.edit { putString(KEY_MINI_PLAYER_THEME_ID, "MATERIAL") }
+        _miniPlayerThemeId.value = "MATERIAL"
     }
     
     // Library Settings Methods
@@ -2758,9 +2775,6 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
 
     fun setExpressiveBottomButtonsNormal(order: List<String>) {
         val sanitized = order.filter { it in allExpressiveBottomButtons && it !in fixedBottomButtonsNormal }.toMutableList()
-        if (!sanitized.contains("MORE")) {
-            sanitized.add("MORE")
-        }
         val orderString = sanitized.joinToString(",")
         prefs.edit { putString(KEY_EXPRESSIVE_BOTTOM_BUTTONS_NORMAL, orderString) }
         _expressiveBottomButtonsNormal.value = sanitized
@@ -2928,9 +2942,10 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
     }
     
     // App Mode setter methods
+    @Suppress("UNUSED_PARAMETER") // Compatibility with older settings importers.
     fun setAppMode(mode: String) {
-        prefs.edit { putString(KEY_APP_MODE, mode) }
-        _appMode.value = mode
+        prefs.edit { putString(KEY_APP_MODE, "LOCAL") }
+        _appMode.value = "LOCAL"
     }
     
     fun setStreamingService(service: String) {
@@ -4505,9 +4520,9 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
     
     // Helper method to check if a song would be filtered by current whitelist rules
     fun isEffectivelyWhitelisted(songId: String, songPath: String?): Boolean {
-        // If no whitelist exists, all songs are effectively whitelisted
+        // Empty inclusion lists select no songs in whitelist and hybrid modes.
         if (_whitelistedSongs.value.isEmpty() && _whitelistedFolders.value.isEmpty()) {
-            return true
+            return false
         }
         
         // Check individual song whitelist
@@ -5611,6 +5626,7 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
         _integrationsEnabled.value = prefs.getBoolean(KEY_INTEGRATIONS_ENABLED, false)
         _deezerApiEnabled.value = prefs.getBoolean(KEY_DEEZER_API_ENABLED, false)
         _lrclibApiEnabled.value = prefs.getBoolean(KEY_LRCLIB_API_ENABLED, false)
+        _musicCrawlerLyricsApiEnabled.value = prefs.getBoolean(KEY_MUSIC_CRAWLER_LYRICS_API_ENABLED, false)
         _betterLyricsApiEnabled.value = prefs.getBoolean(KEY_BETTERLYRICS_API_ENABLED, false)
         _ytMusicApiEnabled.value = prefs.getBoolean(KEY_YTMUSIC_API_ENABLED, false)
         _spotifyApiEnabled.value = prefs.getBoolean(KEY_SPOTIFY_API_ENABLED, false)
@@ -6660,8 +6676,8 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
     
     // Default section order for home screen
     private val defaultHomeSectionOrder = listOf(
-        "DISCOVER", "RECENTLY_PLAYED", "ARTISTS", "RHYTHM_GUARD",
-        "NEW_RELEASES", "RECENTLY_ADDED", "RECOMMENDED", "STATS", "MOOD"
+        "RECOMMENDED", "RECENTLY_PLAYED", "DISCOVER", "RECENTLY_ADDED",
+        "ARTISTS", "NEW_RELEASES", "STATS", "RHYTHM_GUARD", "MOOD"
     )
     private val _homeSectionOrder = MutableStateFlow(
         prefs.getString(KEY_HOME_SECTION_ORDER, null)
@@ -6669,12 +6685,13 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
             ?.map(String::trim)
             ?.filter { it.isNotBlank() && it != "GREETING" }
             ?.takeIf { it.isNotEmpty() }
+            ?.let { saved -> if (!prefs.getBoolean("t2_home_order_selected", false) && saved == listOf("DISCOVER", "RECENTLY_PLAYED", "ARTISTS", "RHYTHM_GUARD", "NEW_RELEASES", "RECENTLY_ADDED", "RECOMMENDED", "STATS", "MOOD")) defaultHomeSectionOrder else saved }
             ?: defaultHomeSectionOrder
     )
     val homeSectionOrder: StateFlow<List<String>> = _homeSectionOrder.asStateFlow()
     fun setHomeSectionOrder(value: List<String>) {
         _homeSectionOrder.value = value
-        prefs.edit { putString(KEY_HOME_SECTION_ORDER, value.joinToString(",")) }
+        prefs.edit { putString(KEY_HOME_SECTION_ORDER, value.joinToString(",")); putBoolean("t2_home_order_selected", true) }
     }
 
     private val defaultStreamingHomeSectionOrder = listOf(

@@ -1,3 +1,4 @@
+@file:OptIn(kotlinx.coroutines.FlowPreview::class)
 /*
  * SPDX-FileCopyrightText: 2024-2026 Anjishnu Nandi <https://github.com/cromaguy>
  * SPDX-License-Identifier: GPL-3.0-or-later
@@ -88,6 +89,7 @@ import androidx.paging.cachedIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
@@ -633,11 +635,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         val hasWhitelist = whitelistedIds.isNotEmpty() || whitelistedFolders.isNotEmpty()
         
         // Determine which filtering mode to use based on mediaScanMode setting
-        val useBlacklistMode = mediaScanMode == MediaScanMode.BLACKLIST
-        val useWhitelistMode = mediaScanMode == MediaScanMode.WHITELIST
+        val useBlacklistMode = mediaScanMode.usesBlacklist
+        val useWhitelistMode = mediaScanMode.usesWhitelist
         
         // If no filters are active for the current mode, return all songs
-        if (useBlacklistMode && !hasBlacklist) {
+        if (!useWhitelistMode && useBlacklistMode && !hasBlacklist) {
             return@withContext songs
         }
         if (useWhitelistMode && !hasWhitelist) {
@@ -664,21 +666,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         val startTime = System.currentTimeMillis()
         val result = ArrayList<Song>(songs.size)
 
-        // Pre-normalize target folders once for O(N+M) efficiency instead of O(N*M)
-        val normBlacklistedFolders = if (useBlacklistMode && blacklistedFolders.isNotEmpty()) {
-            blacklistedFolders.map { normalizeStoragePath(it) }
-        } else {
-            emptyList()
-        }
-        val normWhitelistedFolders = if (useWhitelistMode && whitelistedFolders.isNotEmpty()) {
-            whitelistedFolders.map { normalizeStoragePath(it) }
-        } else {
-            emptyList()
-        }
+        val policy = chromahub.rhythm.app.core.domain.scan.LibraryFilterPolicy(
+            mediaScanMode, blacklistedIds, blacklistedFolders, whitelistedIds, whitelistedFolders,
+        )
 
-        val blacklistedIdsSet = if (useBlacklistMode && blacklistedIds.isNotEmpty()) blacklistedIds.toSet() else emptySet()
-        val whitelistedIdsSet = if (useWhitelistMode && whitelistedIds.isNotEmpty()) whitelistedIds.toSet() else emptySet()
-        
         // Process in batches to allow yielding
         val batchSize = 100
         var processed = 0
@@ -692,36 +683,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 continue
             }
             
-            var shouldInclude = false
-            
-            // In BLACKLIST mode: exclude blacklisted songs/folders, include everything else
-            if (useBlacklistMode && hasBlacklist) {
-                // Check if song is individually blacklisted
-                if (blacklistedIdsSet.contains(song.id)) {
-                    shouldInclude = false
-                } else if (normBlacklistedFolders.isNotEmpty()) {
-                    // Check if song is in a blacklisted folder
-                    val songPath = song.path ?: if (song.uri.scheme == "file") song.uri.path else getPathFromUriCached(song.uri)
-                    shouldInclude = songPath == null || !isNormalizedPathInFolders(normalizeStoragePath(songPath), normBlacklistedFolders)
-                } else {
-                    shouldInclude = true
-                }
-            }
-            // In WHITELIST mode: include ONLY whitelisted songs/folders, exclude everything else
-            else if (useWhitelistMode && hasWhitelist) {
-                // Check if song ID is individually whitelisted
-                if (whitelistedIdsSet.contains(song.id)) {
-                    shouldInclude = true
-                } else if (normWhitelistedFolders.isNotEmpty()) {
-                    // Check if song is in a whitelisted folder
-                    val songPath = song.path ?: if (song.uri.scheme == "file") song.uri.path else getPathFromUriCached(song.uri)
-                    if (songPath == null) {
-                        Log.w(TAG, "Whitelist: could not resolve path for song '${song.title}' (${song.uri}), excluding it")
-                    }
-                    shouldInclude = songPath != null && isNormalizedPathInFolders(normalizeStoragePath(songPath), normWhitelistedFolders)
-                }
-            }
-            
+            val songPath = song.path ?: if (song.uri.scheme == "file") song.uri.path else getPathFromUriCached(song.uri)
+            val shouldInclude = policy.includes(song.id, songPath)
+
             // Cache result
             filterCache[cacheKey] = shouldInclude
             if (shouldInclude) {
@@ -1089,14 +1053,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _isExtractingMetadata = MutableStateFlow(false)
     val isExtractingMetadata: StateFlow<Boolean> = _isExtractingMetadata.asStateFlow()
 
-    // Combined background processing state - true if ANY background task is running
+    // Initial library preparation excludes optional online artwork lookup.
     val isBackgroundProcessing: StateFlow<Boolean> = combine(
         isMediaScanning,
         _isGenreDetectionRunning,
         _isFetchingArtwork,
         _isExtractingMetadata
     ) { mediaScanning, genreDetection, artworkFetching, metadataExtraction ->
-        mediaScanning || genreDetection || artworkFetching || metadataExtraction
+        mediaScanning || genreDetection || metadataExtraction
     }.stateIn(
         scope = viewModelScope,
         started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
@@ -1238,6 +1202,33 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
+        val catalog = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(application)
+        viewModelScope.launch {
+            catalog.changes.debounce(750).collect {
+                val updated = withContext(Dispatchers.IO) { repository.storedSongs(_songs.value) }
+                if (updated != _songs.value) {
+                    _songs.value = updated
+                    repository.updateAndPersistSongs(updated)
+                    _currentSong.value?.let { current -> updated.find { it.id == current.id }?.let { replacement ->
+                        if (replacement != current) updateCurrentSongMetadata(replacement)
+                    } }
+                }
+                val artwork = withContext(Dispatchers.IO) {
+                    _albums.value.map { album -> album.copy(artworkUri = catalog.preferredArtwork(album.artworkUri,
+                        catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ALBUM, catalog.albumKey(album.title, album.artist))))) } to
+                    _artists.value.map { artist -> artist.copy(artworkUri = catalog.preferredArtwork(artist.artworkUri,
+                        catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ARTIST, catalog.artistKey(artist.name))))) }
+                }
+                _albums.value = artwork.first
+                _artists.value = artwork.second
+                _currentSong.value?.let { song ->
+                    val saved = withContext(Dispatchers.IO) { chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(application).read(song) }
+                    if (saved != null && saved.hasLyrics() &&
+                        (_currentLyrics.value?.hasLyrics() != true || _currentLyrics.value?.isErrorMessage() == true)) _currentLyrics.value = saved
+                }
+            }
+        }
+
         Log.d(TAG, "Initializing MusicViewModel")
         startLibrarySetupCompletionMonitor()
         
@@ -1372,7 +1363,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     val mode = appSettings.mediaScanMode.value
                     val hasWhitelist = appSettings.whitelistedFolders.value.isNotEmpty() ||
                         appSettings.whitelistedSongs.value.isNotEmpty()
-                    if (mode == MediaScanMode.WHITELIST && !hasWhitelist) {
+                    if (mode.usesWhitelist && !hasWhitelist) {
                         Log.d(TAG, "Whitelist mode active with no folders or songs selected; clearing current songs without full media scan")
                         _songs.value = emptyList()
                         _albums.value = emptyList()
@@ -2031,7 +2022,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val artistSource1 = appSettings.artistArtworkSource.value
                 val shouldFetchArtists = hasMissingArtists &&
                     artistSource1 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.DISABLED &&
-                    (artistSource1 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY || appSettings.deezerApiEnabled.value)
+                    (artistSource1 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY || appSettings.deezerApiEnabled.value || chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).onlineArtworkEnabled())
                 val shouldFetchAlbumsAndSongs = (hasMissingAlbums || hasMissingSongs) && appSettings.isAutoFetchArtworkActive.value && (appSettings.ytMusicApiEnabled.value || appSettings.deezerApiEnabled.value)
 
                 if (shouldFetchArtists || shouldFetchAlbumsAndSongs) {
@@ -2202,7 +2193,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val artistSource2 = appSettings.artistArtworkSource.value
                 val shouldFetchArtists = hasMissingArtists &&
                     artistSource2 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.DISABLED &&
-                    (artistSource2 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY || appSettings.deezerApiEnabled.value)
+                    (artistSource2 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY || appSettings.deezerApiEnabled.value || chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).onlineArtworkEnabled())
                 val shouldFetchAlbumsAndSongs = (hasMissingAlbums || hasMissingSongs) && appSettings.isAutoFetchArtworkActive.value && (appSettings.ytMusicApiEnabled.value || appSettings.deezerApiEnabled.value)
 
                 if (shouldFetchArtists || shouldFetchAlbumsAndSongs) {
@@ -2553,7 +2544,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         val artistSource3 = appSettings.artistArtworkSource.value
                         val shouldFetchArtists = hasMissingArtists &&
                             artistSource3 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.DISABLED &&
-                            (artistSource3 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY || appSettings.deezerApiEnabled.value)
+                            (artistSource3 != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY || appSettings.deezerApiEnabled.value || chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).onlineArtworkEnabled())
                         val shouldFetchAlbumsAndSongs = (hasMissingAlbums || hasMissingSongs) && appSettings.isAutoFetchArtworkActive.value && (appSettings.ytMusicApiEnabled.value || appSettings.deezerApiEnabled.value)
 
                         if (shouldFetchArtists || shouldFetchAlbumsAndSongs) {
@@ -2738,10 +2729,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private fun startLibrarySetupCompletionMonitor() {
         notificationManagerHelper.startLibrarySetupCompletionMonitor(
             scope = viewModelScope,
-            isBackgroundProcessing = isBackgroundProcessing,
             isMediaScanning = isMediaScanning,
             isGenreDetectionRunning = isGenreDetectionRunning,
-            isFetchingArtwork = isFetchingArtwork,
             isExtractingMetadata = isExtractingMetadata,
             filteredSongsSize = { filteredSongs.value.size },
             filteredAlbumsSize = { filteredAlbums.value.size },
@@ -3108,7 +3097,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             albumArtist = albumArtist,
             composer = composer,
             discNumber = discNumber,
-            onSuccess = onSuccess,
+            onSuccess = { result -> chromahub.rhythm.app.features.local.data.discovery.EnrichmentLearningWorker.enqueue(getApplication<Application>()); onSuccess(result) },
             onError = onError,
             onPermissionRequired = onPermissionRequired
         )
@@ -3954,35 +3943,50 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * Auto-fetches artwork from online metadata providers for a specific song,
      * updates the song in memory & repository, and invokes onResult callback with success & artwork Uri string.
      */
+    private val automaticArtworkInFlight = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
     fun autoFetchArtworkForSong(song: Song, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                _isFetchingArtwork.value = true
-                val updated = repository.fetchTrackArtwork(listOf(song))
-                val resultSong = updated.firstOrNull()
-                if (resultSong?.artworkUri != null && resultSong.artworkUri != song.artworkUri) {
-                    val currentList = _songs.value.toMutableList()
-                    val idx = currentList.indexOfFirst { it.id == song.id }
-                    if (idx != -1) {
-                        currentList[idx] = resultSong
-                        _songs.value = currentList
-                        repository.updateAndPersistSongs(currentList)
-                    }
-                    withContext(Dispatchers.Main) {
-                        onResult(true, resultSong.artworkUri.toString())
-                    }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        onResult(false, null)
-                    }
+                val attemptKey = kr.co.metadata.crawler.CatalogFileStore.hash(song.uri.toString())
+                val attempts = getApplication<Application>().getSharedPreferences("automatic_artwork_attempts", android.content.Context.MODE_PRIVATE)
+                val now = System.currentTimeMillis()
+                if (!automaticArtworkInFlight.add(attemptKey)) {
+                    withContext(Dispatchers.Main) { onResult(false, null) }
+                    return@launch
                 }
+                try {
+                    if (attempts.getLong(attemptKey, 0L) > now) {
+                        withContext(Dispatchers.Main) { onResult(false, null) }
+                        return@launch
+                    }
+                    attempts.edit().putLong(attemptKey, now + 6 * 3600_000L).apply()
+                    val updated = kotlinx.coroutines.withTimeoutOrNull(45_000L) { repository.fetchTrackArtwork(listOf(song)) }.orEmpty()
+                    val resultSong = updated.firstOrNull()
+                    if (resultSong?.artworkUri != null && resultSong.artworkUri != song.artworkUri) {
+                        val currentList = _songs.value.toMutableList()
+                        val idx = currentList.indexOfFirst { it.id == song.id }
+                        if (idx != -1) {
+                            currentList[idx] = resultSong
+                            _songs.value = currentList
+                            repository.updateAndPersistSongs(currentList)
+                        }
+                        withContext(Dispatchers.Main) {
+                            onResult(true, resultSong.artworkUri.toString())
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            onResult(false, null)
+                        }
+                    }
+                } finally { automaticArtworkInFlight.remove(attemptKey) }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
                 Log.e(TAG, "Error in autoFetchArtworkForSong", e)
                 withContext(Dispatchers.Main) {
                     onResult(false, null)
                 }
-            } finally {
-                _isFetchingArtwork.value = false
             }
         }
     }
@@ -4392,7 +4396,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     
                     // If repeat mode is off and we're at the end of the queue, stop playback
                     if (controller.repeatMode == Player.REPEAT_MODE_OFF && 
-                        controller.currentMediaItemIndex == controller.mediaItemCount - 1) {
+                        controller.currentMediaItemIndex == controller.mediaItemCount - 1 &&
+                        !chromahub.rhythm.app.features.local.data.experience.PersonalCollections.autoplay(getApplication())) {
                         controller.pause()
                         _isPlaying.value = false
                     }
@@ -4830,6 +4835,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         extras.putString(METADATA_EXTRA_ORIGINAL_TITLE, song.title)
         extras.putString(METADATA_EXTRA_ORIGINAL_ARTIST, song.artist)
         extras.putString(METADATA_EXTRA_ORIGINAL_ALBUM, song.album)
+        extras.putLong("t2rhythm.dateAdded", song.dateAdded)
+        extras.putString("t2rhythm.path", song.path)
         return extras
     }
 
@@ -4986,6 +4993,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     .setTitle(this.title)
                     .setArtist(this.artist)
                     .setAlbumTitle(this.album)
+                    .setGenre(this.genre)
+                    .setExtras(buildCanonicalMetadataExtras(this, null))
                     .setDurationMs(this.duration)
                     .setArtworkUri(this.artworkUri)
                     .build()
@@ -5534,16 +5543,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         currentPlaybackAccumulatedTime = 0L
         
         // Report playback start for streaming items
-        if (songId.startsWith("streaming://") || songId.contains("::")) {
-            viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                try {
-                    val repository = chromahub.rhythm.app.features.streaming.di.StreamingMusicModule.provideStreamingMusicRepository(getApplication())
-                    repository.reportPlaybackStart(songId)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to scrobble playback start for song: $songId", e)
-                }
-            }
-        }
+
         
         // Check if player is actually playing right now
         val actuallyPlaying = mediaController?.isPlaying == true
@@ -5596,10 +5596,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val song = _songs.value.find { it.id == songId } ?: _recentlyPlayed.value.find { it.id == songId }
                 if (song != null) {
                     Log.d(TAG, "Finalizing playback for '${song.title}': ${actualDuration}ms actual listening time")
-                    playbackStatsRepository.recordPlayback(
-                        song = song,
-                        durationMs = actualDuration
-                    )
+                    // Durable playback capture is owned by MediaPlaybackService, including background playback.
+
                     if (appSettings.defaultPlaylistsEnabled.value) {
                         viewModelScope.launch(Dispatchers.IO) {
                             try {
@@ -5622,16 +5620,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 
                 // Report playback stop/scrobble for streaming items
-                if (songId.startsWith("streaming://") || songId.contains("::")) {
-                    viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                        try {
-                            val repository = chromahub.rhythm.app.features.streaming.di.StreamingMusicModule.provideStreamingMusicRepository(getApplication())
-                            repository.reportPlaybackStop(songId, actualDuration)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed to scrobble playback stop for song: $songId", e)
-                        }
-                    }
-                }
+
             } else {
                 Log.d(TAG, "Skipping playback record for short duration: ${actualDuration}ms")
             }
@@ -6769,6 +6758,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
+    private val tasteActions = kotlinx.coroutines.channels.Channel<() -> Unit>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+    private val tasteWriter = viewModelScope.launch(Dispatchers.IO) {
+        for (action in tasteActions) try { action() } catch (error: Exception) {
+            Log.w(TAG, "Taste history write failed", error)
+            chromahub.rhythm.app.features.local.data.experience.ListeningLedger.get(getApplication()).storageIssue("write_failed")
+        }
+    }
+    /** Idempotent like shares the original playlist/widget/service update path. */
+    fun likeSong(song: Song) {
+        if (song.id !in _favoriteSongs.value) toggleFavorite(song)
+        else tasteActions.trySend {
+            val memory = chromahub.rhythm.app.features.local.data.experience.TasteMemory.get(getApplication())
+            memory.inspect(chromahub.rhythm.app.features.local.data.experience.TasteKind.SONG, song.uri.toString(), song.title, true)
+            memory.set(chromahub.rhythm.app.features.local.data.experience.TasteKind.SONG, song.uri.toString(), song.title, true)
+        }
+    }
+
     fun toggleFavorite() {
         _currentSong.value?.let { song ->
             toggleFavorite(song)
@@ -6822,7 +6828,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         
         _favoriteSongs.value = currentFavorites
         saveFavoriteSongs()
-        
+        val likedNow = songId in currentFavorites
+        tasteActions.trySend {
+            chromahub.rhythm.app.features.local.data.experience.TasteMemory.get(getApplication()).set(
+                chromahub.rhythm.app.features.local.data.experience.TasteKind.SONG, song.uri.toString(), song.title, likedNow)
+        }
+
         // Notify MediaPlaybackService about favorite state change
         notifyMediaServiceFavoriteChange()
         
@@ -8282,6 +8293,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Save edited lyrics for the current song to cache
      */
+    suspend fun applyReviewedLyrics(song: Song, proposal: chromahub.rhythm.app.features.local.data.discovery.EnrichmentProposal, undo: Boolean) {
+        val previous = withContext(Dispatchers.IO) { repository.peekLocalLyrics(song) }
+        if (undo) check(previous?.syncedLyrics == proposal.value)
+        else {
+            check(previous?.syncedLyrics == proposal.beforeLyrics?.syncedLyrics && previous?.plainLyrics == proposal.beforeLyrics?.plainLyrics)
+            check(proposal.beforeLyrics?.wordByWordLyrics.isNullOrBlank())
+        }
+        val value = if (undo) requireNotNull(proposal.beforeLyrics) else LyricsData(
+            chromahub.rhythm.app.features.local.data.discovery.LocalLyricAlignment.parse(proposal.value).joinToString("\n") { it.text },
+            proposal.value, source = "T2Rhythm reviewed alignment", isCorrected = true)
+        withContext(Dispatchers.IO) {
+            chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(getApplication<Application>()).saveFetched(song, value, reviewed = true)
+            repository.updateLyricsCache(song.artist, song.title, song.id, value)
+        }
+        if (currentSong.value?.uri == song.uri) { _currentLyrics.value = value; currentFetchingSongId = song.id }
+    }
+
     fun saveEditedLyrics(editedLyrics: String, timeOffset: Int = 0, format: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -8448,6 +8476,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     file.writeText(json)
                     
                     repository.updateLyricsCache(artist, title, song.id, lyricsData)
+                    chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(getApplication<Application>()).saveFetched(song, lyricsData)
 
                     // Update in-memory state
                     _currentLyrics.value = lyricsData
@@ -8649,6 +8678,33 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Add a song to the queue
      */
+    fun addPersonalizedQueueSongs() {
+        val captured = _currentQueue.value; val current = _currentSong.value ?: return
+        viewModelScope.launch {
+            val additions = withContext(Dispatchers.IO) {
+                val favorites = runCatching { com.google.gson.JsonParser.parseString(appSettings.favoriteSongs.value ?: "[]").asJsonArray.map { it.asString } }.getOrDefault(emptyList())
+                chromahub.rhythm.app.features.local.data.experience.PersonalCollections.generate(getApplication(), _songs.value, favorites, current.id,
+                    chromahub.rhythm.app.features.local.data.experience.PersonalCollection.SIMILAR, 30)
+            }
+            val controller = mediaController ?: return@launch
+            if (_currentQueue.value != captured || _currentSong.value?.id != current.id) return@launch
+            if (controller.shuffleModeEnabled) {
+                android.widget.Toast.makeText(getApplication<android.app.Application>(), R.string.personal_insert_shuffle_guard, android.widget.Toast.LENGTH_SHORT).show(); return@launch
+            }
+            // Insert into the existing timeline; never restart the current song or reshuffle explicit items.
+            val suffix = (controller.currentMediaItemIndex + 1 until controller.mediaItemCount).mapNotNull { resolveSongFromMediaItem(controller.getMediaItemAt(it)) }
+            val merged = chromahub.rhythm.app.features.local.data.experience.PersonalCollections.smartInsert(suffix,
+                additions.filterNot { pick -> captured.songs.any { it.uri == pick.uri } })
+            var cursor = controller.currentMediaItemIndex + 1
+            val originalKeys = suffix.map { it.uri.toString() }.toSet()
+            merged.forEach { song ->
+                if (song.uri.toString() !in originalKeys) controller.addMediaItem(cursor, song.toMediaItem())
+                cursor++
+            }
+            syncQueueWithMediaController()
+        }
+    }
+
     fun addSongToQueue(song: Song) {
         Log.d(TAG, "Adding song to queue: ${song.title}")
         
@@ -9735,8 +9791,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun removeBlacklistedSongsFromQueue() {
         mediaController?.let { controller ->
             val mediaScanMode = appSettings.mediaScanMode.value
-            val useBlacklist = mediaScanMode == MediaScanMode.BLACKLIST
-            val useWhitelist = mediaScanMode == MediaScanMode.WHITELIST
+            val useBlacklist = mediaScanMode.usesBlacklist
+            val useWhitelist = mediaScanMode.usesWhitelist
             val blacklistedIds = appSettings.blacklistedSongs.value
             val blacklistedFolders = appSettings.blacklistedFolders.value
             val whitelistedIds = appSettings.whitelistedSongs.value
@@ -9745,8 +9801,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             val hasBlacklist = blacklistedIds.isNotEmpty() || blacklistedFolders.isNotEmpty()
             val hasWhitelist = whitelistedIds.isNotEmpty() || whitelistedFolders.isNotEmpty()
             
-            if (useBlacklist && !hasBlacklist) return@let
-            if (useWhitelist && !hasWhitelist) return@let
+            if (!useWhitelist && useBlacklist && !hasBlacklist) return@let
+            val policy = chromahub.rhythm.app.core.domain.scan.LibraryFilterPolicy(
+                mediaScanMode, blacklistedIds, blacklistedFolders, whitelistedIds, whitelistedFolders,
+            )
             
             val count = controller.mediaItemCount
             if (count == 0) return@let
@@ -9760,23 +9818,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val song = _songs.value.find { it.id == songId }
                 val songPath = song?.path ?: if (song?.uri?.scheme == "file") song.uri.path else getPathFromUriCached(song?.uri ?: android.net.Uri.EMPTY)
                 
-                var shouldInclude = true
-                if (useBlacklist && hasBlacklist) {
-                    if (blacklistedIds.contains(songId)) {
-                        shouldInclude = false
-                    } else if (blacklistedFolders.isNotEmpty() && songPath != null) {
-                        shouldInclude = !isPathBlacklisted(songPath, blacklistedFolders)
-                    }
-                } else if (useWhitelist && hasWhitelist) {
-                    if (whitelistedIds.contains(songId)) {
-                        shouldInclude = true
-                    } else if (whitelistedFolders.isNotEmpty() && songPath != null) {
-                        shouldInclude = isPathWhitelisted(songPath, whitelistedFolders)
-                    } else {
-                        shouldInclude = false
-                    }
-                }
-                
+                val shouldInclude = policy.includes(songId, songPath)
+
                 if (!shouldInclude) {
                     controller.removeMediaItem(i)
                     Log.d(TAG, "Removed blacklisted/unwhitelisted song from active queue: $songId at index $i")

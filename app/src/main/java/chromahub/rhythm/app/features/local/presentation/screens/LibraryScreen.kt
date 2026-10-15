@@ -828,6 +828,14 @@ fun LibraryScreen(
 
 
 
+    when (visibleTabIds.getOrNull(pagerState.currentPage)) {
+        "SONGS" -> chromahub.rhythm.app.util.NearbyArtworkPrefetch(filteredSongs, list = songsListState, itemId = { it.id }) { it.artworkUri }
+        "LIKED" -> chromahub.rhythm.app.util.NearbyArtworkPrefetch(likedSongs, list = likedSongsListState, itemId = { it.id }) { it.artworkUri }
+        "ALBUMS" -> if (albumViewType == AlbumViewType.GRID)
+            chromahub.rhythm.app.util.NearbyArtworkPrefetch(sortedAlbums, grid = albumsGridState, itemId = { it.id }) { it.artworkUri }
+            else chromahub.rhythm.app.util.NearbyArtworkPrefetch(sortedAlbums, list = albumsListState, itemId = { it.id }) { it.artworkUri }
+    }
+
     val isListAtTop by remember(
         selectedTabIndex, pagerState.currentPage, visibleTabIds, playlistViewType, albumViewType, artistViewType
     ) {
@@ -3403,7 +3411,7 @@ fun LibrarySongItem(
                     } else {
                         Icon(
                             imageVector = RhythmIcons.CheckCircle,
-                            contentDescription = stringResource(R.string.streaming_selected),
+                            contentDescription = stringResource(R.string.cd_selected),
                             tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(28.dp)
                         )
@@ -5033,7 +5041,7 @@ fun SingleCardArtistsContent(
                         if (currentSortOption == sortOption) {
                             Icon(
                                 imageVector = RhythmIcons.Check,
-                                contentDescription = stringResource(R.string.streaming_selected),
+                                contentDescription = stringResource(R.string.cd_selected),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -6928,7 +6936,3 @@ fun LibraryScanProgressBanner(
         }
     }
 }
-
-
-
-

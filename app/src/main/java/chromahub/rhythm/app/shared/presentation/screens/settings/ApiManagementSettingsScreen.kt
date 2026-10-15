@@ -171,6 +171,7 @@ fun ApiManagementSettingsScreen(onBackClick: () -> Unit) {
     val appSettings = AppSettings.getInstance(context)
 
     // API states
+    val musicCrawlerLyricsEnabled by appSettings.musicCrawlerLyricsApiEnabled.collectAsState()
     val integrationsEnabled by appSettings.integrationsEnabled.collectAsState()
     val deezerApiEnabled by appSettings.deezerApiEnabled.collectAsState()
     val lrclibApiEnabled by appSettings.lrclibApiEnabled.collectAsState()
@@ -248,6 +249,7 @@ fun ApiManagementSettingsScreen(onBackClick: () -> Unit) {
             item { Spacer(modifier = Modifier.height(8.dp)) }
 
 
+            item { chromahub.rhythm.app.features.local.presentation.metadata.CatalogSourceSettings() }
             // API Services
             item {
                 Text(
@@ -310,6 +312,13 @@ fun ApiManagementSettingsScreen(onBackClick: () -> Unit) {
                         )
                     }
 
+                    add(toMaterial3SettingsItem(
+                        context = context, hapticFeedback = hapticFeedback,
+                        item = SettingItem(icon = null, title = context.getString(R.string.catalog_lyrics_source),
+                            description = context.getString(R.string.catalog_lyrics_source_hint), enabled = integrationsEnabled,
+                            toggleState = musicCrawlerLyricsEnabled,
+                            onToggleChange = { appSettings.setMusicCrawlerLyricsApiEnabled(it) }),
+                    ))
                     if (chromahub.rhythm.app.BuildConfig.ENABLE_LYRICALLY_API) {
                         add(
                             toMaterial3SettingsItem(

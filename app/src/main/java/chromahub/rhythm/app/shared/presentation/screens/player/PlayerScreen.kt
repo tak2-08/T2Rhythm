@@ -21,6 +21,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.fillMaxSize
 import chromahub.rhythm.app.shared.presentation.components.lyrics.FullScreenLyricsView
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -93,6 +94,7 @@ import chromahub.rhythm.app.shared.data.model.Song
 import chromahub.rhythm.app.R
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import chromahub.rhythm.app.network.AppleMusicCanvasProvider
 import chromahub.rhythm.app.network.CanvasArtwork
@@ -172,7 +174,9 @@ fun PlayerScreen(
     swipeToDismissEnabled: Boolean = true,
     expansionFraction: Float = 1f
 ) {
-    val playerThemeId by appSettings.playerThemeId.collectAsState()
+    val playerThemeId = "EXPRESSIVE"
+    val videoControls = remember(song?.uri) { chromahub.rhythm.app.shared.presentation.components.player.MusicVideoControls() }
+    song?.let { chromahub.rhythm.app.shared.presentation.components.player.MusicVideoSession(it, videoControls) }
     var showFullScreenLyrics by remember { mutableStateOf(false) }
 
     BackHandler(enabled = showFullScreenLyrics || expansionFraction > 0.5f) {
@@ -184,6 +188,39 @@ fun PlayerScreen(
     }
 
     val context = LocalContext.current
+    LaunchedEffect(song?.uri, queuePosition, queue, expansionFraction > 0.5f) {
+        if (expansionFraction > 0.5f) {
+            kotlinx.coroutines.delay(200)
+            val index = queue.indexOfFirst { it.uri == song?.uri }.takeIf { it >= 0 } ?: (queuePosition - 1)
+            chromahub.rhythm.app.util.ArtworkPrefetch.load(context,
+                listOf(queue.getOrNull(index - 1)?.artworkUri, queue.getOrNull(index + 1)?.artworkUri), 768)
+        }
+    }
+    val tasteMemory = remember { chromahub.rhythm.app.features.local.data.experience.TasteMemory.get(context) }
+    val tasteRevision by tasteMemory.changes.collectAsState()
+    var songTaste by remember(song?.uri) { mutableStateOf<chromahub.rhythm.app.features.local.data.experience.TasteState?>(null) }
+    val tasteScope = rememberCoroutineScope()
+    val inspectSong = {
+        song?.let { target -> tasteScope.launch {
+            songTaste = withContext(Dispatchers.IO) { tasteMemory.inspect(chromahub.rhythm.app.features.local.data.experience.TasteKind.SONG, target.uri.toString(), target.title, isFavorite) }
+        } }; Unit
+    }
+    // Only the explicit expansion edge is an exposure. An automatic track change is not.
+    var wasExpandedForTaste by remember { mutableStateOf(expansionFraction > .5f) }
+    LaunchedEffect(expansionFraction > .5f) {
+        val expanded = expansionFraction > .5f
+        if (expanded && !wasExpandedForTaste) inspectSong()
+        wasExpandedForTaste = expanded
+    }
+    LaunchedEffect(song?.uri, tasteRevision) { songTaste = song?.let { target -> withContext(Dispatchers.IO) {
+        tasteMemory.state(chromahub.rhythm.app.features.local.data.experience.TasteKind.SONG, target.uri.toString()) } } }
+    var showTasteExplanation by remember { mutableStateOf(false) }
+    val pendingTasteReview = tasteMemory.reviewsEnabled && songTaste?.pending == true && isFavorite
+    if (showTasteExplanation) androidx.compose.material3.AlertDialog(onDismissRequest = { showTasteExplanation = false },
+        title = { androidx.compose.material3.Text(stringResource(R.string.taste_review_title)) },
+        text = { androidx.compose.material3.Text(stringResource(R.string.taste_review_explanation)) },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { showTasteExplanation = false }) { androidx.compose.material3.Text(stringResource(android.R.string.ok)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { showTasteExplanation = false; if (isFavorite) onToggleFavorite() }) { androidx.compose.material3.Text(stringResource(R.string.taste_unlike_permanently)) } })
     val lyricsTimeOffset by musicViewModel.lyricsTimeOffset.collectAsState()
     var showLyricsEditorDialog by remember { mutableStateOf(false) }
 
@@ -377,8 +414,9 @@ fun PlayerScreen(
 
         ExpressivePlayerScreen(
             song = song,
+            videoControls = videoControls,
             isPlaying = isPlaying,
-            isFavorite = isFavorite,
+            isFavorite = isFavorite && !pendingTasteReview,
             progress = { progressValue },
             currentTimeStr = currentTimeStr,
             totalTimeStr = totalTimeStr,
@@ -413,7 +451,11 @@ fun PlayerScreen(
             onSeek = onSeek,
             onSkipPrevious = onSkipPrevious,
             onSkipNext = onSkipNext,
-            onToggleFavorite = onToggleFavorite,
+            onToggleFavorite = { if (pendingTasteReview) song?.let(musicViewModel::likeSong) else onToggleFavorite() },
+            onLikeSong = { song?.let(musicViewModel::likeSong) },
+            onArtworkInspect = inspectSong,
+            pendingTasteReview = pendingTasteReview,
+            onReviewInfo = { showTasteExplanation = true },
             onToggleShuffle = onToggleShuffle,
             onToggleRepeat = onToggleRepeat,
             onToggleLyrics = { showLyricsView = !showLyricsView },
@@ -680,6 +722,9 @@ fun PlayerScreen(
                 lyrics = lyrics,
                 onAddToPlaylist = { showAddToPlaylistSheetInternal = true },
                 onEditControls = { showExpressiveBottomButtonsSheet = true },
+                onSmartShuffle = { musicViewModel.addPersonalizedQueueSongs() },
+                onMusicVideo = { showLyricsView = false; videoControls.managing.value = true },
+                onRecommendationFeedback = { showLyricsView = false; videoControls.feedback.value = true },
                 onPlaybackSpeed = { showPlaybackSpeedDialog = true },
                 onPlaybackPitch = { showPlaybackPitchDialog = true },
                 onEqualizer = {

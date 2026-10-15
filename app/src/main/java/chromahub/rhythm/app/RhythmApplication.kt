@@ -66,6 +66,10 @@ class RhythmApplication : Application(), ImageLoaderFactory {
         // Initialize AppSettings early (singleton, uses application context)
         val settings = AppSettings.getInstance(applicationContext)
         Log.d(TAG, "✓ AppSettings initialized")
+        chromahub.rhythm.app.features.local.data.metadata.ArtworkPrivacyWorker.enqueue(this)
+        chromahub.rhythm.app.features.local.data.experience.RecommendationTrainingWorker.enqueue(this)
+        chromahub.rhythm.app.features.local.data.experience.RecommendationRefreshWorker.enqueue(this)
+        chromahub.rhythm.app.features.local.data.discovery.EnrichmentLearningWorker.enqueue(this)
 
         // Apply the user's theme preference to the system configuration so the
         // system splash screen and window background match the app theme
@@ -135,11 +139,10 @@ class RhythmApplication : Application(), ImageLoaderFactory {
      * cache at 25% of heap, which is far too large for an offline music app — bound both explicitly.
      */
     override fun newImageLoader(): ImageLoader {
-        val imageOkHttpClient = chromahub.rhythm.app.features.streaming.data.provider.UserTrustManager
-            .buildUserTrustingHttpClientBuilder()
+        val imageOkHttpClient = okhttp3.OkHttpClient.Builder()
             .dispatcher(Dispatcher().apply {
-                maxRequests = 16
-                maxRequestsPerHost = 4
+                maxRequests = 8
+                maxRequestsPerHost = 2
             })
             .build()
 
@@ -153,7 +156,7 @@ class RhythmApplication : Application(), ImageLoaderFactory {
             }
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.15) // 15% of app heap (default is 25%)
+                    .maxSizeBytes(minOf(24L * 1024 * 1024, (Runtime.getRuntime().maxMemory() * .08).toLong()).toInt()) // Keep playback and analysis headroom.
                     .build()
             }
             .diskCache {

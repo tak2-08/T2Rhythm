@@ -282,15 +282,21 @@ fun ArtistDetailScreen(
     val isArtistPlaying = isArtistActive && isPlaying
     val isShuffleActive by viewModel.isShuffleEnabled.collectAsState()
 
+    val catalogRevision by chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).changes.collectAsState()
     // Artist description from Wikipedia if enabled
     var artistDescription by remember(artistName) { mutableStateOf<String?>(null) }
     var isDescriptionLoading by remember(artistName) { mutableStateOf(false) }
 
+    LaunchedEffect(artistName, catalogRevision) {
+        chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(context)
+            .loadArtistDescription(artistName, fetch = false)?.let { artistDescription = it }
+    }
+
     LaunchedEffect(artistName, wikipediaApiActive) {
-        if (artistName.isNotBlank() && wikipediaApiActive) {
+        if (artistName.isNotBlank()) {
             isDescriptionLoading = true
             withContext(Dispatchers.IO) {
-                val desc = WikipediaProvider.getAlbumDescription(artistName, null)
+                val desc = chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(context).loadArtistDescription(artistName)
                 withContext(Dispatchers.Main) {
                     artistDescription = desc
                     isDescriptionLoading = false
@@ -900,6 +906,8 @@ fun ArtistDetailScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(end = 12.dp)
                                 ) {
+                                    chromahub.rhythm.app.features.local.presentation.metadata.EntityLikeButton(chromahub.rhythm.app.features.local.data.experience.TasteKind.ARTIST,
+                                        chromahub.rhythm.app.features.local.data.experience.TasteMemory.artistKey(artistName), artistName)
                                     Box {
                                         HeaderActionGroup(
                                             actions = listOf(

@@ -187,7 +187,12 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
     val musicViewModel: MusicViewModel = viewModel()
 
     // Get all songs and filtered items
-    val allSongs by musicViewModel.songs.collectAsState()
+    val librarySongs by musicViewModel.songs.collectAsState()
+    val allSongs by produceState(initialValue = librarySongs, key1 = librarySongs) {
+        value = try { chromahub.rhythm.app.core.domain.scan.ScanRuleLibrary.load(context) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { librarySongs }
+    }
     val filteredSongs by musicViewModel.filteredSongs.collectAsState()
     val blacklistedSongs by appSettings.blacklistedSongs.collectAsState()
     val blacklistedFolders by appSettings.blacklistedFolders.collectAsState()
@@ -200,9 +205,10 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
     val minimumDuration by appSettings.minimumDuration.collectAsState()
 
     // Mode state
-    var currentMode by remember {
-        mutableStateOf(mediaScanMode)
-    }
+    val currentMode = mediaScanMode
+
+    var managedListMode by rememberSaveable { mutableStateOf(MediaScanMode.WHITELIST) }
+    val editingMode = if (currentMode == MediaScanMode.HYBRID) managedListMode else currentMode
 
     // Bottom sheet states
     var showSongsBottomSheet by remember { mutableStateOf(false) }
@@ -240,7 +246,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                             }
                         }
 
-                        if (currentMode == MediaScanMode.BLACKLIST) {
+                        if (editingMode == MediaScanMode.BLACKLIST) {
                             appSettings.addFolderToBlacklist(fullPath)
                         } else {
                             appSettings.addFolderToWhitelist(fullPath)
@@ -254,19 +260,19 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
     }
 
     // Computed values OUTSIDE LazyColumn
-    val filteredSongDetails = remember(allSongs, blacklistedSongs, whitelistedSongs, currentMode) {
-        when (currentMode) {
+    val filteredSongDetails = remember(allSongs, blacklistedSongs, whitelistedSongs, editingMode) {
+        when (editingMode) {
             MediaScanMode.BLACKLIST ->
                 allSongs.filter { song -> blacklistedSongs.contains(song.id) }
-            MediaScanMode.WHITELIST ->
+            MediaScanMode.WHITELIST, MediaScanMode.HYBRID ->
                 allSongs.filter { song -> whitelistedSongs.contains(song.id) }
         }
     }
 
-    val filteredFoldersList = remember(blacklistedFolders, whitelistedFolders, currentMode) {
-        when (currentMode) {
+    val filteredFoldersList = remember(blacklistedFolders, whitelistedFolders, editingMode) {
+        when (editingMode) {
             MediaScanMode.BLACKLIST -> blacklistedFolders
-            MediaScanMode.WHITELIST -> whitelistedFolders
+            MediaScanMode.WHITELIST, MediaScanMode.HYBRID -> whitelistedFolders
         }
     }
 
@@ -302,7 +308,6 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                     onToggleChange = { enabled ->
                         if (enabled) {
                             HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                            currentMode = MediaScanMode.BLACKLIST
                             appSettings.setMediaScanMode(MediaScanMode.BLACKLIST)
                         }
                     }
@@ -315,7 +320,6 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                     onToggleChange = { enabled ->
                         if (enabled) {
                             HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                            currentMode = MediaScanMode.WHITELIST
                             appSettings.setMediaScanMode(MediaScanMode.WHITELIST)
                             if (whitelistedFolders.isEmpty() && whitelistedSongs.isEmpty()) {
                                 try {
@@ -327,6 +331,15 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                             }
                         }
                     }
+                ),
+                SettingItem(
+                    RhythmIcons.CheckCircle,
+                    context.getString(R.string.catalog_hybrid_mode),
+                    context.getString(R.string.catalog_hybrid_hint),
+                    toggleState = currentMode == MediaScanMode.HYBRID,
+                    onToggleChange = { enabled -> if (enabled) {
+                        appSettings.setMediaScanMode(MediaScanMode.HYBRID)
+                    } },
                 )
             )
         ),
@@ -336,7 +349,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                 SettingItem(
                     RhythmIcons.Queue,
                     context.getString(R.string.settings_manage_songs),
-                    context.getString(R.string.settings_manage_songs_desc, filteredSongDetails.size, if (currentMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted)),
+                    context.getString(R.string.settings_manage_songs_desc, filteredSongDetails.size, if (editingMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted)),
                     onClick = {
                         HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
                         showSongsBottomSheet = true
@@ -345,10 +358,10 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                 SettingItem(
                     MaterialSymbolIcon("clear"),
                     context.getString(R.string.settings_clear_all_songs),
-                    context.getString(R.string.settings_clear_all_songs_desc, if (currentMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted)),
+                    context.getString(R.string.settings_clear_all_songs_desc, if (editingMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted)),
                     onClick = {
                         HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                        if (currentMode == MediaScanMode.BLACKLIST) {
+                        if (editingMode == MediaScanMode.BLACKLIST) {
                             appSettings.clearBlacklist()
                         } else {
                             appSettings.clearWhitelist()
@@ -363,7 +376,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                 SettingItem(
                     RhythmIcons.Folder,
                     context.getString(R.string.settings_manage_folders),
-                    context.getString(R.string.settings_manage_folders_desc, filteredFoldersList.size, if (currentMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted)),
+                    context.getString(R.string.settings_manage_folders_desc, filteredFoldersList.size, if (editingMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted)),
                     onClick = {
                         HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
                         showFoldersBottomSheet = true
@@ -372,7 +385,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                 SettingItem(
                     RhythmIcons.Add,
                     context.getString(R.string.settings_add_folder),
-                    context.getString(R.string.settings_add_folder_desc, if (currentMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_block) else context.getString(R.string.settings_whitelist)),
+                    context.getString(R.string.settings_add_folder_desc, if (editingMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_block) else context.getString(R.string.settings_whitelist)),
                     onClick = {
                         HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
                         try {
@@ -386,10 +399,10 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                 SettingItem(
                     MaterialSymbolIcon("clear"),
                     context.getString(R.string.settings_clear_all_folders),
-                    context.getString(R.string.settings_clear_all_folders_desc, if (currentMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted)),
+                    context.getString(R.string.settings_clear_all_folders_desc, if (editingMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted)),
                     onClick = {
                         HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                        if (currentMode == MediaScanMode.BLACKLIST) {
+                        if (editingMode == MediaScanMode.BLACKLIST) {
                             blacklistedFolders.forEach { folder ->
                                 appSettings.removeFolderFromBlacklist(folder)
                             }
@@ -427,6 +440,9 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
             // Main overview content
             item { Spacer(modifier = Modifier.height(8.dp)) }
             
+            item {
+                Text(context.getString(R.string.catalog_scan_rules_hint), style = MaterialTheme.typography.bodyMedium)
+            }
             // Mode Selection with ExpressiveButtonGroup
             item {
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -447,14 +463,19 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                             ExpressiveButtonGroup(
                                 items = listOf(
                                     context.getString(R.string.settings_blacklist_mode),
-                                    context.getString(R.string.settings_whitelist_mode)
+                                    context.getString(R.string.settings_whitelist_mode),
+                                    context.getString(R.string.catalog_hybrid_mode)
                                 ),
-                                selectedIndex = if (currentMode == MediaScanMode.BLACKLIST) 0 else 1,
+                                selectedIndex = MediaScanMode.entries.indexOf(currentMode),
                                 onItemClick = { index ->
                                     HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                    currentMode = if (index == 0) {
+                                    if (index == 0) {
                                         appSettings.setMediaScanMode(MediaScanMode.BLACKLIST)
                                         MediaScanMode.BLACKLIST
+                                    } else if (index == 2) {
+                                        managedListMode = MediaScanMode.WHITELIST
+                                        appSettings.setMediaScanMode(MediaScanMode.HYBRID)
+                                        MediaScanMode.HYBRID
                                     } else {
                                         appSettings.setMediaScanMode(MediaScanMode.WHITELIST)
                                         if (whitelistedFolders.isEmpty() && whitelistedSongs.isEmpty()) {
@@ -474,10 +495,11 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                             Spacer(modifier = Modifier.height(12.dp))
                             
                             Text(
-                                text = if (currentMode == MediaScanMode.BLACKLIST)
-                                    context.getString(R.string.settings_blacklist_mode_desc)
-                                else
-                                    context.getString(R.string.settings_whitelist_mode_desc),
+                                text = when (currentMode) {
+                                    MediaScanMode.BLACKLIST -> context.getString(R.string.settings_blacklist_mode_desc)
+                                    MediaScanMode.WHITELIST -> context.getString(R.string.settings_whitelist_mode_desc)
+                                    MediaScanMode.HYBRID -> context.getString(R.string.catalog_hybrid_hint)
+                                },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -486,6 +508,15 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                 }
             }
 
+            if (currentMode == MediaScanMode.HYBRID) item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(context.getString(R.string.catalog_editing_list), style = MaterialTheme.typography.titleSmall)
+                    ExpressiveButtonGroup(items = listOf(context.getString(R.string.catalog_included_list), context.getString(R.string.catalog_excluded_list)),
+                        selectedIndex = if (managedListMode == MediaScanMode.WHITELIST) 0 else 1,
+                        onItemClick = { managedListMode = if (it == 0) MediaScanMode.WHITELIST else MediaScanMode.BLACKLIST }, modifier = Modifier.fillMaxWidth())
+                    Text(context.getString(R.string.catalog_hybrid_hint), style = MaterialTheme.typography.bodySmall)
+                }
+            }
             item {
                 val scanBehaviorItems = listOf(
                     toMaterial3SettingsItem(
@@ -609,7 +640,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
         ) {
             StandardBottomSheetHeader(
                 title = context.getString(R.string.settings_manage_songs),
-                subtitle = if (currentMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked_songs) else context.getString(R.string.settings_whitelisted_songs),
+                subtitle = if (editingMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked_songs) else context.getString(R.string.settings_whitelisted_songs),
                 visible = true
             )
 
@@ -644,9 +675,9 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Icon(
-                                    imageVector = if (currentMode == MediaScanMode.BLACKLIST) RhythmIcons.Block else RhythmIcons.CheckCircle,
+                                    imageVector = if (editingMode == MediaScanMode.BLACKLIST) RhythmIcons.Block else RhythmIcons.CheckCircle,
                                     contentDescription = null,
-                                    tint = if (currentMode == MediaScanMode.BLACKLIST)
+                                    tint = if (editingMode == MediaScanMode.BLACKLIST)
                                         MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(32.dp)
                                 )
@@ -658,7 +689,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (currentMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted),
+                                    text = if (editingMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -723,7 +754,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                         .size(48.dp)
                                         .clip(CircleShape)
                                         .background(
-                                            if (currentMode == MediaScanMode.BLACKLIST)
+                                            if (editingMode == MediaScanMode.BLACKLIST)
                                                 MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
                                             else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                                         ),
@@ -732,7 +763,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                     Icon(
                                         imageVector = RhythmIcons.MusicNote,
                                         contentDescription = null,
-                                        tint = if (currentMode == MediaScanMode.BLACKLIST)
+                                        tint = if (editingMode == MediaScanMode.BLACKLIST)
                                             MaterialTheme.colorScheme.error
                                         else MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(24.dp)
@@ -762,14 +793,14 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                 FilledIconButton(
                                     onClick = {
                                         HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                        if (currentMode == MediaScanMode.BLACKLIST) {
+                                        if (editingMode == MediaScanMode.BLACKLIST) {
                                             appSettings.removeFromBlacklist(song.id)
                                         } else {
                                             appSettings.removeFromWhitelist(song.id)
                                         }
                                     },
                                     colors = IconButtonDefaults.filledIconButtonColors(
-                                        containerColor = if (currentMode == MediaScanMode.BLACKLIST)
+                                        containerColor = if (editingMode == MediaScanMode.BLACKLIST)
                                             MaterialTheme.colorScheme.errorContainer
                                         else MaterialTheme.colorScheme.primaryContainer
                                     )
@@ -777,7 +808,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                     Icon(
                                         imageVector = RhythmIcons.Close,
                                         contentDescription = stringResource(R.string.content_desc_remove),
-                                        tint = if (currentMode == MediaScanMode.BLACKLIST)
+                                        tint = if (editingMode == MediaScanMode.BLACKLIST)
                                             MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
                                     )
                                 }
@@ -791,14 +822,14 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                         OutlinedButton(
                             onClick = {
                                 HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
-                                if (currentMode == MediaScanMode.BLACKLIST) {
+                                if (editingMode == MediaScanMode.BLACKLIST) {
                                     appSettings.clearBlacklist()
                                 } else {
                                     appSettings.clearWhitelist()
                                 }
                                 showSongsBottomSheet = false
                             },
-                            border = BorderStroke(2.dp, if (currentMode == MediaScanMode.BLACKLIST)
+                            border = BorderStroke(2.dp, if (editingMode == MediaScanMode.BLACKLIST)
                                 MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -808,7 +839,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(context.getString(R.string.settings_clear_all_button, if (currentMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted)))
+                            Text(context.getString(R.string.settings_clear_all_button, if (editingMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked) else context.getString(R.string.settings_whitelisted)))
                         }
                     }
                 }
@@ -834,7 +865,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
         ) {
             StandardBottomSheetHeader(
                 title = context.getString(R.string.settings_manage_folders),
-                subtitle = if (currentMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked_folders) else context.getString(R.string.settings_whitelisted_folders),
+                subtitle = if (editingMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked_folders) else context.getString(R.string.settings_whitelisted_folders),
                 visible = true
             )
 
@@ -865,9 +896,9 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Icon(
-                                imageVector = if (currentMode == MediaScanMode.BLACKLIST) MaterialSymbolIcon("folder_off") else RhythmIcons.Folder,
+                                imageVector = if (editingMode == MediaScanMode.BLACKLIST) MaterialSymbolIcon("folder_off") else RhythmIcons.Folder,
                                 contentDescription = null,
-                                tint = if (currentMode == MediaScanMode.BLACKLIST)
+                                tint = if (editingMode == MediaScanMode.BLACKLIST)
                                     MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(32.dp)
                             )
@@ -879,7 +910,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (currentMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked_folders) else context.getString(R.string.settings_whitelisted_folders),
+                                text = if (editingMode == MediaScanMode.BLACKLIST) context.getString(R.string.settings_blocked_folders) else context.getString(R.string.settings_whitelisted_folders),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -891,7 +922,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                     // Folders list
                     if (filteredFoldersList.isNotEmpty()) {
                         Text(
-                            text = if (currentMode == MediaScanMode.BLACKLIST) "Currently Blocked Folders" else "Currently Whitelisted Folders",
+                            text = if (editingMode == MediaScanMode.BLACKLIST) "Currently Blocked Folders" else "Currently Whitelisted Folders",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -918,7 +949,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                             .size(48.dp)
                                             .clip(CircleShape)
                                             .background(
-                                                if (currentMode == MediaScanMode.BLACKLIST)
+                                                if (editingMode == MediaScanMode.BLACKLIST)
                                                     MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
                                                 else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
                                             ),
@@ -927,7 +958,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                         Icon(
                                             imageVector = RhythmIcons.Folder,
                                             contentDescription = null,
-                                            tint = if (currentMode == MediaScanMode.BLACKLIST)
+                                            tint = if (editingMode == MediaScanMode.BLACKLIST)
                                                 MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(24.dp)
                                         )
@@ -956,14 +987,14 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                     FilledIconButton(
                                         onClick = {
                                             HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                            if (currentMode == MediaScanMode.BLACKLIST) {
+                                            if (editingMode == MediaScanMode.BLACKLIST) {
                                                 appSettings.removeFolderFromBlacklist(folder)
                                             } else {
                                                 appSettings.removeFolderFromWhitelist(folder)
                                             }
                                         },
                                         colors = IconButtonDefaults.filledIconButtonColors(
-                                            containerColor = if (currentMode == MediaScanMode.BLACKLIST)
+                                            containerColor = if (editingMode == MediaScanMode.BLACKLIST)
                                                 MaterialTheme.colorScheme.errorContainer
                                             else MaterialTheme.colorScheme.primaryContainer
                                         )
@@ -971,7 +1002,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                         Icon(
                                             imageVector = RhythmIcons.Close,
                                             contentDescription = context.getString(R.string.cd_remove),
-                                            tint = if (currentMode == MediaScanMode.BLACKLIST)
+                                            tint = if (editingMode == MediaScanMode.BLACKLIST)
                                                 MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
                                         )
                                     }
@@ -993,7 +1024,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                             Card(
                                 onClick = {
                                     HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT)
-                                    if (currentMode == MediaScanMode.BLACKLIST) {
+                                    if (editingMode == MediaScanMode.BLACKLIST) {
                                         appSettings.addFolderToBlacklist(folder)
                                     } else {
                                         appSettings.addFolderToWhitelist(folder)
@@ -1094,7 +1125,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                             OutlinedButton(
                                 onClick = {
                                     HapticUtils.performHapticFeedback(context, haptic, HapticType.HEAVY)
-                                    if (currentMode == MediaScanMode.BLACKLIST) {
+                                    if (editingMode == MediaScanMode.BLACKLIST) {
                                         blacklistedFolders.forEach { folder ->
                                             appSettings.removeFolderFromBlacklist(folder)
                                         }
@@ -1105,7 +1136,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                     }
                                     showFoldersBottomSheet = false
                                 },
-                                border = BorderStroke(2.dp, if (currentMode == MediaScanMode.BLACKLIST)
+                                border = BorderStroke(2.dp, if (editingMode == MediaScanMode.BLACKLIST)
                                     MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary),
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -1214,7 +1245,7 @@ fun MediaScanSettingsScreen(onBackClick: () -> Unit) {
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(
-                                            text = "0s (All)",
+                                            text = context.getString(chromahub.rhythm.app.R.string.ui_0s_all),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )

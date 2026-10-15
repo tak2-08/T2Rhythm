@@ -99,8 +99,14 @@ data class SearchableSettingItem(
  */
 fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
     return buildList {
+        add(SearchableSettingItem("personal_music_archive", context.getString(R.string.catalog_library_title), context.getString(R.string.catalog_library_hint),
+            listOf("archive", "metadata", "bulk", "permanent", "backup", "lyrics", "bugs", "melon", "genie", "waveform", "fingerprint", "on-device", "listening", "duration", "tolerance", "보관함", "메타데이터", "일괄", "영구", "백업", "가사", "벅스", "멜론", "지니", "파형", "지문", "청취", "곡길이", "오차"),
+            MaterialSymbolIcon("library_music"), SettingsRoutes.CATALOG_LIBRARY, context.getString(R.string.catalog_library_title)))
+        add(SearchableSettingItem("hybrid_scan", context.getString(R.string.catalog_hybrid_mode), context.getString(R.string.catalog_hybrid_hint),
+            listOf("hybrid", "whitelist", "blacklist", "include", "exclude", "하이브리드", "화이트리스트", "블랙리스트", "포함", "제외"),
+            RhythmIcons.FilterList, SettingsRoutes.MEDIA_SCAN, context.getString(R.string.settings_media_scan)))
         // ======================== MAIN SETTINGS SCREEN ========================
-        
+
         // Look & Feel Section
         add(SearchableSettingItem(
             id = "theme_customization",
@@ -159,7 +165,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             settingKey = "albumHideAbout"
         ))
 
-        
+
         // Home & Widgets Section
         add(SearchableSettingItem(
             id = "home_customization",
@@ -269,7 +275,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             parentScreen = context.getString(R.string.settings_widget),
             settingKey = "widgetStatsGem"
         ))
-        
+
         // Navigation & Interaction Section
         add(SearchableSettingItem(
             id = "default_screen",
@@ -338,7 +344,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             parentScreen = context.getString(R.string.settings_section_user_interface),
             settingKey = "showKeyboardOnSearchOpen"
         ))
-        
+
         // Audio & Playback Section
         add(SearchableSettingItem(
             id = "system_volume",
@@ -527,7 +533,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             settingKey = "batterySaverDisableAutoFetchArtwork"
         ))
 
-        
+
         // Library & Media Section
         add(SearchableSettingItem(
             id = "media_scan",
@@ -969,7 +975,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             route = SettingsRoutes.API_MANAGEMENT,
             parentScreen = context.getString(R.string.settings_api_management)
         ))
-        
+
         // Data & Storage Section
         add(SearchableSettingItem(
             id = "cache_management",
@@ -1219,7 +1225,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             parentScreen = context.getString(R.string.settings_rhythm_guard),
             settingKey = "rhythmGuardApplyVolumeLimitOnSpeaker"
         ))
-        
+
         // Updates & Info Section
         add(SearchableSettingItem(
             id = "updates",
@@ -1326,7 +1332,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             route = SettingsRoutes.DECODER_EXTENSIONS,
             parentScreen = context.getString(R.string.settings_about_title)
         ))
-        
+
         // Advanced Section
         add(SearchableSettingItem(
             id = "crash_log_history",
@@ -1346,43 +1352,8 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             route = SettingsRoutes.LABS,
             parentScreen = context.getString(R.string.settings_section_advanced)
         ))
-        add(SearchableSettingItem(
-            id = "experimental_go_mode",
-            title = context.getString(R.string.exp_go_mode),
-            description = context.getString(R.string.exp_go_mode_desc),
-            keywords = listOf("go mode", "rhythm go", "streaming mode", "streaming navigation", "integration"),
-            icon = MaterialSymbolIcon("cloud_queue"),
-            route = SettingsRoutes.LABS,
-            parentScreen = context.getString(R.string.settings_labs)
-        ))
-        add(SearchableSettingItem(
-            id = "go_preferred_service",
-            title = context.getString(R.string.streaming_settings_preferred_service),
-            description = context.getString(R.string.streaming_settings_service_sheet_desc),
-            keywords = listOf("preferred service", "subsonic", "jellyfin", "streaming provider", "go settings"),
-            icon = MaterialSymbolIcon("cloud_queue"),
-            route = SettingsRoutes.GO_SETTINGS,
-            parentScreen = context.getString(R.string.exp_go_mode)
-        ))
-        add(SearchableSettingItem(
-            id = "go_streaming_quality",
-            title = context.getString(R.string.streaming_settings_quality),
-            description = context.getString(R.string.streaming_settings_quality_sheet_desc),
-            keywords = listOf("streaming quality", "bitrate", "audio quality", "go settings", "data usage"),
-            icon = MaterialSymbolIcon("speed"),
-            route = SettingsRoutes.GO_SETTINGS,
-            parentScreen = context.getString(R.string.exp_go_mode)
-        ))
-        add(SearchableSettingItem(
-            id = "go_cellular_streaming",
-            title = context.getString(R.string.exp_cellular_streaming),
-            description = context.getString(R.string.gosettingsscreen_enable_streaming_over_mobile),
-            keywords = listOf("cellular", "mobile data", "streaming over cellular", "mobile network", "data usage", "go settings"),
-            icon = MaterialSymbolIcon("signal_cellular_alt"),
-            route = SettingsRoutes.GO_SETTINGS,
-            parentScreen = context.getString(R.string.exp_go_mode)
-        ))
-        
+
+
         // ======================== THEME CUSTOMIZATION SCREEN ========================
         add(SearchableSettingItem(
             id = "theme_follow_system",
@@ -1589,7 +1560,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             parentScreen = context.getString(R.string.settings_theme_customization),
             settingKey = "floatingNavigationBar"
         ))
-        
+
         // ======================== PLAYER CUSTOMIZATION SCREEN ========================
         add(SearchableSettingItem(
             id = "player_chip_order",
@@ -1862,18 +1833,8 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             parentScreen = context.getString(R.string.settings_player_customization),
             settingKey = "playerAmbientInfiniteZoom"
         ))
-        
+
         // ======================== MINIPLAYER CUSTOMIZATION SCREEN ========================
-        add(SearchableSettingItem(
-            id = "miniplayer_theme",
-            title = context.getString(R.string.miniplayercustomizationsettingsscreen_miniplayer_theme),
-            description = context.getString(R.string.miniplayercustomizationsettingsscreen_choose_between_rhythm_default),
-            keywords = listOf("miniplayer theme", "mini player", "expressive", "material", "default", "theme", "bottom bar"),
-            icon = MaterialSymbolIcon("palette"),
-            route = SettingsRoutes.MINIPLAYER_CUSTOMIZATION,
-            parentScreen = context.getString(R.string.settings_miniplayer_customization),
-            settingKey = "miniPlayerThemeId"
-        ))
         add(SearchableSettingItem(
             id = "miniplayer_show_progress",
             title = context.getString(R.string.settings_miniplayer_show_progress),
@@ -1937,7 +1898,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             route = SettingsRoutes.MINIPLAYER_CUSTOMIZATION,
             parentScreen = context.getString(R.string.settings_miniplayer_customization)
         ))
-        
+
         // ======================== GESTURES SCREEN ========================
         add(SearchableSettingItem(
             id = "gesture_miniplayer_swipe",
@@ -2038,7 +1999,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             route = SettingsRoutes.GESTURES,
             parentScreen = context.getString(R.string.settings_gestures)
         ))
-        
+
         // ======================== QUEUE & PLAYBACK SCREEN ========================
         add(SearchableSettingItem(
             id = "queue_exoplayer_shuffle",
@@ -2279,9 +2240,9 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             parentScreen = context.getString(R.string.settings_queue_title),
             settingKey = "respectAlbumOnPlay"
         ))
-        
+
         // ======================== LABS & RELOCATED SETTINGS ========================
-        
+
         add(SearchableSettingItem(
             id = "skip_silence",
             title = context.getString(R.string.settings_skip_silence),
@@ -2292,7 +2253,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             parentScreen = context.getString(R.string.settings_playback_title),
             settingKey = "skipSilenceEnabled"
         ))
-        
+
         add(SearchableSettingItem(
             id = "replay_gain",
             title = context.getString(R.string.replay_gain),
@@ -2344,7 +2305,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             settingKey = "replayGainDrc"
         ))
 
-        
+
         add(SearchableSettingItem(
             id = "exp_festive_theme",
             title = context.getString(R.string.settings_exp_festive_theme),
@@ -2420,16 +2381,6 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             route = SettingsRoutes.ABOUT,
             parentScreen = context.getString(R.string.settings_about_title)
         ))
-        add(SearchableSettingItem(
-            id = "exp_test_crash",
-            title = context.getString(R.string.settings_exp_test_crash),
-            description = context.getString(R.string.settings_exp_test_crash_desc),
-            keywords = listOf("crash", "test", "debug", "error", "reporting"),
-            icon = RhythmIcons.BugReport,
-            route = SettingsRoutes.LABS,
-            parentScreen = context.getString(R.string.settings_labs)
-        ))
-
         add(SearchableSettingItem(
             id = "broadcast_status_enabled",
             title = context.getString(R.string.settings_broadcast_status_enabled),
@@ -2602,7 +2553,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             route = SettingsRoutes.HOME_SCREEN,
             parentScreen = context.getString(R.string.settings_home_customization)
         ))
-        
+
         // ======================== NOTIFICATIONS SCREEN ========================
         add(SearchableSettingItem(
             id = "notifications_updates",
@@ -2673,7 +2624,7 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             route = SettingsRoutes.NOTIFICATIONS,
             parentScreen = context.getString(R.string.settings_notifications)
         ))
-        
+
         // ======================== EXPRESSIVE SHAPES SCREEN ========================
         add(SearchableSettingItem(
             id = "expressive_shapes_enabled",
@@ -2773,10 +2724,10 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
  */
 fun searchSettings(query: String, index: List<SearchableSettingItem>): List<SearchableSettingItem> {
     if (query.isBlank()) return emptyList()
-    
+
     val normalizedQuery = query.lowercase().trim()
     val queryWords = normalizedQuery.split(" ").filter { it.isNotBlank() }
-    
+
     return index.filter { item ->
         val titleMatch = item.title.lowercase().contains(normalizedQuery)
         val descMatch = item.description.lowercase().contains(normalizedQuery)
@@ -2785,7 +2736,7 @@ fun searchSettings(query: String, index: List<SearchableSettingItem>): List<Sear
             queryWords.any { word -> keyword.lowercase().contains(word) }
         }
         val parentMatch = item.parentScreen.lowercase().contains(normalizedQuery)
-        
+
         titleMatch || descMatch || keywordMatch || parentMatch
     }.sortedByDescending { item ->
         // Prioritize exact title matches, then keyword matches
@@ -2818,7 +2769,7 @@ fun SettingsSearchBar(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -2839,9 +2790,9 @@ fun SettingsSearchBar(
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp)
             )
-            
+
             Spacer(modifier = Modifier.width(12.dp))
-            
+
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
@@ -2870,7 +2821,7 @@ fun SettingsSearchBar(
                     }
                 }
             )
-            
+
             AnimatedVisibility(
                 visible = query.isNotEmpty(),
                 enter = fadeIn() + expandVertically(),
@@ -2904,7 +2855,7 @@ fun SettingsSearchResults(
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
-    
+
     LazyColumn(
             contentPadding = PaddingValues(bottom = 24.dp + LocalMiniPlayerPadding.current.calculateBottomPadding()),
         modifier = modifier.fillMaxSize()
@@ -2927,7 +2878,7 @@ fun SettingsSearchResults(
         } else {
             // Group results by parent screen
             val groupedResults = results.groupBy { it.parentScreen }
-            
+
             groupedResults.forEach { (screenName, items) ->
                 item(key = "group_$screenName") {
                     Spacer(modifier = Modifier.height(16.dp))
@@ -2959,10 +2910,8 @@ fun SettingsSearchResults(
                     )
                 }
             }
-            
+
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
 }
-
-

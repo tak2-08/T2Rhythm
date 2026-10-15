@@ -242,6 +242,7 @@ private fun StatsPageContent(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
+                            chromahub.rhythm.app.features.local.presentation.metadata.PersonalExperiencePanel()
                             ListeningOverviewCard(
                                 stats = stats, 
                                 previousStats = previousSummary,
@@ -274,6 +275,7 @@ private fun StatsPageContent(
                             .padding(horizontal = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
+                        chromahub.rhythm.app.features.local.presentation.metadata.PersonalExperiencePanel()
                         ListeningOverviewCard(
                             stats = stats, 
                             previousStats = previousSummary,
@@ -784,7 +786,7 @@ private fun CategoryMetricsSection(
 
                         if (entries.isEmpty()) {
                             Text(
-                                "No data available for this category yet.",
+                                androidx.compose.ui.res.stringResource(chromahub.rhythm.app.R.string.ui_no_data_available_for_this_category_yet),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

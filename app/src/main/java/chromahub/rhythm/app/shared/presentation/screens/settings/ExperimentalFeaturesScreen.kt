@@ -8,7 +8,6 @@
 package chromahub.rhythm.app.shared.presentation.screens.settings
 
 
-
 import chromahub.rhythm.app.ui.LocalMiniPlayerPadding
 import androidx.compose.foundation.layout.PaddingValues
 import chromahub.rhythm.app.shared.presentation.components.icons.RhythmIcons
@@ -166,12 +165,12 @@ import chromahub.rhythm.app.shared.presentation.screens.settings.SettingGroup
 fun ExperimentalFeaturesScreen(
     onBackClick: () -> Unit,
     onNavigateTo: (String) -> Unit = {},
-    onNavigateToGoSettings: (() -> Unit)? = null
+
 ) {
     LabsSettingsScreen(
         onBackClick = onBackClick,
         onNavigateTo = onNavigateTo,
-        onNavigateToGoSettings = onNavigateToGoSettings
+
     )
 }
 
@@ -179,7 +178,7 @@ fun ExperimentalFeaturesScreen(
 fun LabsSettingsScreen(
     onBackClick: () -> Unit,
     onNavigateTo: (String) -> Unit = {},
-    onNavigateToGoSettings: (() -> Unit)? = null
+
 ) {
     val context = LocalContext.current
     val appSettings = AppSettings.getInstance(context)
@@ -187,9 +186,9 @@ fun LabsSettingsScreen(
     val hapticFeedbackEnabled by appSettings.hapticFeedbackEnabled.collectAsState()
     val enableAlbumEditing by appSettings.enableAlbumEditing.collectAsState()
     val haptic = LocalHapticFeedback.current
-    
+
     val forcePlayerCompactMode by appSettings.forcePlayerCompactMode.collectAsState()
-    
+
     val updaterViewModel: AppUpdaterViewModel = viewModel()
     val latestVersion by updaterViewModel.latestVersion.collectAsState()
 
@@ -219,7 +218,7 @@ fun LabsSettingsScreen(
                     )
                 )
             )
-            
+
             // Developer/Debugging features group
             add(
                 SettingGroup(
@@ -257,28 +256,13 @@ fun LabsSettingsScreen(
                             onToggleChange = { appSettings.setAudioDeviceLoggingEnabled(it) }
                         ),
                         SettingItem(
-                            RhythmIcons.BugReport,
-                            context.getString(R.string.exp_test_crash),
-                            context.getString(R.string.exp_test_crash_desc),
-                            onClick = { chromahub.rhythm.app.util.CrashReporter.testCrash() }
-                        ),
-                        SettingItem(
                             MaterialSymbolIcon("smartphone"),
                             context.getString(R.string.exp_force_player_compact_mode),
                             context.getString(R.string.exp_force_player_compact_mode_desc),
                             toggleState = forcePlayerCompactMode,
                             onToggleChange = { appSettings.setForcePlayerCompactMode(it) }
                         ),
-                        SettingItem(
-                            MaterialSymbolIcon("cloud_queue"),
-                            context.getString(R.string.exp_go_mode),
-                            context.getString(R.string.exp_go_mode_desc),
-                            toggleState = appMode == "STREAMING",
-                            onToggleChange = { enabled ->
-                                appSettings.setAppMode(if (enabled) "STREAMING" else "LOCAL")
-                            },
-                            onClick = { onNavigateToGoSettings?.invoke() }
-                        )
+
                     )
                 )
             )
@@ -306,9 +290,6 @@ fun LabsSettingsScreen(
             }
 
 
-
-
-            
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 Card(
@@ -371,7 +352,6 @@ fun LabsSettingsScreen(
 }
 
 
-
 fun getUpdateSourceLabel(context: Context, source: String): String {
     return when (source.lowercase()) {
         "github" -> context.getString(R.string.updates_source_github_label)
@@ -379,7 +359,6 @@ fun getUpdateSourceLabel(context: Context, source: String): String {
         else -> context.getString(R.string.updates_source_installed_label)
     }
 }
-
 
 
 /**
@@ -468,7 +447,6 @@ fun DecorationToggleCard(
         }
     }
 }
-
 
 
 fun getFestivalDisplayName(festivalType: String): String {

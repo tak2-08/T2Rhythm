@@ -32,11 +32,11 @@ android {
         
         val overrideVersionCode = project.findProperty("versionCodeOverride")?.toString()?.toIntOrNull()
         val overrideVersionName = project.findProperty("versionNameOverride")?.toString()
-        versionCode = overrideVersionCode ?: 554991302
-        versionName = overrideVersionName ?: "5.5.499.1302"
+        versionCode = overrideVersionCode ?: 554991309
+        versionName = overrideVersionName ?: "5.5.499.1309"
 
         val overrideReleaseDate = project.findProperty("releaseDateOverride")?.toString()
-        buildConfigField("String", "RELEASE_DATE", "\"${overrideReleaseDate ?: "2026-10-13"}\"")
+        buildConfigField("String", "RELEASE_DATE", "\"${overrideReleaseDate ?: "2026-10-15"}\"")
 
         val isNightly = project.findProperty("nightly")?.toString() == "true"
         buildConfigField("boolean", "IS_NIGHTLY", isNightly.toString())
@@ -223,9 +223,16 @@ androidComponents {
 }
 
 dependencies {
+    implementation(project(":crawler"))
+    implementation("com.alphacephei:vosk-android:0.3.75")
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5") {
+        // Extractor uses Rhino's Android interpreter directly, never the desktop JSR-223 bridge.
+        exclude(group = "org.mozilla", module = "rhino-engine")
+    }
+    implementation("androidx.webkit:webkit:1.12.1")
     implementation(libs.androidx.compose.ui.unit)
     // Desugaring library
-    coreLibraryDesugaring(libs.androidx.desugar.jdk.libs)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 
     // Core Android dependencies
     implementation(libs.androidx.core.ktx)

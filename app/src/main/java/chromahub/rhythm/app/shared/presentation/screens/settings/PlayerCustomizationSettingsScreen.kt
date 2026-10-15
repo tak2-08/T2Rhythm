@@ -219,48 +219,6 @@ fun PlayerCustomizationSettingsScreen(onBackClick: () -> Unit) {
                 .padding(horizontal = 24.dp)
         ) {
 
-            // Playback Theme Selection Section
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = stringResource(R.string.playercustomizationsettingsscreen_player_theme),
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
-                )
-                Material3SettingsGroup(
-                    items = listOf(
-                        Material3SettingsItem(
-                            icon = MaterialSymbolIcon("palette"),
-                            title = { Text(stringResource(R.string.playercustomizationsettingsscreen_playback_theme)) },
-                            description = {
-                                Column {
-                                    Text(stringResource(R.string.miniplayercustomizationsettingsscreen_choose_between_rhythm_default))
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    ExpressiveButtonGroup(
-                                        items = listOf(
-                                            "Rhythm",
-                                            "Expressive"
-                                        ),
-                                        selectedIndex = if (playerThemeId == "MATERIAL") 0 else 1,
-                                        onItemClick = { index ->
-                                            HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
-                                            if (index == 1) {
-                                                appSettings.setPlayerThemeId("EXPRESSIVE")
-                                            } else {
-                                                appSettings.setPlayerThemeId("MATERIAL")
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        )
-                    ),
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                )
-            }
-
             // Player Controls Section — only shown for Rhythm (Material) theme; Expressive has no chips
             if (!isExpressiveActive) item {
                 Spacer(modifier = Modifier.height(24.dp))
@@ -1408,7 +1366,7 @@ fun PlayerTextAlignmentBottomSheet(
                             if (isSelected) {
                                 Icon(
                                     imageVector = RhythmIcons.Check,
-                                    contentDescription = stringResource(R.string.streaming_selected),
+                                    contentDescription = stringResource(R.string.cd_selected),
                                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.size(20.dp)
                                 )
