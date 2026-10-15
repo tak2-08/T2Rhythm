@@ -33,7 +33,8 @@ import kotlinx.coroutines.flow.combine
             combine(WorkManager.getInstance(context).getWorkInfosByTagFlow(DownloadRegistry.TAG), DownloadRegistry.revision) { work, _ -> work }
                 .collect { work -> records = withContext(Dispatchers.IO) {
                     val byId = work.associateBy { it.id.toString() }
-                    DownloadRegistry.recent(context, limit).map { record ->
+                    val active=work.filter { !it.state.isFinished }.mapNotNull {DownloadRegistry.get(context,it.id.toString())}
+                    (active+DownloadRegistry.recent(context, limit)).distinctBy {it.id}.map { record ->
                         val merged=DownloadRegistry.merge(record, byId[record.id])
                         if(merged.state in setOf("SUCCEEDED","FAILED","CANCELLED") && merged.state!=record.state)DownloadRegistry.save(context,merged)
                         merged

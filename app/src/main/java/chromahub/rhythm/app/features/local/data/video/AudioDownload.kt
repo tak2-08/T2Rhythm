@@ -34,7 +34,7 @@ object AudioDownload {
         val sourceId=if(service=="YOUTUBE")MusicVideoLinks.youtubeId(url)!! else url.trim()
         val manager=WorkManager.getInstance(context);val name="audio_source:${kr.co.metadata.crawler.CatalogFileStore.hash(sourceId)}"
         if(manager.getWorkInfosForUniqueWork(name).get(15,TimeUnit.SECONDS).any { !it.state.isFinished })return@withLock
-        val completed=DownloadRegistry.recent(context,1000).firstOrNull { it.kind=="AUDIO" && it.sourceId==sourceId && it.state=="SUCCEEDED" }
+        val completed=DownloadRegistry.completedAudio(context,sourceId)
         if(completed!=null && DownloadedAudioLibrary.existing(context,completed)!=null)return@withLock
         val request=OneTimeWorkRequestBuilder<AudioDownloadWorker>().addTag(DownloadRegistry.TAG)
             .setInputData(workDataOf("id" to sourceId)).setBackoffCriteria(BackoffPolicy.EXPONENTIAL,30,TimeUnit.SECONDS)

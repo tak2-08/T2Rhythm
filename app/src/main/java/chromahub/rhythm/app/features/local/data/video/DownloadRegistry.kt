@@ -30,6 +30,10 @@ object DownloadRegistry {
     @Synchronized fun save(context: Context, record: DownloadRecord) {
         require(runCatching { UUID.fromString(record.id) }.isSuccess)
         PersonalArchive.atomicWrite(File(root(context), record.id + ".json"), gson.toJson(record).toByteArray())
+        if(record.kind=="AUDIO" && record.state=="SUCCEEDED") {
+            val pointer=File(root(context),"sources/${kr.co.metadata.crawler.CatalogFileStore.hash(record.sourceId)}")
+            PersonalArchive.atomicWrite(pointer,record.id.toByteArray())
+        }
         revision.value++
     }
     @Synchronized fun get(context: Context, id: String): DownloadRecord? = runCatching {
@@ -38,9 +42,14 @@ object DownloadRegistry {
         gson.fromJson(file.readText(), DownloadRecord::class.java)
     }.getOrNull()
     @Synchronized fun update(context: Context, id: String, change: (DownloadRecord) -> DownloadRecord) { get(context, id)?.let { save(context, change(it)) } }
-    fun recent(context: Context, limit: Int = 100): List<DownloadRecord> = root(context).listFiles().orEmpty()
+    fun completedAudio(context:Context,sourceId:String):DownloadRecord? = runCatching {
+        val pointer=File(root(context),"sources/${kr.co.metadata.crawler.CatalogFileStore.hash(sourceId)}")
+        require(pointer.length() in 1..40)
+        get(context,pointer.readText())?.takeIf {it.kind=="AUDIO" && it.sourceId==sourceId && it.state=="SUCCEEDED"}
+    }.getOrNull() ?: recent(context,1000).firstOrNull {it.kind=="AUDIO" && it.sourceId==sourceId && it.state=="SUCCEEDED"}
+    fun recent(context: Context, limit: Int = 100): List<DownloadRecord> = root(context).listFiles().orEmpty().filter {it.isFile && it.extension=="json"}
         .sortedByDescending { it.lastModified() }.take(limit.coerceIn(1, 1000)).mapNotNull { get(context, it.nameWithoutExtension) }
-        .sortedByDescending { it.createdAt }
+        .sortedWith(compareBy<DownloadRecord> {if(it.state in setOf("SUCCEEDED","FAILED","CANCELLED"))1 else 0}.thenByDescending {it.createdAt})
     suspend fun recoverLegacy(context:Context) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val manager=WorkManager.getInstance(context)
         MusicVideoRepository(context).pendingLinks().forEach { video ->
