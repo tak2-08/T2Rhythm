@@ -90,7 +90,11 @@ class PlayerRegressionTest {
         val selectorBefore = compose.onNodeWithText(context.getString(R.string.personal_video)).getUnclippedBoundsInRoot()
         screenshot("full-cover-audio.png")
         compose.onNodeWithText(context.getString(R.string.personal_video)).performClick()
+        // Wait for composition before examining loading; immediately after the click it can
+        // still hold the previous audio-only value while the video is being mounted.
+        compose.onNodeWithTag("music_video_surface").assertExists()
         compose.waitUntil(120000) { !controls.loading.value }
+        compose.waitForIdle()
         assertNull(controls.error.value)
         compose.onAllNodesWithTag("music_video_surface").assertCountEquals(1)
         compose.onNodeWithTag("music_video_surface").assertIsDisplayed()
@@ -129,7 +133,7 @@ class PlayerRegressionTest {
         controls.error.value = context.getString(R.string.mv_embed_disabled)
         compose.setContent { MaterialTheme { Column {
             MusicVideoSession(song, controls)
-            MusicVideoStatus(controls, androidx.compose.ui.graphics.Color.White)
+            MusicVideoStatus(controls)
         } } }
         compose.onNodeWithTag("music_video_error").assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.mv_retry)).performClick()

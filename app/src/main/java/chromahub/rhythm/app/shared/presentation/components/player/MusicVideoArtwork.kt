@@ -21,6 +21,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -55,6 +57,7 @@ class MusicVideoControls {
 
 @Composable
 fun MusicVideoToggle(controls: MusicVideoControls, foreground: Color = MaterialTheme.colorScheme.onSurface) {
+    val loadingLabel = stringResource(R.string.mv_loading)
     val colors = SegmentedButtonDefaults.colors(inactiveContainerColor = Color.Transparent, inactiveContentColor = foreground,
         inactiveBorderColor = foreground.copy(alpha = .5f), activeBorderColor = foreground.copy(alpha = .5f))
     SingleChoiceSegmentedButtonRow {
@@ -62,7 +65,11 @@ fun MusicVideoToggle(controls: MusicVideoControls, foreground: Color = MaterialT
             Text(stringResource(R.string.personal_audio))
         }
         SegmentedButton(selected = controls.active.value, onClick = { controls.toggle() }, shape = SegmentedButtonDefaults.itemShape(1, 2), colors = colors,
-            icon = { Icon(MaterialSymbolIcon("smart_display"), null, Modifier.size(18.dp)) }) {
+            modifier = Modifier.semantics { if (controls.active.value && controls.loading.value) stateDescription = loadingLabel },
+            icon = {
+                if (controls.active.value && controls.loading.value) CircularProgressIndicator(Modifier.size(18.dp), color = LocalContentColor.current, strokeWidth = 2.dp)
+                else Icon(MaterialSymbolIcon("smart_display"), null, Modifier.size(18.dp))
+            }) {
             Text(stringResource(R.string.personal_video))
         }
     }
@@ -120,13 +127,8 @@ fun MusicVideoArtwork(song: Song, isPlaying: Boolean, positionMs: () -> Long, mo
 
 /** Status belongs beside the selector, outside the fading video and its touch surface. */
 @Composable
-fun MusicVideoStatus(controls: MusicVideoControls, foreground: Color) {
+fun MusicVideoStatus(controls: MusicVideoControls) {
     if (!controls.active.value || !controls.hasVideo) return
-    if (controls.loading.value) Row(verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 6.dp)) {
-        CircularProgressIndicator(Modifier.size(14.dp), color = foreground, strokeWidth = 2.dp)
-        Text(stringResource(R.string.mv_loading), color = foreground, style = MaterialTheme.typography.labelSmall)
-    }
     controls.error.value?.let { message ->
         Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = MaterialTheme.shapes.medium,
             modifier = Modifier.padding(top = 8.dp).fillMaxWidth().testTag("music_video_error")) {

@@ -1486,7 +1486,7 @@ fun ExpressivePlayerScreen(
 
                             if (song != null && !showLyricsView) {
                                 chromahub.rhythm.app.shared.presentation.components.player.MusicVideoToggle(currentVideoControls, foreground = onSurfaceColor)
-                                chromahub.rhythm.app.shared.presentation.components.player.MusicVideoStatus(currentVideoControls, onSurfaceColor)
+                                chromahub.rhythm.app.shared.presentation.components.player.MusicVideoStatus(currentVideoControls)
                                 Spacer(Modifier.height(12.dp))
                             }
 
