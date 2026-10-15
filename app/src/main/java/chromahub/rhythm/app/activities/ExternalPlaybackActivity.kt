@@ -192,7 +192,14 @@ class ExternalPlaybackActivity : ComponentActivity() {
                         uriStr.endsWith(".aiff", ignoreCase = true) ||
                         uriStr.endsWith(".aif", ignoreCase = true) ||
                         uriStr.endsWith(".dsf", ignoreCase = true) ||
-                        uriStr.endsWith(".dff", ignoreCase = true)
+                        uriStr.endsWith(".dff", ignoreCase = true) ||
+                        uriStr.endsWith(".dsd", ignoreCase = true) ||
+                        uriStr.endsWith(".dts", ignoreCase = true) ||
+                        uriStr.endsWith(".dtshd", ignoreCase = true) ||
+                        uriStr.endsWith(".dtsx", ignoreCase = true) ||
+                        uriStr.endsWith(".truehd", ignoreCase = true) ||
+                        uriStr.endsWith(".thd", ignoreCase = true) ||
+                        uriStr.endsWith(".mlp", ignoreCase = true)
                 }
         } catch (e: Exception) {
             Log.e(TAG, "Error validating external URI: $uri", e)

@@ -146,6 +146,7 @@ class AppSettings private constructor(context: Context) {
         private const val KEY_AUDIO_ENGINE_SOFTWARE_ENABLED = "audio_engine_software_enabled"
         private const val KEY_AUDIO_ENGINE_PREFER_HARDWARE = "audio_engine_prefer_hardware"
         private const val KEY_AUDIO_ENGINE_FLOAT_OUTPUT = "audio_engine_float_output"
+        private const val KEY_AUDIO_ENGINE_FLOAT_OUTPUT_MIGRATED = "audio_engine_float_output_v2_migrated"
         private const val KEY_AUDIO_ENGINE_DISABLED_DECODERS = "audio_engine_disabled_decoders"
         private const val KEY_DECODER_EXTENSIONS_ENABLED = "audio_decoder_extensions_enabled"
         private const val KEY_DISABLED_DECODER_EXTENSIONS = "audio_disabled_decoder_extensions"
@@ -754,7 +755,19 @@ class AppSettings private constructor(context: Context) {
     private val _audioEnginePreferHardware = MutableStateFlow(prefs.getBoolean(KEY_AUDIO_ENGINE_PREFER_HARDWARE, true))
     val audioEnginePreferHardware: StateFlow<Boolean> = _audioEnginePreferHardware.asStateFlow()
 
-    private val _audioEngineFloatOutput = MutableStateFlow(prefs.getBoolean(KEY_AUDIO_ENGINE_FLOAT_OUTPUT, true))
+    private val _audioEngineFloatOutput = MutableStateFlow(
+        run {
+            if (!prefs.getBoolean(KEY_AUDIO_ENGINE_FLOAT_OUTPUT_MIGRATED, false)) {
+                prefs.edit {
+                    putBoolean(KEY_AUDIO_ENGINE_FLOAT_OUTPUT, false)
+                    putBoolean(KEY_AUDIO_ENGINE_FLOAT_OUTPUT_MIGRATED, true)
+                }
+                false
+            } else {
+                prefs.getBoolean(KEY_AUDIO_ENGINE_FLOAT_OUTPUT, false)
+            }
+        }
+    )
     val audioEngineFloatOutput: StateFlow<Boolean> = _audioEngineFloatOutput.asStateFlow()
 
     private val _audioEngineDisabledDecoders = MutableStateFlow(prefs.getStringSet(KEY_AUDIO_ENGINE_DISABLED_DECODERS, emptySet())?.toSet() ?: emptySet())
@@ -2403,7 +2416,10 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
     }
 
     fun setAudioEngineFloatOutput(enable: Boolean) {
-        prefs.edit { putBoolean(KEY_AUDIO_ENGINE_FLOAT_OUTPUT, enable) }
+        prefs.edit {
+            putBoolean(KEY_AUDIO_ENGINE_FLOAT_OUTPUT, enable)
+            putBoolean(KEY_AUDIO_ENGINE_FLOAT_OUTPUT_MIGRATED, true)
+        }
         _audioEngineFloatOutput.value = enable
     }
 

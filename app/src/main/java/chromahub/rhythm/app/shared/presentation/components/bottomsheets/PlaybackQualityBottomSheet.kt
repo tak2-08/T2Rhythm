@@ -78,7 +78,17 @@ fun PlaybackQualityBottomSheet(
                 qualityType = detected.qualityType,
                 qualityLabel = detected.qualityLabel,
                 qualityDescription = detected.qualityDescription,
-                outputQualityStatus = "Full quality output • Matched device capability",
+                isLossless = detected.isLossless,
+                isHiRes = detected.isHiRes,
+                isDolby = detected.isDolby,
+                isDTS = detected.isDTS,
+                qualityCategory = detected.category,
+                outputQualityStatus = when {
+                    detected.qualityType == AudioQualityDetector.QualityType.DOLBY_ATMOS -> "Spatial Audio • Full object rendering reproduced"
+                    detected.isDolby || detected.isDTS || detected.qualityType == AudioQualityDetector.QualityType.MPEG_H_3D -> "Multichannel surround sound • Full quality reproduced"
+                    detected.isLossless -> "Full quality output • Matched device capability"
+                    else -> "Full source quality reproduced"
+                },
                 iconResId = icon
             )
         }

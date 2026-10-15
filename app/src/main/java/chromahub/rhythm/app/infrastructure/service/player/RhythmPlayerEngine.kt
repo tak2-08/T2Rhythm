@@ -334,6 +334,12 @@ class RhythmPlayerEngine(
         userVolume = initVolume
         playerA.volume = initVolume
 
+        val initSpeed = appSettings.playbackSpeed.value.coerceIn(0.25f, 3.0f)
+        val initPitch = appSettings.playbackPitch.value.coerceIn(0.5f, 2.0f)
+        val initParams = PlaybackParameters(initSpeed, initPitch)
+        playerA.playbackParameters = initParams
+        playerB.playbackParameters = initParams
+
         playerA.addListener(masterPlayerListener)
         playerA.addAnalyticsListener(analyticsListenerA)
         playerB.addAnalyticsListener(analyticsListenerB)
@@ -342,7 +348,7 @@ class RhythmPlayerEngine(
         _activeAudioSessionId.value = playerA.audioSessionId
 
         isReleased = false
-        Log.d(TAG, "RhythmPlayerEngine initialized. SessionA=${playerA.audioSessionId}, initialVolume=$initVolume")
+        Log.d(TAG, "RhythmPlayerEngine initialized. SessionA=${playerA.audioSessionId}, initialVolume=$initVolume, speed=$initSpeed, pitch=$initPitch")
 
         // Reactively update track selection parameters when settings change
         scope.launch {
@@ -353,8 +359,18 @@ class RhythmPlayerEngine(
             launch { appSettings.virtualizerEnabled.collect { updateTrackSelectionParameters() } }
             launch { appSettings.monoAudioEnabled.collect { updateTrackSelectionParameters() } }
             launch { appSettings.isAudioOffloadActive.collect { updateTrackSelectionParameters() } }
-            launch { appSettings.playbackSpeed.collect { updateTrackSelectionParameters() } }
-            launch { appSettings.playbackPitch.collect { updateTrackSelectionParameters() } }
+            launch {
+                appSettings.playbackSpeed.collect {
+                    updatePlaybackParameters()
+                    updateTrackSelectionParameters()
+                }
+            }
+            launch {
+                appSettings.playbackPitch.collect {
+                    updatePlaybackParameters()
+                    updateTrackSelectionParameters()
+                }
+            }
             launch { appSettings.gaplessPlayback.collect { updateTrackSelectionParameters() } }
             launch { appSettings.skipSilenceEnabled.collect { updateTrackSelectionParameters() } }
         }
@@ -403,7 +419,19 @@ class RhythmPlayerEngine(
             .build()
 
         val appSettings = AppSettings.getInstance(context)
-        val floatOutputPref = appSettings.audioEngineFloatOutput.value && HiFiCapabilityChecker.isSupported()
+        val isPlaybackRateModified =
+            kotlin.math.abs(appSettings.playbackSpeed.value - 1f) > 0.001f ||
+            kotlin.math.abs(appSettings.playbackPitch.value - 1f) > 0.001f
+        val hasActiveProcessors =
+            appSettings.bassBoostEnabled.value ||
+            appSettings.virtualizerEnabled.value ||
+            appSettings.monoAudioEnabled.value ||
+            appSettings.skipSilenceEnabled.value ||
+            isPlaybackRateModified
+
+        val floatOutputPref = appSettings.audioEngineFloatOutput.value &&
+            HiFiCapabilityChecker.isSupported() &&
+            !hasActiveProcessors
 
         val mediaCodecSelector = MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
             val defaultDecoders = MediaCodecSelector.DEFAULT.getDecoderInfos(
@@ -476,7 +504,7 @@ class RhythmPlayerEngine(
                 }
                 val baseSink = DefaultAudioSink.Builder(context)
                     .setEnableFloatOutput(floatOutputPref)
-                    .setEnableAudioOutputPlaybackParameters(enableAudioTrackPlaybackParams)
+                    .setEnableAudioOutputPlaybackParameters(true)
                     .setAudioProcessorChain(processorChain)
                     .build()
 
@@ -639,6 +667,9 @@ class RhythmPlayerEngine(
                 }
             }
 
+            if (::playerA.isInitialized) {
+                playerB.playbackParameters = playerA.playbackParameters
+            }
             playerB.prepare()
             playerB.volume = 0f
             playerB.pause()
@@ -913,8 +944,7 @@ class RhythmPlayerEngine(
 
         try {
             playerB.seekTo(0)
-            playerB.setPlaybackSpeed(1.0f)
-            playerB.setPlaybackParameters(playerB.playbackParameters)
+            playerB.playbackParameters = playerA.playbackParameters
         } catch (e: Exception) {
             playerB.release()
             val otherReplayGain = if (incomingReplayGain === playerAReplayGain) playerBReplayGain else playerAReplayGain
@@ -927,7 +957,9 @@ class RhythmPlayerEngine(
                 spatialProcessor = otherSpatial,
                 monoProcessor = otherMono,
                 replayGainProcessor = otherReplayGain
-            )
+            ).apply {
+                playbackParameters = playerA.playbackParameters
+            }
         }
     }
 
@@ -1004,6 +1036,22 @@ class RhythmPlayerEngine(
         return baseParameters.buildUpon()
             .setAudioOffloadPreferences(audioOffloadPreferences)
             .build()
+    }
+
+    fun updatePlaybackParameters() {
+        if (!::playerA.isInitialized || !::playerB.isInitialized) return
+        val appSettings = AppSettings.getInstance(context)
+        val speed = appSettings.playbackSpeed.value.coerceIn(0.25f, 3.0f)
+        val pitch = appSettings.playbackPitch.value.coerceIn(0.5f, 2.0f)
+        val params = PlaybackParameters(speed, pitch)
+        if (playerA.playbackParameters != params) {
+            playerA.playbackParameters = params
+            Log.d(TAG, "Applied playback parameters on playerA: speed=$speed, pitch=$pitch")
+        }
+        if (playerB.playbackParameters != params) {
+            playerB.playbackParameters = params
+            Log.d(TAG, "Applied playback parameters on playerB: speed=$speed, pitch=$pitch")
+        }
     }
 
     fun updateTrackSelectionParameters() {

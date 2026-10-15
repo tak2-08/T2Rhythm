@@ -1,0 +1,8 @@
+Rhythm v5.5 - Update
+
+• Fixed speed & pitch controls not working on FLAC and high-res audio (#666)
+• Custom playback speed and pitch now persist smoothly across track skips and crossfades
+• Refined Dolby Atmos and surround sound badge detection in the player
+• Improved audio engine stability with software effects and equalizer
+
+Thanks for using Rhythm ;)

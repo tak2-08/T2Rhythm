@@ -2725,7 +2725,7 @@
     <string name="settings_expressive_quality_badge_always_visible">Keep Quality Indicator Visible</string>
     <string name="settings_expressive_quality_badge_always_visible_desc">Show audio quality indicator permanently on Expressive Player instead of auto-hiding after 5 seconds</string>
     <string name="playback_quality_dialog_title">Audio Playback Quality</string>
-    <string name="playback_quality_decoded_stream">Decoded Stream (Passed by T2Rhythm)</string>
+    <string name="playback_quality_decoded_stream">Decoded Stream (T2Rhythm)</string>
     <string name="playback_quality_output_pipeline">Output Pipeline</string>
     <string name="playback_quality_device">Destination Device</string>
     <string name="playback_quality_decoder">Decoder Engine</string>
@@ -2772,7 +2772,7 @@
     <string name="settings_audio_engine_prefer_hw">Prefer Hardware Decoders</string>
     <string name="settings_audio_engine_prefer_hw_desc">Prioritize on-chip hardware codecs over software emulation</string>
     <string name="settings_audio_engine_float_output">32-Bit PCM Float Output</string>
-    <string name="settings_audio_engine_float_output_desc">Deliver full dynamic floating-point audio to supported hardware</string>
+    <string name="settings_audio_engine_float_output_desc">Deliver full dynamic floating-point audio to supported hardware when software DSP effects and variable speed/pitch are inactive</string>
     <string name="settings_audio_engine_manage_decoders">Audio Decoders</string>
     <string name="settings_audio_engine_reset">Reset Decoders</string>
     <string name="settings_audio_engine_reset_desc">Re-enable all platform and hardware audio decoders</string>

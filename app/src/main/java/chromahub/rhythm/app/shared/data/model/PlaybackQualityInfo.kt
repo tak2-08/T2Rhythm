@@ -13,7 +13,7 @@ import java.util.Locale
 
 /**
  * Real-time audio playback telemetry data model.
- * Captures the actual format processed by the decoder engine (passed by Rhythm)
+ * Captures the actual format processed by the decoder engine
  * and the output transmission pipeline (Bluetooth / USB DAC / Speaker / Wired).
  */
 @Parcelize
@@ -41,6 +41,12 @@ data class PlaybackQualityInfo(
     val isResampled: Boolean = false,
     val resamplingDescription: String? = null,
     val isBitPerfect: Boolean = false,
+
+    val isLossless: Boolean = false,
+    val isHiRes: Boolean = false,
+    val isDolby: Boolean = false,
+    val isDTS: Boolean = false,
+    val qualityCategory: String = "",
 
     val qualityType: AudioQualityDetector.QualityType = AudioQualityDetector.QualityType.UNKNOWN,
     val qualityLabel: String = "",
@@ -88,9 +94,11 @@ data class PlaybackQualityInfo(
                 AudioQualityDetector.QualityType.HI_RES_STUDIO_MASTER -> R.drawable.ic_high_res
                 AudioQualityDetector.QualityType.HI_RES_LOSSLESS -> R.drawable.ic_high_res
                 AudioQualityDetector.QualityType.CD_QUALITY_LOSSLESS -> R.drawable.ic_hd
+                AudioQualityDetector.QualityType.DOLBY_ATMOS -> R.drawable.ic_dolby
                 AudioQualityDetector.QualityType.DOLBY_LOSSLESS -> R.drawable.ic_dolby
                 AudioQualityDetector.QualityType.DOLBY_LOSSY_SURROUND -> R.drawable.ic_dolby
                 AudioQualityDetector.QualityType.DTS_SURROUND -> R.drawable.ic_dts
+                AudioQualityDetector.QualityType.MPEG_H_3D -> R.drawable.ic_surround_sound
                 AudioQualityDetector.QualityType.LOSSLESS_SURROUND -> R.drawable.ic_surround_sound
                 AudioQualityDetector.QualityType.LOSSY_COMPRESSED -> {
                     if (qualityLabel.contains("320", ignoreCase = true)) {

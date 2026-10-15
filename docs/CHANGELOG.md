@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - 
 
+## [5.5.499.1302] - 2026-10-13
+
+### Fixed
+- **Playback Speed & Pitch Controls**: Resolved an issue where adjusting playback speed and pitch in the player bottom sheet had no effect, particularly on FLAC and high-resolution audio files ([#666](https://github.com/cromaguy/Rhythm/issues/666)).
+- **Speed & Pitch Continuity**: Playback speed and pitch adjustments now stay properly synchronized across track changes, crossfade transitions, and background service reconnects.
+- **Dolby Atmos & Surround Sound Detection**: Refined format detection so Dolby Atmos and multi-channel surround tracks accurately display their dedicated quality badges without false positives on stereo media.
+- **Audio Engine Compatibility**: Tuned 32-bit PCM float output to safely coordinate with software equalizer effects, bass boost, spatializer, and time-stretching.
+
 ## [5.5.498.1300] - 2026-10-11
 
 ### Added

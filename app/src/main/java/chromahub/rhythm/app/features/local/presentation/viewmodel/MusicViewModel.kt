@@ -9467,10 +9467,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     
     // Playback Speed Control
     fun setPlaybackSpeed(speed: Float) {
-        Log.d(TAG, "Setting playback speed to $speed")
-        appSettings.setPlaybackSpeed(speed)
-        val currentPitch = appSettings.playbackPitch.value
-        mediaController?.playbackParameters = androidx.media3.common.PlaybackParameters(speed, currentPitch)
+        val clamped = speed.coerceIn(0.25f, 3.0f)
+        Log.d(TAG, "Setting playback speed to $clamped")
+        appSettings.setPlaybackSpeed(clamped)
+        val currentPitch = appSettings.playbackPitch.value.coerceIn(0.5f, 2.0f)
+        mediaController?.playbackParameters = androidx.media3.common.PlaybackParameters(clamped, currentPitch)
     }
 
     fun setDefaultPlaybackSpeed(speed: Float) {
@@ -9485,10 +9486,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // Playback Pitch Control
     fun setPlaybackPitch(pitch: Float) {
-        Log.d(TAG, "Setting playback pitch to $pitch")
-        appSettings.setPlaybackPitch(pitch)
-        val currentSpeed = appSettings.playbackSpeed.value
-        mediaController?.playbackParameters = androidx.media3.common.PlaybackParameters(currentSpeed, pitch)
+        val clamped = pitch.coerceIn(0.5f, 2.0f)
+        Log.d(TAG, "Setting playback pitch to $clamped")
+        appSettings.setPlaybackPitch(clamped)
+        val currentSpeed = appSettings.playbackSpeed.value.coerceIn(0.25f, 3.0f)
+        mediaController?.playbackParameters = androidx.media3.common.PlaybackParameters(currentSpeed, clamped)
     }
 
     // Enhanced play tracking with user preferences

@@ -54,6 +54,7 @@ private enum class QualityLevel {
 
 
 
+
 @Composable
 fun AudioQualityIcon(
     song: Song,
@@ -77,26 +78,14 @@ fun AudioQualityIcon(
                 qualityType = playbackQuality.qualityType,
                 qualityLabel = playbackQuality.qualityLabel,
                 qualityDescription = playbackQuality.qualityDescription,
-                isLossless = playbackQuality.qualityType in listOf(
-                    AudioQualityDetector.QualityType.CD_QUALITY_LOSSLESS,
-                    AudioQualityDetector.QualityType.HI_RES_LOSSLESS,
-                    AudioQualityDetector.QualityType.HI_RES_STUDIO_MASTER,
-                    AudioQualityDetector.QualityType.DSD_HIGH_RES,
-                    AudioQualityDetector.QualityType.DOLBY_LOSSLESS,
-                    AudioQualityDetector.QualityType.LOSSLESS_SURROUND
-                ),
-                isHiRes = playbackQuality.qualityType in listOf(
-                    AudioQualityDetector.QualityType.HI_RES_LOSSLESS,
-                    AudioQualityDetector.QualityType.HI_RES_STUDIO_MASTER,
-                    AudioQualityDetector.QualityType.DSD_HIGH_RES
-                ),
-                isDolby = playbackQuality.qualityType in listOf(
-                    AudioQualityDetector.QualityType.DOLBY_LOSSLESS,
-                    AudioQualityDetector.QualityType.DOLBY_LOSSY_SURROUND
-                ),
-                isDTS = playbackQuality.qualityType == AudioQualityDetector.QualityType.DTS_SURROUND,
+                isLossless = playbackQuality.isLossless,
+                isHiRes = playbackQuality.isHiRes,
+                isDolby = playbackQuality.isDolby,
+                isDTS = playbackQuality.isDTS,
                 bitDepthEstimate = playbackQuality.decodedBitDepth,
-                category = if (playbackQuality.qualityType == AudioQualityDetector.QualityType.LOSSY_COMPRESSED) "Lossy" else "Lossless"
+                category = playbackQuality.qualityCategory.ifBlank {
+                    if (playbackQuality.qualityType == AudioQualityDetector.QualityType.LOSSY_COMPRESSED) "Lossy" else "Lossless"
+                }
             )
             return@LaunchedEffect
         }
@@ -145,9 +134,11 @@ fun AudioQualityIcon(
                 AudioQualityDetector.QualityType.DSD_HIGH_RES -> R.drawable.ic_high_res
                 AudioQualityDetector.QualityType.HI_RES_STUDIO_MASTER -> R.drawable.ic_high_res
                 AudioQualityDetector.QualityType.HI_RES_LOSSLESS -> R.drawable.ic_high_res
+                AudioQualityDetector.QualityType.DOLBY_ATMOS -> R.drawable.ic_dolby
                 AudioQualityDetector.QualityType.DOLBY_LOSSLESS -> R.drawable.ic_dolby
                 AudioQualityDetector.QualityType.DOLBY_LOSSY_SURROUND -> R.drawable.ic_dolby
                 AudioQualityDetector.QualityType.DTS_SURROUND -> R.drawable.ic_dts
+                AudioQualityDetector.QualityType.MPEG_H_3D -> R.drawable.ic_surround_sound
                 AudioQualityDetector.QualityType.LOSSLESS_SURROUND -> R.drawable.ic_surround_sound
                 AudioQualityDetector.QualityType.CD_QUALITY_LOSSLESS -> R.drawable.ic_hd
                 AudioQualityDetector.QualityType.LOSSY_COMPRESSED -> if (quality.qualityDescription.contains("320")) R.drawable.ic_hq else R.drawable.ic_sq
@@ -202,26 +193,14 @@ fun AudioQualityBadges(
                 qualityType = playbackQuality.qualityType,
                 qualityLabel = playbackQuality.qualityLabel,
                 qualityDescription = playbackQuality.qualityDescription,
-                isLossless = playbackQuality.qualityType in listOf(
-                    AudioQualityDetector.QualityType.CD_QUALITY_LOSSLESS,
-                    AudioQualityDetector.QualityType.HI_RES_LOSSLESS,
-                    AudioQualityDetector.QualityType.HI_RES_STUDIO_MASTER,
-                    AudioQualityDetector.QualityType.DSD_HIGH_RES,
-                    AudioQualityDetector.QualityType.DOLBY_LOSSLESS,
-                    AudioQualityDetector.QualityType.LOSSLESS_SURROUND
-                ),
-                isHiRes = playbackQuality.qualityType in listOf(
-                    AudioQualityDetector.QualityType.HI_RES_LOSSLESS,
-                    AudioQualityDetector.QualityType.HI_RES_STUDIO_MASTER,
-                    AudioQualityDetector.QualityType.DSD_HIGH_RES
-                ),
-                isDolby = playbackQuality.qualityType in listOf(
-                    AudioQualityDetector.QualityType.DOLBY_LOSSLESS,
-                    AudioQualityDetector.QualityType.DOLBY_LOSSY_SURROUND
-                ),
-                isDTS = playbackQuality.qualityType == AudioQualityDetector.QualityType.DTS_SURROUND,
+                isLossless = playbackQuality.isLossless,
+                isHiRes = playbackQuality.isHiRes,
+                isDolby = playbackQuality.isDolby,
+                isDTS = playbackQuality.isDTS,
                 bitDepthEstimate = playbackQuality.decodedBitDepth,
-                category = if (playbackQuality.qualityType == AudioQualityDetector.QualityType.LOSSY_COMPRESSED) "Lossy" else "Lossless"
+                category = playbackQuality.qualityCategory.ifBlank {
+                    if (playbackQuality.qualityType == AudioQualityDetector.QualityType.LOSSY_COMPRESSED) "Lossy" else "Lossless"
+                }
             )
             return@LaunchedEffect
         }
@@ -300,14 +279,18 @@ fun AudioQualityBadges(
                         )
                     }
 
-                    AudioQualityDetector.QualityType.DOLBY_LOSSLESS -> {
-                        val badgeText = when {
-                            quality.qualityLabel.contains("Atmos", ignoreCase = true) -> "DOLBY ATMOS"
-                            quality.qualityLabel.contains("TrueHD", ignoreCase = true) -> "DOLBY TRUEHD"
-                            else -> "DOLBY"
-                        }
+                    AudioQualityDetector.QualityType.DOLBY_ATMOS -> {
                         QualityBadge(
-                            text = badgeText,
+                            text = "DOLBY ATMOS",
+                            icon = R.drawable.ic_dolby,
+                            qualityLevel = QualityLevel.EXCELLENT,
+                            onClick = onClick
+                        )
+                    }
+
+                    AudioQualityDetector.QualityType.DOLBY_LOSSLESS -> {
+                        QualityBadge(
+                            text = "DOLBY TRUEHD",
                             icon = R.drawable.ic_dolby,
                             qualityLevel = QualityLevel.EXCELLENT,
                             onClick = onClick
@@ -317,6 +300,7 @@ fun AudioQualityBadges(
                     AudioQualityDetector.QualityType.DOLBY_LOSSY_SURROUND -> {
                         val badgeText = when {
                             quality.qualityLabel.contains("Plus", ignoreCase = true) -> "DOLBY DIGITAL+"
+                            quality.qualityLabel.contains("AC-4", ignoreCase = true) -> "DOLBY AC-4"
                             else -> "DOLBY D"
                         }
                         QualityBadge(
@@ -327,8 +311,18 @@ fun AudioQualityBadges(
                         )
                     }
 
+                    AudioQualityDetector.QualityType.MPEG_H_3D -> {
+                        QualityBadge(
+                            text = "MPEG-H 3D",
+                            icon = R.drawable.ic_surround_sound,
+                            qualityLevel = QualityLevel.EXCELLENT,
+                            onClick = onClick
+                        )
+                    }
+
                     AudioQualityDetector.QualityType.DTS_SURROUND -> {
                         val badgeText = when {
+                            quality.qualityLabel.contains("X", ignoreCase = true) -> "DTS:X"
                             quality.isLossless -> "DTS-HD MA"
                             else -> "DTS"
                         }

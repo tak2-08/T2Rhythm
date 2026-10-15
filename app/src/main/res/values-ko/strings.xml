@@ -2958,7 +2958,7 @@
     <string name="settings_expressive_quality_badge_always_visible">음질 표시 유지</string>
     <string name="settings_expressive_quality_badge_always_visible_desc">익스프레시브 플레이어에서 음질 표시를 5초 후 숨기지 않고 계속 표시합니다</string>
     <string name="playback_quality_dialog_title">오디오 재생 품질</string>
-    <string name="playback_quality_decoded_stream">디코딩된 오디오(T2Rhythm 전달)</string>
+    <string name="playback_quality_decoded_stream">디코딩된 오디오(T2Rhythm)</string>
     <string name="playback_quality_output_pipeline">출력 처리 경로</string>
     <string name="playback_quality_device">출력 기기</string>
     <string name="playback_quality_decoder">디코더 엔진</string>
