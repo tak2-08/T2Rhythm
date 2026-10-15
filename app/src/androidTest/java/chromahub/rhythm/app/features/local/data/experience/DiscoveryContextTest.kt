@@ -38,13 +38,25 @@ class DiscoveryContextTest {
 
     @Test
     fun jointContextsSeparatePatternsWithIdenticalMotionAndDaylightMarginals() {
-        val ledger = ListeningLedger.get(context)
         val nonce = UUID.randomUUID().toString()
         val root = File(context.cacheDir, "joint-$nonce").apply { mkdirs() }
         val isolated =
             object : ContextWrapper(context) {
-                override fun getCacheDir() = root
+                override fun getCacheDir() = File(root, "cache").apply { mkdirs() }
+
+                override fun getFilesDir() = File(root, "files").apply { mkdirs() }
+
+                override fun getDatabasePath(name: String) =
+                    File(name).takeIf { it.isAbsolute } ?: File(root, name)
             }
+        // Keep a fresh source DB as well as a fresh derived index. Replaying previous runs is
+        // unbounded and correctly hits the production analysis slice limit.
+        val ledger =
+            ListeningLedger::class
+                .java
+                .getDeclaredConstructor(android.content.Context::class.java)
+                .apply { isAccessible = true }
+                .newInstance(isolated)
         val now = System.currentTimeMillis()
         fun scene(motion: String, day: Boolean) =
             ListeningSituation(
@@ -87,6 +99,7 @@ class DiscoveryContextTest {
                     )
                 )
             }
+            assertEquals(4, ledger.records().size)
             ContextPreferenceIndex(isolated).use { index ->
                 index.rebuild(ledger, AnalysisBudget(context, maxMillis = 60000))
                 val result = index.preferences(scene("walking", true), null)
@@ -106,6 +119,7 @@ class DiscoveryContextTest {
                 )
             }
         } finally {
+            ledger.close()
             root.deleteRecursively()
         }
     }
