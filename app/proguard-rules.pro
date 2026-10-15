@@ -85,6 +85,11 @@
 -keep class org.mozilla.javascript.** { *; }
 -keep class org.mozilla.classfile.ClassFileWriter
 -dontwarn org.mozilla.javascript.tools.**
+# NewPipe's upstream Android rules: these optional desktop-only paths are unused
+# by JavaScript.run/compileOrThrow, which explicitly enable Rhino interpreted mode.
+# https://github.com/TeamNewPipe/NewPipe/blob/dev/app/proguard-rules.pro
+-dontwarn org.mozilla.javascript.JavaToJSONConverters
+-dontwarn jdk.dynalink.**
 
 # Pair is used in portable Gson decision and detailed-insight projections.
 -keepclassmembers class kotlin.Pair { <fields>; }

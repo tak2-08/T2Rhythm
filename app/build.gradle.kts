@@ -224,7 +224,10 @@ androidComponents {
 
 dependencies {
     implementation(project(":crawler"))
-    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5")
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5") {
+        // Extractor uses Rhino's Android interpreter directly, never the desktop JSR-223 bridge.
+        exclude(group = "org.mozilla", module = "rhino-engine")
+    }
     implementation("androidx.webkit:webkit:1.12.1")
     implementation(libs.androidx.compose.ui.unit)
     // Desugaring library
