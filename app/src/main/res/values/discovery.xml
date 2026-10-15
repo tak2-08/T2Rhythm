@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="discovery_file_size">Stored file: %1$s</string>
+    <string name="discovery_loading_keywords">Choosing suggestions from your library…</string>
+    <string name="discovery_empty_keywords">Personal search suggestions appear as your library grows.</string>
     <string name="discovery_reason_joint">Fits your listening context together</string>
     <string name="discovery_reason_weather">Fits this weather</string>
     <string name="discovery_seek_line">Preview this line</string>
@@ -7,7 +10,7 @@
     <string name="discovery_license_jna">Native bridge used by the offline speech recognizer.</string>
     <string name="discovery_downloads">Background downloads</string>
     <string name="discovery_downloads_short">Progress, cancellation and storage</string>
-    <string name="discovery_downloads_hint">Downloads continue when you leave the player. Up to two transfers run together; extraction and file processing run one at a time. Wi-Fi is the default.</string>
+    <string name="discovery_downloads_hint">Downloads continue across screens. Wi-Fi is the default, and parallel transfers adapt to your device.</string>
     <string name="discovery_downloads_empty">No downloads yet.</string>
     <string name="discovery_stored_size">Stored size of displayed items: %1$s</string>
     <string name="discovery_cancel_download">Cancel download</string>
@@ -18,7 +21,7 @@
     <string name="discovery_download_waiting">Waiting for network or a transfer slot</string>
     <string name="discovery_operation_failed">Could not complete this request. Check the connection or choose another source.</string>
     <string name="discovery_more">Show more</string>
-    <string name="discovery_keywords">Search for your next listen</string>
+    <string name="discovery_keywords">Search ideas for you</string>
     <string name="discovery_charts">Popular charts</string>
     <string name="discovery_review_short">Suggestions</string>
     <string name="discovery_refresh">Refresh</string>

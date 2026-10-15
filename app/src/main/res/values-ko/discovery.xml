@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="discovery_file_size">보관 용량: %1$s</string>
+    <string name="discovery_loading_keywords">내 음악에서 추천 검색어를 고르고 있어요…</string>
+    <string name="discovery_empty_keywords">음악을 추가하면 맞춤 검색어가 나타나요.</string>
     <string name="discovery_reason_joint">시간·이동·출력 등 상황을 함께 고려한 추천</string>
     <string name="discovery_reason_weather">이 날씨에 즐겨 듣는 장르</string>
     <string name="discovery_seek_line">이 가사 구간 미리 듣기</string>
@@ -7,7 +10,7 @@
     <string name="discovery_license_jna">온디바이스 음성 인식의 네이티브 연결 라이브러리.</string>
     <string name="discovery_downloads">백그라운드 다운로드</string>
     <string name="discovery_downloads_short">진행 상태·취소·보관 용량</string>
-    <string name="discovery_downloads_hint">플레이어를 떠나도 다운로드가 계속됩니다. 전송은 최대 2개, 추출과 파일 정리는 하나씩 처리하며 기기 상태에 따라 줄입니다. 기본은 Wi-Fi입니다.</string>
+    <string name="discovery_downloads_hint">화면을 이동해도 계속 받아요. 기본은 Wi-Fi이며, 기기 상태에 맞춰 동시에 받는 수를 조절합니다.</string>
     <string name="discovery_downloads_empty">아직 다운로드한 항목이 없습니다.</string>
     <string name="discovery_stored_size">표시한 항목의 보관 용량: %1$s</string>
     <string name="discovery_cancel_download">다운로드 취소</string>
@@ -18,7 +21,7 @@
     <string name="discovery_download_waiting">네트워크·처리 순서 대기</string>
     <string name="discovery_operation_failed">요청을 완료하지 못했습니다. 연결을 확인하거나 다른 소스를 선택해 주세요.</string>
     <string name="discovery_more">더 보기</string>
-    <string name="discovery_keywords">다음 음악을 찾는 추천 검색어</string>
+    <string name="discovery_keywords">나를 위한 검색어</string>
     <string name="discovery_charts">인기 차트</string>
     <string name="discovery_review_short">개선 제안</string>
     <string name="discovery_refresh">새로고침</string>
