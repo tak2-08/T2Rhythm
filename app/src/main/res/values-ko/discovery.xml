@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="discovery_reason_joint">시간·이동·출력 등 상황을 함께 고려한 추천</string>
+    <string name="discovery_reason_weather">이 날씨에 즐겨 듣는 장르</string>
+    <string name="discovery_seek_line">이 가사 구간 미리 듣기</string>
     <string name="discovery_license_vosk">선택형 한국어 가사 타이밍 보조용 오프라인 음성 인식. 모델은 별도로 설치합니다.</string>
     <string name="discovery_license_jna">온디바이스 음성 인식의 네이티브 연결 라이브러리.</string>
     <string name="discovery_downloads">백그라운드 다운로드</string>

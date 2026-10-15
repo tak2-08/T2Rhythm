@@ -54,6 +54,13 @@ class MixShelfTest {
                 compose.onNodeWithText(context.getString(R.string.personal_like)).assertIsEnabled().assertIsNotSelected(); true
             }.getOrDefault(false) }
             assertTrue(RecommendationShelf.recent(context).any { it.id == first.id })
+            // A background refresh also resets the displayed reaction immediately.
+            compose.onNodeWithText(context.getString(R.string.personal_dislike)).performClick()
+            compose.waitUntil(10000) { runCatching { compose.onNodeWithText(context.getString(R.string.personal_dislike)).assertIsSelected(); true }.getOrDefault(false) }
+            val second=RecommendationShelf.current(context)!!
+            val background=RecommendationShelf.create(context,second.mode,second.genre,second.songKeys.reversed(),second.seed+1)!!
+            compose.waitUntil(15000) { runCatching { compose.onNodeWithText(context.getString(R.string.personal_dislike)).assertIsEnabled().assertIsNotSelected(); true }.getOrDefault(false) }
+            assertEquals(background.id,RecommendationShelf.current(context)!!.id)
             compose.onNodeWithContentDescription(context.getString(R.string.personal_mix_shelf)).performClick()
             compose.waitUntil(15000) { runCatching {
                 compose.onNodeWithText(context.getString(R.string.personal_mix_shelf_hint)).assertIsDisplayed(); true

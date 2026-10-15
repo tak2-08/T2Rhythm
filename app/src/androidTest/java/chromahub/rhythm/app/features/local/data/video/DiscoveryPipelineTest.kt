@@ -113,13 +113,28 @@ class DiscoveryPipelineTest {
         // Explicit local QA fixture: ordinary CI/device runs need no model download.
         org.junit.Assume.assumeTrue(archive.isFile)
         withContext(AnalysisBudget.dispatcher) {
-            SpeechModelStore.install(context,archive);assertTrue(SpeechModelStore.installed(context))
+            if(!SpeechModelStore.installed(context))SpeechModelStore.install(context,archive);assertTrue(SpeechModelStore.installed(context))
             org.vosk.Model(SpeechModelStore.directory(context).path).use {model ->org.vosk.Recognizer(model,16000f).use {recognizer ->
                 recognizer.setWords(true);recognizer.acceptWaveForm(ShortArray(16000),16000)
                 val result=com.google.gson.JsonParser.parseString(recognizer.finalResult).asJsonObject
                 assertTrue(result.get("text").asString.isBlank())
             }}
         }
+    }
+    @Test fun downloadOwnershipSurvivesCancellationOfTheScreenCoroutine()=runBlocking {
+        val token=UUID.randomUUID().toString();val source="https://test.invalid/$token.m4a"
+        val owner=CoroutineScope(SupervisorJob()+Dispatchers.IO);val queued=CompletableDeferred<Unit>()
+        val manager=androidx.work.WorkManager.getInstance(context)
+        owner.launch {AudioDownload.enqueueSource(context,source,"Navigation $token");queued.complete(Unit);awaitCancellation()}
+        withTimeout(15000) {queued.await()};owner.cancel()
+        val name="audio_source:${kr.co.metadata.crawler.CatalogFileStore.hash(source)}"
+        val work=manager.getWorkInfosForUniqueWork(name).get(15,java.util.concurrent.TimeUnit.SECONDS).last()
+        try {
+            assertNotEquals(androidx.work.WorkInfo.State.CANCELLED,work.state)
+            assertNotNull(DownloadRegistry.get(context,work.id.toString()))
+            DownloadRegistry.cancel(context,work.id.toString())
+            assertEquals("CANCELLED",DownloadRegistry.get(context,work.id.toString())!!.state)
+        } finally {manager.cancelUniqueWork(name).result.get(15,java.util.concurrent.TimeUnit.SECONDS);File(context.filesDir,"music_metadata/downloads/${work.id}.json").delete()}
     }
     private fun File.readTextOrEmpty()=if(isFile)readText() else ""
 }

@@ -49,14 +49,14 @@ object LocalLyricAlignment {
     fun valid(lines:List<TimedLine>,duration:Long)=lines.size in 3..2000 && lines.first().ms>=0 && lines.last().ms<duration && lines.zipWithNext().all { (a,b)->b.ms>a.ms }
     fun lrc(lines:List<TimedLine>)=lines.joinToString("\n") { "[%02d:%02d.%03d]%s".format(java.util.Locale.ROOT,it.ms/60000,it.ms/1000%60,it.ms%1000,it.text) }
     fun text(plain:String?,synced:String?):List<String> = (plain?.takeIf { it.isNotBlank() }?.lines() ?: parse(synced.orEmpty()).map { it.text })
-        .map { it.replace(stamp,"").trim() }.filter { normalized(it).isNotBlank() }.take(2000)
+        .map { it.replace(stamp,"").trim() }.filter { normalized(it).isNotBlank() && !it.matches(Regex("\\[(?:ar|ti|al|by|offset|re|ve|length):.*]",RegexOption.IGNORE_CASE)) }.take(2000)
     fun light(lines:List<String>,duration:Long,pcm:String,genre:String,envelope:List<Double>,examples:List<TimingTraining>):TimingGuess? {
         if (lines.size !in 3..1000 || duration !in 15_000..1_200_000) return null
         val textKey=lines.map(::normalized)
         examples.firstOrNull { it.pcm==pcm && valid(it.lines,duration) && it.lines.map { l->normalized(l.text) }==textKey }?.let {
             return TimingGuess(it.lines.mapIndexed { i,l->l.copy(text=lines[i]) },.98,"same_audio_reference",it.lines.size)
         }
-        val training=examples.filter { valid(it.lines,it.durationMs) && it.durationMs>0 }.let { all -> all.filter { it.genre==genre }.ifEmpty { all } }
+        val training=examples.filter { valid(it.lines,it.durationMs) && it.durationMs>0 }.let { all -> all.filter { it.genre.equals(genre.trim(),ignoreCase=true) }.ifEmpty { all } }
         if (training.size<3 || envelope.size<30) return null
         val intro=training.map { it.lines.first().ms.toDouble()/it.durationMs }.sorted().let { it[it.size/2] }.coerceIn(.01,.22)
         val outro=training.map { it.lines.last().ms.toDouble()/it.durationMs }.sorted().let { it[it.size/2] }.coerceIn(.6,.99)

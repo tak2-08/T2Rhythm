@@ -27,6 +27,7 @@ class DiscoveryLearningTest {
     @Test fun lrcOffsetsAndRepeatedLinesPreserveExplicitTiming() {
         val lines=LocalLyricAlignment.parse("[offset:+150]\n[00:01.50][00:04.125]같은 후렴\n[00:99.00]잘못된 시간\n[00:08]마지막")
         assertEquals(listOf(1650L,4275L,8150L),lines.map {it.ms})
+        assertEquals(listOf("가사"),LocalLyricAlignment.text("[ar:가수]\n[ti:노래]\n[00:01.00]가사",null))
         assertEquals(lines,LocalLyricAlignment.parse(LocalLyricAlignment.lrc(lines)))
         assertFalse(LocalLyricAlignment.valid(LocalLyricAlignment.parse("[offset:-2000]\n[00:01]하나\n[00:04]둘\n[00:08]셋"),10000))
     }

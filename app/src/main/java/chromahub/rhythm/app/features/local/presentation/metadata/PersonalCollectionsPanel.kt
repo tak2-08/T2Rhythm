@@ -47,14 +47,18 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
     var expanded by remember { mutableStateOf(false) }
     var snapshot by remember { mutableStateOf<MixSnapshot?>(null) }
     var refresh by remember { mutableLongStateOf(0L) }
+    var handledRefresh by remember { mutableLongStateOf(0L) }
+    val selectedMix by RecommendationShelf.selection.collectAsState()
     var drawer by remember { mutableStateOf(false) }
     var shelf by remember { mutableStateOf(emptyList<MixSnapshot>()) }
     val catalog = remember(songs) { songs.associateBy { it.uri.toString() } }
-    LaunchedEffect(songs, hour, refresh) {
+    LaunchedEffect(songs, hour, refresh, selectedMix) {
+        val manualRefresh=refresh!=handledRefresh
+        handledRefresh=refresh
         proposalBusy = true
         try {
             val value = withContext(Dispatchers.IO) {
-                val existing = if (refresh == 0L) RecommendationShelf.current(context) else null
+                val existing = if (!manualRefresh) RecommendationShelf.current(context) else null
                 val current = existing?.takeIf { !RecommendationShelf.refreshDue(context, it) && it.songKeys.any(catalog::containsKey) } ?: run {
                     val mode = proposalMode
                     val seed = System.currentTimeMillis() xor System.nanoTime()

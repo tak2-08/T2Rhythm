@@ -6,6 +6,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import chromahub.rhythm.app.shared.presentation.components.icons.Icon
+import chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
@@ -97,12 +100,12 @@ import kotlinx.coroutines.*
                     if(song!=null)item {TextButton(enabled=!busy,onClick={viewModel.playSongWithQueueOption(song,replaceQueue=false)}) {Text(context.getString(R.string.discovery_play_review))}}
                     val before=LocalLyricAlignment.parse(proposal.beforeLyrics?.syncedLyrics.orEmpty())
                     items(LocalLyricAlignment.parse(proposal.value).take(200).withIndex().toList(),key={it.index}) { (index,line) ->
-                        TextButton(enabled=current?.uri?.toString()==proposal.songKey && !busy,onClick={viewModel.seekTo(line.ms)}) {
-                            Column(Modifier.fillMaxWidth()) {
-                                Text(line.text,style=MaterialTheme.typography.bodyMedium)
-                                Text((before.getOrNull(index)?.ms?.let {"${it/1000.0}s → "} ?: "")+"${line.ms/1000.0}s",style=MaterialTheme.typography.labelSmall)
-                            }
-                        }
+                        val seekable=current?.uri?.toString()==proposal.songKey && !busy
+                        fun stamp(ms:Long)="%02d:%02d.%03d".format(java.util.Locale.ROOT,ms/60000,ms/1000%60,ms%1000)
+                        ListItem(headlineContent={Text(line.text,style=MaterialTheme.typography.bodyMedium)},
+                            supportingContent={Text((before.getOrNull(index)?.ms?.let {stamp(it)+" → "} ?: "")+stamp(line.ms),style=MaterialTheme.typography.labelSmall)},
+                            trailingContent={IconButton(enabled=seekable,onClick={viewModel.seekTo(line.ms)}) {Icon(MaterialSymbolIcon("play_arrow"),context.getString(R.string.discovery_seek_line),Modifier.size(24.dp))}},
+                            modifier=Modifier.clickable(enabled=seekable) {viewModel.seekTo(line.ms)})
                     }
                 }
                 if(busy)item {LinearProgressIndicator(Modifier.fillMaxWidth())}

@@ -13,6 +13,7 @@ import java.io.File
 }
 /** Immutable generations: feedback and saved drawer entries always refer to the exact displayed queue. */
 object RecommendationShelf {
+    val selection = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     private val gson = Gson()
     private fun root(context: Context) = File(context.filesDir, "music_metadata/personalization/mixes").apply { mkdirs() }
     private fun read(file: File): MixSnapshot? = runCatching {
@@ -36,7 +37,7 @@ object RecommendationShelf {
         PersonalArchive.enqueue(context)
         return snapshot
     }
-    fun interacted(context: Context, id: String) { context.getSharedPreferences("recommendation_shelf", Context.MODE_PRIVATE).edit().putLong("interaction:$id", System.currentTimeMillis()).apply() }
+    @Synchronized fun interacted(context: Context, id: String) { context.getSharedPreferences("recommendation_shelf", Context.MODE_PRIVATE).edit().putLong("interaction:$id", System.currentTimeMillis()).apply() }
     fun refreshDue(context: Context, snapshot: MixSnapshot, now: Long = System.currentTimeMillis()): Boolean {
         val interval=PersonalCollections.options(context).refreshHours.takeIf { it in 1..48 } ?: 6
         val last=context.getSharedPreferences("recommendation_shelf", Context.MODE_PRIVATE).getLong("interaction:${snapshot.id}",snapshot.createdAt)
@@ -47,5 +48,8 @@ object RecommendationShelf {
         if (existing.id != expected || !refreshDue(context,existing)) return null
         return create(context,mode,genre,keys,seed)
     }
-    fun select(context: Context, snapshot: MixSnapshot) { check(context.getSharedPreferences("recommendation_shelf", Context.MODE_PRIVATE).edit().putString("current", snapshot.id).commit()) }
+    @Synchronized fun select(context: Context, snapshot: MixSnapshot) {
+        check(context.getSharedPreferences("recommendation_shelf", Context.MODE_PRIVATE).edit().putString("current", snapshot.id).commit())
+        selection.value=snapshot.id
+    }
 }

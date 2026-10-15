@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="discovery_reason_joint">Fits your listening context together</string>
+    <string name="discovery_reason_weather">Fits this weather</string>
+    <string name="discovery_seek_line">Preview this line</string>
     <string name="discovery_license_vosk">Offline speech recognition for optional Korean lyric timing assistance. Model weights are installed separately.</string>
     <string name="discovery_license_jna">Native bridge used by the offline speech recognizer.</string>
     <string name="discovery_downloads">Background downloads</string>
