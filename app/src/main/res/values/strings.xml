@@ -1848,9 +1848,9 @@
     <string name="rhythmstatsscreen_no_stats_available_yet">No stats available yet</string>
     <string name="rhythmstatsscreen_keep_listening_to_build">Keep listening to build your musical journey!</string>
     <string name="universalsearchscreen_remove_search">Remove search</string>
-    <string name="universalsearchscreen_search_across_local_streaming">Search songs, artists, albums and playlists in your library</string>
+    <string name="universalsearchscreen_search_across_local_streaming">Find your music</string>
     <string name="universalsearchscreen_loading_streaming_results">Loading streaming results…</string>
-    <string name="universalsearchscreen_search_everywhere">Search everywhere…</string>
+    <string name="universalsearchscreen_search_everywhere">Search your music…</string>
     <string name="universalsearchscreen_removed_from_streaming_favorites">Removed from streaming favorites</string>
     <string name="universalsearchscreen_added_to_streaming_favorites">Added to streaming favorites</string>
     <string name="universalsearchscreen_album_not_found">Album not found</string>

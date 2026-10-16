@@ -185,6 +185,66 @@ class ListeningLedger private constructor(private val context: Context) :
             RecommendationTrainingWorker.enqueue(context)
         }
 
+    /** Journal-first import in bounded batches; stable legacy IDs make interrupted retries safe. */
+    internal fun importLegacyBatch(records: List<ListeningRecord>) =
+        synchronized(lock) {
+            require(records.size <= 128 && records.all { it.reason == "legacy_import" })
+            if (records.isEmpty()) return@synchronized
+            val ids = records.map { it.id }.toTypedArray()
+            val existing =
+                readableDatabase
+                    .rawQuery(
+                        "SELECT id FROM records WHERE id IN (${ids.joinToString(",") { "?" }})",
+                        ids,
+                    )
+                    .use { cursor ->
+                        buildSet { while (cursor.moveToNext()) add(cursor.getString(0)) }
+                    }
+            val pending = records.distinctBy { it.id }.filter { it.id !in existing }
+            if (pending.isEmpty()) return@synchronized
+            val encoded = pending.map { it to gson.toJson(it) }
+            val offsets = mutableMapOf<File, Long>()
+            val root = File(context.filesDir, "listening_history").apply { mkdirs() }
+            encoded
+                .groupBy { (record, _) ->
+                    Instant.ofEpochMilli(record.startedAt)
+                        .atZone(ZoneId.of(record.timezone))
+                        .toLocalDate()
+                        .toString()
+                        .take(7)
+                }
+                .forEach { (month, entries) ->
+                    val journal = File(root, "$month.jsonl")
+                    val separate =
+                        journal.length() > 0 &&
+                            java.io.RandomAccessFile(journal, "r").use {
+                                it.seek(journal.length() - 1)
+                                it.read() != 10
+                            }
+                    java.io.FileOutputStream(journal, true).use { out ->
+                        if (separate) out.write(10)
+                        entries.forEach { (_, json) ->
+                            out.write((json + "\n").toByteArray(Charsets.UTF_8))
+                        }
+                        out.fd.sync()
+                    }
+                    offsets[journal] = journal.length()
+                }
+            writableDatabase.beginTransaction()
+            try {
+                encoded.forEach { (record, json) -> upsert(record, json) }
+                offsets.forEach { (file, length) ->
+                    state("journal_offset:${file.name}", length.toString())
+                }
+                writableDatabase.setTransactionSuccessful()
+            } finally {
+                writableDatabase.endTransaction()
+            }
+            revision.update { it + 1 }
+            PersonalArchive.enqueue(context)
+            RecommendationTrainingWorker.enqueue(context)
+        }
+
     private fun upsert(record: ListeningRecord, json: String) {
         val newer =
             readableDatabase

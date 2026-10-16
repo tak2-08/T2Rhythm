@@ -1580,13 +1580,17 @@ fun LibraryScreen(
                                                             "Short (< 3 min)" -> context.getString(R.string.library_category_short)
                                                             "Medium (3-5 min)" -> context.getString(R.string.library_category_medium)
                                                             "Long (> 5 min)" -> context.getString(R.string.library_category_long)
-                                                            "Hi-Res Lossless" -> "Hi-Res Lossless"
-                                                            "Lossless" -> "Lossless"
+                                                            "Hi-Res Lossless" -> stringResource(R.string.library_category_hi_res)
+                                                            "Lossless" -> stringResource(R.string.library_category_lossless)
                                                             "Dolby" -> "Dolby"
                                                             "Mono" -> context.getString(R.string.library_category_mono)
                                                             "Stereo" -> context.getString(R.string.library_category_stereo)
-                                                            "High Quality" -> "High Quality"
-                                                            "Standard" -> "Standard"
+                                                            "High Quality" -> stringResource(R.string.library_category_high_quality)
+                                                            "Standard" -> stringResource(R.string.library_category_standard)
+                                                            "Lossy" -> stringResource(R.string.library_category_lossy)
+                                                            "Studio Master" -> stringResource(R.string.library_category_studio_master)
+                                                            "CD Quality" -> stringResource(R.string.library_category_cd_quality)
+                                                            "Dolby / Surround" -> stringResource(R.string.library_category_surround)
                                                             else -> category
                                                         },
                                                         style = MaterialTheme.typography.labelMedium,

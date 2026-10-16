@@ -1890,9 +1890,9 @@
     <string name="rhythmstatsscreen_no_stats_available_yet">아직 통계가 없습니다.</string>
     <string name="rhythmstatsscreen_keep_listening_to_build">음악적 여정을 구축하려면 계속 들어보세요!</string>
     <string name="universalsearchscreen_remove_search">검색 제거</string>
-    <string name="universalsearchscreen_search_across_local_streaming">내 라이브러리의 곡·아티스트·앨범·재생목록을 검색하세요</string>
+    <string name="universalsearchscreen_search_across_local_streaming">내 음악을 찾아보세요</string>
     <string name="universalsearchscreen_loading_streaming_results">스트리밍 결과 로드 중…</string>
-    <string name="universalsearchscreen_search_everywhere">여기저기 검색해 보세요…</string>
+    <string name="universalsearchscreen_search_everywhere">내 음악 검색…</string>
     <string name="universalsearchscreen_removed_from_streaming_favorites">스트리밍 즐겨찾기에서 제거됨</string>
     <string name="universalsearchscreen_added_to_streaming_favorites">스트리밍 즐겨찾기에 추가됨</string>
     <string name="universalsearchscreen_album_not_found">앨범을 찾을 수 없습니다</string>

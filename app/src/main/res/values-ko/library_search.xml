@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="local_search_hint">초성·띄어쓰기 없이 검색하거나, 제목과 가수를 함께 입력해 보세요.</string>
+    <string name="local_search_loading">보관함에서 찾는 중…</string>
+    <string name="library_category_hi_res">고해상도 무손실</string>
+    <string name="library_category_lossless">무손실</string>
+    <string name="library_category_high_quality">고음질</string>
+    <string name="library_category_standard">표준 음질</string>
+    <string name="library_category_lossy">손실 압축</string>
+    <string name="library_category_studio_master">스튜디오 마스터</string>
+    <string name="library_category_cd_quality">CD 음질</string>
+    <string name="library_category_surround">돌비 / 서라운드</string>
+    <string name="local_search_scope">노래·앨범·아티스트·재생목록을 한곳에서</string>
+</resources>
