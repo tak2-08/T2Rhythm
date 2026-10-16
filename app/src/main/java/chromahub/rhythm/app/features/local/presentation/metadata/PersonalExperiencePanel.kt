@@ -63,8 +63,12 @@ fun PersonalExperiencePanel() {
             if (storageIssue != null) Text(stringResource(R.string.personal_history_storage_error), color = MaterialTheme.colorScheme.error)
             Text(stringResource(R.string.personal_experience_hint), style = MaterialTheme.typography.bodySmall)
             OutlinedButton(onClick = { chooseMonth = true }, modifier = Modifier.fillMaxWidth()) { Text(month + " · " + stringResource(R.string.personal_month_choose)) }
+            months.firstOrNull { it.month == month }?.let { total ->
+                Text(context.getString(R.string.personal_month_summary, total.plays, total.songs, total.listenedMs / 60_000), style = MaterialTheme.typography.titleSmall)
+            }
             insight?.let { data ->
-                Text(context.getString(R.string.personal_month_summary, data.totalPlays, data.habits.size, data.monthly.values.sum() / 60_000), style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.personal_detail_sample, data.sampledSegments ?: 0), style = MaterialTheme.typography.labelMedium)
+                data.computedAt?.let { at -> Text(context.getString(R.string.discovery_updated, java.text.DateFormat.getDateTimeInstance().format(java.util.Date(at))), style = MaterialTheme.typography.labelSmall) }
                 data.artists.entries.take(3).forEach { Text(context.getString(R.string.personal_dimension_minutes, it.key, it.value / 60_000), style = MaterialTheme.typography.bodyMedium) }
                 data.genres.entries.take(3).forEach { Text(context.getString(R.string.personal_dimension_minutes, it.key, it.value / 60_000), style = MaterialTheme.typography.bodySmall) }
                 data.outputs.entries.sortedByDescending { it.value }.take(3).forEach { (route, duration) ->

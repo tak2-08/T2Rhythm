@@ -22,7 +22,7 @@
     <string name="discovery_operation_failed">요청을 완료하지 못했습니다. 연결을 확인하거나 다른 소스를 선택해 주세요.</string>
     <string name="discovery_more">더 보기</string>
     <string name="discovery_keywords">나를 위한 검색어</string>
-    <string name="discovery_charts">인기 차트</string>
+    <string name="discovery_charts">인기 리스트</string>
     <string name="discovery_review_short">개선 제안</string>
     <string name="discovery_refresh">새로고침</string>
     <string name="discovery_songs">곡</string>
@@ -37,7 +37,7 @@
     <string name="discovery_open_source">원본 차트 열기</string>
     <string name="discovery_audio_source_hint">저장할 소스를 직접 선택하고 미리 확인해 주세요. YouTube·SoundCloud 공연이나 영상은 차트의 원음과 다를 수 있습니다. 저장한 음원은 Music/T2Rhythm과 로컬 라이브러리에 추가됩니다.</string>
     <string name="discovery_direct">파일 주소</string>
-    <string name="discovery_direct_url">직접 다운로드할 HTTPS 음원 파일 주소</string>
+    <string name="discovery_direct_url">HTTPS 음원 주소</string>
     <string name="discovery_source_search">소스 검색</string>
     <string name="discovery_selected_source">선택한 소스: %1$s</string>
     <string name="discovery_preview_source">소스에서 미리 듣기</string>

@@ -3002,7 +3002,7 @@
     <string name="personal_smart_shuffle_hint">Keep the current song and original song order; insert a new recommendation every three songs.</string>
     <string name="personal_t2_theme">T2Rhythm</string>
     <string name="personal_noise">Measure nearby sound level</string>
-    <string name="personal_noise_hint">With microphone permission, sample briefly while this app is visible. Save input levels only, never recordings. Device gain and speaker playback affect this relative measurement.</string>
+    <string name="personal_noise_hint">With microphone permission, briefly samples input level about every three minutes while the app is visible and music is playing. Raw audio is not saved. This relative level depends on microphone sensitivity and speaker playback.</string>
     <string name="personal_noise_denied">Microphone permission is needed for optional sound sampling.</string>
     <string name="personal_proposed_mix">A mix for this moment</string>
     <string name="personal_mix_count">%1$d songs · your library</string>

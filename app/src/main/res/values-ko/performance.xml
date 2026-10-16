@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="popular_tab">인기</string>
+    <string name="library_nav_short">보관함</string>
+    <string name="popular_subtitle">지금 많이 듣는 음악 · 멜론·벅스·지니</string>
+    <string name="popular_basis">순위 기준</string>
+    <string name="popular_basis_detail" formatted="false">멜론 50%, 벅스 30%, 지니 20%의 순위 점수에 여러 차트에 함께 오른 곡의 가산점을 더합니다. 일부 차트가 없으면 가능한 저장 목록을 사용하며, 인기가 없는 것으로 단정하지 않습니다. 곡명·버전·아티스트 표기가 다른 곡은 분리합니다. 앨범·아티스트 목록은 이 인기곡을 바탕으로 하며 별도 공식 순위는 아닙니다.</string>
+    <string name="popular_entity_basis">이 인기곡 목록을 바탕으로 한 순위입니다.</string>
+    <string name="popular_partial">일부 출처를 갱신하지 못해 가능한 저장 목록을 함께 표시합니다.</string>
+    <string name="popular_empty">저장된 인기 리스트가 없습니다. 연결을 확인하고 다시 받아 주세요.</string>
+    <string name="popular_tracks_count">인기곡 %1$d곡</string>
+    <string name="stats_refreshing_records">최근 청취 기록 반영 중…</string>
+    <string name="personal_detail_sample">세부 분석 · 최근 청취 구간 %1$d건</string>
+    <string name="stats_top_playlist_name">%1$s 인기곡</string>
+</resources>

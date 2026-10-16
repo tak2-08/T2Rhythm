@@ -650,22 +650,15 @@ private fun ModernScrollableContent(
     val playbackStatsRepository = remember(context) { PlaybackStatsRepository.getInstance(context) }
     var todayListeningMinutes by remember { mutableIntStateOf(0) }
 
-    val currentProgress by musicViewModel.progress.collectAsState()
-    val currentDurationMs by musicViewModel.duration.collectAsState()
     val currentIsPlaying by musicViewModel.isPlaying.collectAsState()
-
-    LaunchedEffect(dailyListeningStats, persistedSongsPlayed, listeningTimeMs, currentProgress, currentDurationMs, currentIsPlaying) {
-        val todaySummary = runCatching {
-            playbackStatsRepository.loadSummary(StatsTimeRange.TODAY)
-        }.getOrNull()
-        val dbDurationMs = todaySummary?.totalDurationMs ?: 0L
-        val activeSessionDurationMs = if (currentIsPlaying && currentDurationMs > 0) {
-            (currentProgress * currentDurationMs).toLong()
-        } else {
-            0L
+    LaunchedEffect(playbackStatsRepository, currentIsPlaying) {
+        // Only indexed wall-time spans; seeking never counts as time heard. The service checkpoints
+        // independently, so revisiting Home does not start another collector or history replay.
+        delay(350)
+        while (true) {
+            todayListeningMinutes = (runCatching { playbackStatsRepository.todayListeningDuration() }.getOrDefault(0L) / 60000L).toInt().coerceAtLeast(0)
+            delay(30_000)
         }
-        val totalMs = dbDurationMs + activeSessionDurationMs
-        todayListeningMinutes = (totalMs / 60000L).toInt().coerceAtLeast(0)
     }
 
     // Discover widget card content visibility settings

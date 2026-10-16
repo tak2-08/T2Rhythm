@@ -113,6 +113,7 @@ fun UniversalSearchScreen(
     onLocalPlaylistClick: (Playlist) -> Unit = {},
 
 
+    onOpenPopular: () -> Unit = {},
     onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -310,7 +311,7 @@ fun UniversalSearchScreen(
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             item(key = "personal_discovery") {
-                                chromahub.rhythm.app.features.local.presentation.metadata.SearchDiscoveryPanel(localSongs, favoriteSongs.toList(), localViewModel) { query = it }
+                                chromahub.rhythm.app.features.local.presentation.metadata.SearchDiscoveryPanel(localSongs, favoriteSongs.toList(), localViewModel, onOpenPopular = onOpenPopular) { query = it }
                             }
                             item(key = "history_header") {
                                 Row(
@@ -418,7 +419,7 @@ fun UniversalSearchScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         item(key = "personal_discovery") {
-                            chromahub.rhythm.app.features.local.presentation.metadata.SearchDiscoveryPanel(localSongs, favoriteSongs.toList(), localViewModel) { query = it }
+                            chromahub.rhythm.app.features.local.presentation.metadata.SearchDiscoveryPanel(localSongs, favoriteSongs.toList(), localViewModel, onOpenPopular = onOpenPopular) { query = it }
                         }
                         if (searchHistory.isNotEmpty()) {
                             item(key = "history_header") {

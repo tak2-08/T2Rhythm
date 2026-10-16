@@ -23,6 +23,7 @@ fun SearchDiscoveryPanel(
     songs: List<Song>,
     favorites: List<String>,
     viewModel: MusicViewModel,
+    onOpenPopular: (() -> Unit)? = null,
     onKeyword: (String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -72,7 +73,7 @@ fun SearchDiscoveryPanel(
             )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilledTonalButton(
-                onClick = { charts = true },
+                onClick = { if (onOpenPopular != null) onOpenPopular() else charts = true },
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
             ) {

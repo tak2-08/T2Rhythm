@@ -22,6 +22,23 @@ class ChartRepository(private val context: Context) {
 
     private val gson = Gson()
 
+    suspend fun popular(force: Boolean = false): Pair<List<ChartSnapshot>, List<Provider>> {
+        val snapshots = mutableListOf<ChartSnapshot>()
+        val failed = mutableListOf<Provider>()
+        // Three small requests, sequentially, with the existing host cooldown and durable cache.
+        for (provider in PopularRanking.weights.keys) {
+            try {
+                snapshots += refresh(provider, force)
+            } catch (cancel: kotlinx.coroutines.CancellationException) {
+                throw cancel
+            } catch (_: Exception) {
+                failed += provider
+                withContext(Dispatchers.IO) { cached(provider) }?.let(snapshots::add)
+            }
+        }
+        return snapshots to failed
+    }
+
     private fun file(provider: Provider) =
         File(context.filesDir, "music_metadata/charts/${provider.name}.json")
 

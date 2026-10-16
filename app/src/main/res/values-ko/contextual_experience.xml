@@ -81,7 +81,7 @@
     <string name="personal_mix_shelf_hint">이전 추천도 보관됩니다. 좋아요·싫어요는 당시 확인한 목록에만 적용됩니다.</string>
     <string name="cover_gesture_hint">중앙 더블 탭으로 좋아요, 양쪽 더블 탭으로 앞뒤 이동합니다.</string>
     <string name="mobility_enabled">이동 맥락을 추천에 활용</string>
-    <string name="mobility_hint">재생 중이거나 앱을 사용하는 동안 낮은 빈도로 움직임을 요약합니다. 교통수단은 추정이며 모호한 신호는 미확인으로 남깁니다. 원시 센서 기록은 저장하지 않습니다.</string>
+    <string name="mobility_hint">재생 중 약 2분 간격으로 잠깐씩 움직임을 관측하며, 기기 상태가 나쁘면 더 뜸하게 측정합니다. 교통수단은 추정이며 모호하면 미확인으로 남깁니다. 원시 센서 기록은 저장하지 않습니다.</string>
     <string name="mobility_mode">현재 활동</string>
     <string name="mobility_auto">자동 추정</string>
     <string name="mobility_still">정지</string>
@@ -93,7 +93,7 @@
     <string name="soft_update_done">호환되는 경험 설정을 확인했습니다. 네이티브 기능 변경은 APK 업데이트가 필요합니다.</string>
     <string name="soft_update_error">경험 설정을 확인하지 못했습니다. 현재 설정은 보존됩니다.</string>
     <string name="soft_update_current">현재 경험 설정: %1$d</string>
-    <string name="personal_insight_background">세부 예시는 충전 중 월별 최근 청취 구간·동작을 각각 최대 5,000건 분석합니다. 전체 원본 기록과 누적 취향 요약은 계속 보존됩니다.</string>
+    <string name="personal_insight_background">세부 예시는 충전·유휴 상태에서 월별 최근 청취 구간·동작·재생 요약을 각각 최대 1,024건(저메모리 기기 512건) 분석합니다. 전체 원본 기록·통계 합계·누적 취향 요약은 계속 보존됩니다.</string>
     <string name="licenses_newpipe">네이티브 YouTube 영상 추출 · NewPipe 기여자</string>
     <string name="mv_download_progress">영상 저장 중 · %1$d%%</string>
     <string name="mv_download_pending">Wi-Fi 대기 또는 영상 저장 중 · 자세히</string>

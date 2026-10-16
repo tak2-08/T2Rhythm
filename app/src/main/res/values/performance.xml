@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="popular_tab">Popular</string>
+    <string name="library_nav_short">Library</string>
+    <string name="popular_subtitle">Music people are listening to · Melon, Bugs and Genie</string>
+    <string name="popular_basis">About this list</string>
+    <string name="popular_basis_detail" formatted="false">Rank points are weighted by Melon 50%, Bugs 30% and Genie 20%. Appearing on multiple charts adds a bonus. A missing chart is not counted as zero popularity; cached results are kept when available. Different titles, versions and artist credits remain separate. Album and artist lists summarize these songs, rather than an official album or artist chart.</string>
+    <string name="popular_entity_basis">Based on the songs in this list.</string>
+    <string name="popular_partial">Some sources could not be refreshed. Available saved charts are included.</string>
+    <string name="popular_empty">No saved list yet. Check your connection and try again.</string>
+    <string name="popular_tracks_count">%1$d songs in this list</string>
+    <string name="stats_refreshing_records">Updating recent listening…</string>
+    <string name="personal_detail_sample">Detailed view · %1$d recent listening segments</string>
+    <string name="stats_top_playlist_name">Top songs · %1$s</string>
+</resources>

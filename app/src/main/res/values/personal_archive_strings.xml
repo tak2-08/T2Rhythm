@@ -20,8 +20,8 @@
     <string name="catalog_included_list">Included</string>
     <string name="catalog_excluded_list">Excluded</string>
     <string name="personal_archive_title">Permanent backup folder</string>
-    <string name="personal_archive_hint">Keep original metadata and artwork, JSON records, image files, TXT/LRC lyrics and monthly listening journals as ordinary files. No ZIP is required.</string>
-    <string name="personal_archive_permission">Grant access to the backup folder. Local originals are retained until synchronization succeeds.</string>
+    <string name="personal_archive_hint">Original metadata, artwork and listening records are kept as recoverable files in your backup folder. Automatic backups wait for charging and idle time; Sync now is always available.</string>
+    <string name="personal_archive_permission">Check backup folder access and available device storage. Local originals are retained until synchronization succeeds.</string>
     <string name="personal_archive_choose">Choose backup folder</string>
     <string name="personal_archive_sync">Back up plain files now</string>
     <string name="personal_archive_synced">Plain files backed up successfully</string>
