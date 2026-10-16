@@ -5,6 +5,9 @@
 
 package chromahub.rhythm.app.shared.presentation.screens
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+
 import chromahub.rhythm.app.shared.presentation.components.icons.RhythmIcons
 import chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon
 import chromahub.rhythm.app.shared.presentation.components.icons.Icon
@@ -142,7 +145,8 @@ fun RhythmStatsScreen(
                     songs = songs,
                     artists = artists,
                     viewModel = viewModel,
-                    useHoursFormat = useHoursFormat
+                    useHoursFormat = useHoursFormat,
+                    visible = page == pagerState.settledPage
                 )
             }
         }
@@ -159,43 +163,56 @@ private fun StatsPageContent(
     songs: List<chromahub.rhythm.app.shared.data.model.Song>,
     artists: List<Artist>,
     viewModel: MusicViewModel,
-    useHoursFormat: Boolean
+    useHoursFormat: Boolean,
+    visible: Boolean
 ) {
     var statsSummary by remember { mutableStateOf<PlaybackStatsRepository.PlaybackStatsSummary?>(null) }
     var previousSummary by remember { mutableStateOf<PlaybackStatsRepository.PlaybackStatsSummary?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    var refreshing by remember { mutableStateOf(false) }
 
-    LaunchedEffect(range, songs) {
-        isLoading = true
-        statsSummary = viewModel.loadPlaybackStats(range)
-        
-        val now = System.currentTimeMillis()
-        val prevNow = when (range) {
-            StatsTimeRange.TODAY -> now - 24L * 60L * 60L * 1000L
-            StatsTimeRange.WEEK -> now - 7L * 24L * 60L * 60L * 1000L
-            StatsTimeRange.MONTH -> now - 30L * 24L * 60L * 60L * 1000L
-            StatsTimeRange.ALL_TIME -> now
+    val ledger = remember { chromahub.rhythm.app.features.local.data.experience.ListeningLedger.get(viewModel.getApplication()) }
+    val historyRevision by ledger.changes.collectAsState()
+    LaunchedEffect(range, songs, visible, historyRevision) {
+        if (!visible) { refreshing = false; return@LaunchedEffect }
+        val repository = viewModel.getPlaybackStatsRepository()
+        statsSummary = repository.cachedSummary(range)
+        isLoading = statsSummary == null
+        while (true) {
+            try {
+                refreshing = statsSummary != null
+                statsSummary = viewModel.loadPlaybackStats(range)
+                refreshing = false
+                isLoading = false // Current statistics never wait behind a comparison calculation.
+                if (range != StatsTimeRange.ALL_TIME) {
+                    val previousNow = java.time.ZonedDateTime.now().minusDays(range.daysBack.toLong()).toInstant().toEpochMilli()
+                    previousSummary = repository.cachedSummary(range, previousNow)
+                    previousSummary = repository.loadSummary(range, songs, previousNow)
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { isLoading = false; refreshing = false }
+            kotlinx.coroutines.delay(30_000)
         }
-        previousSummary = if (range != StatsTimeRange.ALL_TIME) {
-            runCatching {
-                viewModel.getPlaybackStatsRepository().loadSummary(range, songs, prevNow)
-            }.getOrNull()
-        } else {
-            null
-        }
-        isLoading = false
     }
 
     val context = LocalContext.current
-    val songMap = remember(songs) { songs.associateBy { it.id } }
+    val topIds = remember(statsSummary) { statsSummary?.topSongs.orEmpty().map { it.songId }.toSet() }
+    val songMap by produceState<Map<String, chromahub.rhythm.app.shared.data.model.Song>>(emptyMap(), songs, topIds) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { songs.asSequence().filter { it.id in topIds }.associateBy { it.id } }
+    }
     val onSaveTopSongsAsPlaylist: (() -> Unit)? = remember(statsSummary, songMap, range) {
         val summary = statsSummary ?: return@remember null
         val matchedSongs = summary.topSongs.mapNotNull { songMap[it.songId] }
         if (matchedSongs.isEmpty()) null
         else {
             {
-                val rangeName = range.name.lowercase().replaceFirstChar { it.uppercase() }
-                val playlistName = "Top Songs ($rangeName)"
+                val rangeName = context.getString(when (range) {
+                    StatsTimeRange.TODAY -> R.string.stats_today
+                    StatsTimeRange.WEEK -> R.string.stats_this_week
+                    StatsTimeRange.MONTH -> R.string.stats_this_month
+                    StatsTimeRange.ALL_TIME -> R.string.stats_all_time
+                })
+                val playlistName = context.getString(R.string.stats_top_playlist_name, rangeName)
                 viewModel.createPlaylist(playlistName, matchedSongs)
                 Toast.makeText(
                     context,
@@ -209,6 +226,9 @@ private fun StatsPageContent(
     val pageScrollState = rememberScrollState()
 
     Box(modifier = Modifier.fillMaxSize()) {
+        if (refreshing && statsSummary != null) LinearProgressIndicator(
+            modifier = Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter).semantics { contentDescription = context.getString(R.string.stats_refreshing_records) }
+        )
         AnimatedContent(
             targetState = isLoading,
             transitionSpec = {

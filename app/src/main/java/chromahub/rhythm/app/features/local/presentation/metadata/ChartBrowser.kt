@@ -258,7 +258,7 @@ fun ChartBrowser(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun AudioSourcePicker(track: ChartTrack, onDismiss: () -> Unit) {
+internal fun AudioSourcePicker(track: ChartTrack, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var service by remember { mutableStateOf("YOUTUBE") }
@@ -496,7 +496,7 @@ private fun AudioSourcePicker(track: ChartTrack, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun ChartCover(url: String?) {
+internal fun ChartCover(url: String?) {
     var failed by remember(url) { mutableStateOf(false) }
     Surface(
         Modifier.size(48.dp),

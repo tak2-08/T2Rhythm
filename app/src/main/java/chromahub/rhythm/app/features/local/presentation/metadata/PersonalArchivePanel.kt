@@ -20,8 +20,13 @@ import kotlinx.coroutines.launch
 fun PersonalArchivePanel() {
     val context = LocalContext.current; val scope = rememberCoroutineScope()
     val archive = remember { PersonalArchive(context) }
-    var selected by remember { mutableStateOf(archive.tree) }
-    var status by remember { mutableStateOf(archive.status) }
+    var selected by remember { mutableStateOf<String?>(null) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    LaunchedEffect(archive) {
+        val values = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { archive.tree to archive.status }
+        selected = values.first; status = values.second; loading = false
+    }
     DisposableEffect(archive) {
         val prefs = context.getSharedPreferences("personal_archive", android.content.Context.MODE_PRIVATE)
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -47,7 +52,7 @@ fun PersonalArchivePanel() {
             Text(stringResource(R.string.personal_archive_hint), style = MaterialTheme.typography.bodySmall)
             Text(selected?.let { Uri.decode(it.substringAfterLast('/')) } ?: "Documents/RhythmBackups/T2Rhythm", style = MaterialTheme.typography.labelMedium)
             if (status != null) Text(stringResource(R.string.personal_archive_permission), color = MaterialTheme.colorScheme.error)
-            OutlinedButton(onClick = { picker.launch(selected?.let(Uri::parse) ?: Uri.parse("content://com.android.externalstorage.documents/tree/primary%3ADocuments%2FRhythmBackups")) }, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(enabled = !loading, onClick = { picker.launch(selected?.let(Uri::parse) ?: Uri.parse("content://com.android.externalstorage.documents/tree/primary%3ADocuments%2FRhythmBackups")) }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.personal_archive_choose))
             }
             OutlinedButton(enabled = selected != null && !syncing, onClick = { restoreConfirm = true }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.personal_archive_restore)) }

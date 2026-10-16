@@ -22,7 +22,7 @@
     <string name="discovery_operation_failed">Could not complete this request. Check the connection or choose another source.</string>
     <string name="discovery_more">Show more</string>
     <string name="discovery_keywords">Search ideas for you</string>
-    <string name="discovery_charts">Popular charts</string>
+    <string name="discovery_charts">Popular list</string>
     <string name="discovery_review_short">Suggestions</string>
     <string name="discovery_refresh">Refresh</string>
     <string name="discovery_songs">Songs</string>
@@ -37,7 +37,7 @@
     <string name="discovery_open_source">Open original chart</string>
     <string name="discovery_audio_source_hint">Choose and preview the exact source before saving. A YouTube or SoundCloud performance may differ from the chart recording. Audio is saved to Music/T2Rhythm and joins your local library.</string>
     <string name="discovery_direct">File URL</string>
-    <string name="discovery_direct_url">Direct HTTPS audio file URL</string>
+    <string name="discovery_direct_url">HTTPS audio URL</string>
     <string name="discovery_source_search">Search source</string>
     <string name="discovery_selected_source">Selected: %1$s</string>
     <string name="discovery_preview_source">Listen at source</string>

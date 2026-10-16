@@ -3228,7 +3228,7 @@
     <string name="personal_smart_shuffle_hint">현재 곡과 기존 순서는 유지하고 세 곡마다 새 추천을 넣습니다.</string>
     <string name="personal_t2_theme">T2Rhythm</string>
     <string name="personal_noise">주변 소리 수준 측정</string>
-    <string name="personal_noise_hint">마이크를 허용하면 앱이 보이는 동안 짧게 측정합니다. 원음은 저장하지 않습니다. 기기 감도와 스피커 재생에 영향을 받는 상대적인 입력 수준입니다.</string>
+    <string name="personal_noise_hint">마이크를 허용하면 앱이 보이고 음악을 재생하는 동안 약 3분 간격으로 짧게 입력 수준을 측정합니다. 원음은 저장하지 않으며, 기기 감도와 스피커 재생에 영향을 받는 상대적인 값입니다.</string>
     <string name="personal_noise_denied">주변 소리 측정에는 마이크 권한이 필요합니다.</string>
     <string name="personal_proposed_mix">지금 추천하는 플레이리스트</string>
     <string name="personal_mix_count">%1$d곡 · 내 라이브러리</string>

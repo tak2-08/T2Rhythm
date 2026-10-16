@@ -20,8 +20,8 @@
     <string name="catalog_included_list">포함 목록</string>
     <string name="catalog_excluded_list">제외 목록</string>
     <string name="personal_archive_title">영구 백업 폴더</string>
-    <string name="personal_archive_hint">원래 태그·아트워크, 정보 JSON, 이미지 파일, TXT/LRC 가사, 월별 청취 원본 기록을 일반 파일로 보관합니다. ZIP으로 묶지 않습니다.</string>
-    <string name="personal_archive_permission">백업 폴더 접근 권한이 필요합니다. 동기화가 완료될 때까지 앱 내부 원본도 보존합니다.</string>
+    <string name="personal_archive_hint">원본 정보·아트워크·청취 기록을 복구 가능한 파일로 백업 폴더에 보관합니다. 자동 백업은 충전·유휴 상태에서 처리하며, 지금 동기화는 언제든 사용할 수 있습니다.</string>
+    <string name="personal_archive_permission">백업 폴더 접근 권한과 기기의 저장 공간을 확인해 주세요. 동기화가 완료될 때까지 앱 내부 원본도 보존합니다.</string>
     <string name="personal_archive_choose">백업 폴더 선택</string>
     <string name="personal_archive_sync">지금 파일 백업</string>
     <string name="personal_archive_synced">일반 파일 백업 완료</string>

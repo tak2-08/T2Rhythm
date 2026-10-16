@@ -37,6 +37,8 @@ T2Rhythm은 **Rhythm을 바탕으로 만든 한국형 오픈소스 음악 앱**�
 
 [영상 저장·이미지 최적화·충전 중 분석·믹스 서랍 안내](docs/DURABLE_ADAPTIVE_PLAYER.md) · [인기 음악·백그라운드 다운로드·장르와 가사 제안](docs/DISCOVERY_AND_LOCAL_LEARNING.md)
 
+[인기 리스트·저부하 기록·완청 보호·빠른 통계 안내](docs/PERFORMANCE_AND_POPULAR_1310.md)
+
 ## 내 기록으로 만드는 개인 추천
 
 청취 기록과 분석은 **기기 안에서** 처리합니다. 기록을 기간이 지났다는 이유로 자동 삭제하지 않습니다.

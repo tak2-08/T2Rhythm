@@ -7037,7 +7037,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val onRepeatIds = playbackStatsRepository.getOnRepeatSongIds(daysBack = 14, limit = 50)
+        val onRepeatIds = withContext(Dispatchers.IO) { playbackStatsRepository.getOnRepeatSongIds(daysBack = 14, limit = 50) }
         val availableSongs = if (filteredSongs.value.isNotEmpty()) filteredSongs.value else _songs.value
         val songMap = availableSongs.associateBy { it.id }
         val topSongs = onRepeatIds.mapNotNull { songMap[it] }
@@ -7067,11 +7067,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val forgottenIds = playbackStatsRepository.getForgottenFavoritesSongIds(
+        val forgottenIds = withContext(Dispatchers.IO) { playbackStatsRepository.getForgottenFavoritesSongIds(
             allTimePlayCounts = _songPlayCounts.value,
             daysNotPlayed = 30,
             limit = 50
-        )
+        ) }
         val availableSongs = if (filteredSongs.value.isNotEmpty()) filteredSongs.value else _songs.value
         val songMap = availableSongs.associateBy { it.id }
         val topSongs = forgottenIds.mapNotNull { songMap[it] }
@@ -7101,7 +7101,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val recentIds = playbackStatsRepository.getRecentlyPlayedSongIds(limit = 50)
+        val recentIds = withContext(Dispatchers.IO) { playbackStatsRepository.getRecentlyPlayedSongIds(limit = 50) }
         val availableSongs = if (filteredSongs.value.isNotEmpty()) filteredSongs.value else _songs.value
         val songMap = availableSongs.associateBy { it.id }
         val topSongs = recentIds.mapNotNull { songMap[it] }

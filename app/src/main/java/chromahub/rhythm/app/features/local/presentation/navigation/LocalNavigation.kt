@@ -218,6 +218,7 @@ import androidx.compose.ui.res.stringResource
 sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Search : Screen("search")
+    object Popular : Screen("popular")
     object Library : Screen("library?tab={tab}") {
         fun createRoute(tab: LibraryTab = LibraryTab.SONGS): String = "library?tab=${tab.name.lowercase()}"
     }
@@ -449,6 +450,7 @@ fun LocalNavigation(
             // Update selectedTab based on current route
             when {
                 currentRoute == Screen.Home.route -> selectedTab = 0
+                currentRoute == Screen.Popular.route -> selectedTab = 2
                 routeBase == Screen.Library.route.substringBefore("?") -> selectedTab = 1
             }
         }
@@ -460,6 +462,7 @@ fun LocalNavigation(
         if (!pendingRoute.isNullOrBlank()) {
             val isValidLocalRoute = pendingRoute == Screen.Home.route ||
                 pendingRoute == Screen.Search.route ||
+                pendingRoute == Screen.Popular.route ||
                 pendingRoute == Screen.Player.route ||
                 pendingRoute == Screen.Settings.route ||
                 pendingRoute == Screen.RhythmStats.route ||
@@ -497,6 +500,7 @@ fun LocalNavigation(
             currentRoute != Screen.Search.route
     val showNavBar = remember(currentRoute) {
         currentRoute == Screen.Home.route ||
+            currentRoute == Screen.Popular.route ||
             isLibraryRoute ||
             currentRoute == Screen.Search.route ||
             currentRoute == Screen.Settings.route ||
@@ -504,9 +508,10 @@ fun LocalNavigation(
     }
     val showBottomNav = remember(currentRoute, floatingNavigationBar) {
         if (floatingNavigationBar) {
-            currentRoute == Screen.Home.route || isLibraryRoute
+            currentRoute == Screen.Home.route || currentRoute == Screen.Popular.route || isLibraryRoute
         } else {
             currentRoute == Screen.Home.route ||
+                currentRoute == Screen.Popular.route ||
                 isLibraryRoute ||
                 currentRoute == Screen.Settings.route
         }
@@ -1180,8 +1185,12 @@ private fun LocalNavigationContent(
                                                  Pair(RhythmIcons.HomeFilled, RhythmIcons.Home)
                                              ),
                                              Triple(
-                                                 libraryRoute, context.getString(R.string.common_library),
+                                                 libraryRoute, context.getString(R.string.library_nav_short),
                                                  Pair(RhythmIcons.Navigation.Library, RhythmIcons.Navigation.LibraryOutlined)
+                                             ),
+                                             Triple(
+                                                 Screen.Popular.route, context.getString(R.string.popular_tab),
+                                                 Pair(chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon("trending_up", true), chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon("trending_up"))
                                              )
                                          )
 
@@ -1189,6 +1198,7 @@ private fun LocalNavigationContent(
                                              val isSelected = when (route) {
                                                  Screen.Home.route -> currentRoute == Screen.Home.route
                                                  libraryRoute -> currentRoute.startsWith("library")
+                                                 Screen.Popular.route -> currentRoute == Screen.Popular.route
                                                  else -> false
                                              }
 
@@ -1403,8 +1413,13 @@ private fun LocalNavigationContent(
                             ),
                             Triple(
                                 libraryRoute,
-                                context.getString(R.string.common_library),
+                                context.getString(R.string.library_nav_short),
                                 Pair(RhythmIcons.Navigation.Library, RhythmIcons.Navigation.LibraryOutlined)
+                            ),
+                            Triple(
+                                Screen.Popular.route,
+                                stringResource(R.string.popular_tab),
+                                Pair(chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon("trending_up", true), chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon("trending_up"))
                             ),
                             Triple(
                                 Screen.Search.route,
@@ -1736,6 +1751,10 @@ private fun LocalNavigationContent(
                         )
                 }
 
+                composable(Screen.Popular.route) {
+                    chromahub.rhythm.app.features.local.presentation.metadata.PopularListScreen()
+                }
+
                 composable(
                     Screen.Search.route,
                     enterTransition = {
@@ -1759,6 +1778,7 @@ private fun LocalNavigationContent(
                     SlideUpCornerWrapper {
                         chromahub.rhythm.app.shared.presentation.screens.UniversalSearchScreen(
                             localViewModel = viewModel,
+                            onOpenPopular = { navigateToTopLevel(Screen.Popular.route) },
 
                             onLocalSongClick = { song ->
                                 viewModel.playSongFromSearch(song, songs)
@@ -3285,12 +3305,19 @@ private fun LocalNavigationRail(
         ),
         LocalNavRailItem(
             route = libraryRoute,
-            title = stringResource(R.string.library),
+            title = stringResource(R.string.library_nav_short),
             selectedIcon = RhythmIcons.Navigation.Library,
             unselectedIcon = RhythmIcons.Navigation.LibraryOutlined,
             onClick = {
                 navigateToTopLevel(libraryRoute)
             }
+        ),
+        LocalNavRailItem(
+            route = Screen.Popular.route,
+            title = stringResource(R.string.popular_tab),
+            selectedIcon = MaterialSymbolIcon("trending_up", filled = true),
+            unselectedIcon = MaterialSymbolIcon("trending_up"),
+            onClick = { navigateToTopLevel(Screen.Popular.route) }
         ),
         LocalNavRailItem(
             route = Screen.RhythmStats.route,
