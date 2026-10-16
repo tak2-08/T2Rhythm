@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="local_search_hint">Search by title, artist, or Korean initials. Spaces are optional.</string>
+    <string name="local_search_loading">Searching your library…</string>
+    <string name="library_category_hi_res">Hi-Res Lossless</string>
+    <string name="library_category_lossless">Lossless</string>
+    <string name="library_category_high_quality">High Quality</string>
+    <string name="library_category_standard">Standard</string>
+    <string name="library_category_lossy">Lossy</string>
+    <string name="library_category_studio_master">Studio Master</string>
+    <string name="library_category_cd_quality">CD Quality</string>
+    <string name="library_category_surround">Dolby / Surround</string>
+    <string name="local_search_scope">Songs, albums, artists and playlists in one place</string>
+</resources>

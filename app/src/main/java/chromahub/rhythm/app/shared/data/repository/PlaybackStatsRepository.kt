@@ -10,9 +10,6 @@ import androidx.annotation.Keep
 import chromahub.rhythm.app.R
 import chromahub.rhythm.app.features.local.data.experience.ListeningLedger
 import chromahub.rhythm.app.shared.data.model.Song
-import com.google.gson.Gson
-import com.google.gson.JsonElement
-import com.google.gson.reflect.TypeToken
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -73,12 +70,12 @@ enum class StatsTimeRange(val displayName: String, val daysBack: Int) {
  * for songs and listening habits
  */
 class PlaybackStatsRepository private constructor(private val context: Context) {
-    private val gson = Gson()
     private val historyFile = File(context.applicationContext.filesDir, "playback_history.json")
     private val fileLock = Any()
     private val summaryLock = Mutex()
     private val summaryCache = PlaybackSummaryCache(context)
-    private val eventsType = object : TypeToken<MutableList<PlaybackEvent>>() {}.type
+    private var failedLegacySignature: String? = null
+    private var retryLegacyAfter = 0L
 
     companion object {
         @Volatile private var instance: PlaybackStatsRepository? = null
@@ -232,12 +229,7 @@ class PlaybackStatsRepository private constructor(private val context: Context) 
                 genre = song.genre,
             )
 
-        synchronized(fileLock) {
-            val events = readEventsLocked()
-
-            events += event
-            writeEventsLocked(events)
-        }
+        recordEvent(event)
     }
 
     /** Record playback with simple duration tracking (for simpler integration) */
@@ -252,24 +244,22 @@ class PlaybackStatsRepository private constructor(private val context: Context) 
     ) {
         if (songId.isBlank() || durationMs <= 0) return
 
+        val safeTimestamp = timestamp.coerceAtLeast(0L)
+        val safeDuration = durationMs.coerceIn(0L, MAX_REASONABLE_EVENT_DURATION_MS)
         val event =
             PlaybackEvent(
                 songId = songId,
-                timestamp = timestamp,
-                durationMs = durationMs.coerceIn(0L, MAX_REASONABLE_EVENT_DURATION_MS),
-                startTimestamp = (timestamp - durationMs).coerceAtLeast(0L),
-                endTimestamp = timestamp,
+                timestamp = safeTimestamp,
+                durationMs = safeDuration,
+                startTimestamp = (safeTimestamp - safeDuration).coerceAtLeast(0L),
+                endTimestamp = safeTimestamp,
                 songTitle = title,
                 artistName = artist,
                 albumName = album,
                 genre = genre,
             )
 
-        synchronized(fileLock) {
-            val events = readEventsLocked()
-            events += event
-            writeEventsLocked(events)
-        }
+        recordEvent(event)
     }
 
     /** Load statistics summary for a given time range */
@@ -498,64 +488,73 @@ class PlaybackStatsRepository private constructor(private val context: Context) 
         synchronized(fileLock) {
             val ledger = ListeningLedger.get(context)
             ledger.ensureRecovered()
-            if (ledger.state("legacy_history_imported") == null) {
-                readEventsLocked().forEach { event ->
-                    val id =
-                        "legacy:" +
-                            kr.co.metadata.crawler.CatalogFileStore.hash(
-                                "${event.songId}:${event.startMillis()}:${event.endMillis()}:${event.durationMs}"
-                            )
-                    ledger.record(
-                        chromahub.rhythm.app.features.local.data.experience.ListeningRecord(
-                            id,
-                            id,
-                            "segment",
-                            event.songId,
-                            "legacy:${event.songId}",
-                            event.songTitle.orEmpty(),
-                            event.artistName.orEmpty(),
-                            event.albumName.orEmpty(),
-                            event.genre,
-                            event.startMillis(),
-                            event.endMillis(),
-                            event.durationMs,
-                            0,
-                            0,
-                            0,
-                            1f,
-                            "legacy_import",
-                        )
-                    )
-                }
-                ledger.state("legacy_history_imported", "1")
-            }
-        }
-
-    private fun readEventsLocked(): MutableList<PlaybackEvent> {
-        if (!historyFile.exists()) {
-            return mutableListOf()
-        }
-        val raw =
-            runCatching { historyFile.readText() }.getOrNull()?.takeIf { it.isNotBlank() }
-                ?: return mutableListOf()
-
-        return runCatching {
-                val element = gson.fromJson(raw, JsonElement::class.java)
-                if (element.isJsonArray) {
-                    gson.fromJson<MutableList<PlaybackEvent>>(element, eventsType)
-                } else {
-                    mutableListOf()
-                }
-            }
-            .getOrElse { mutableListOf() }
-    }
-
-    private fun writeEventsLocked(events: List<PlaybackEvent>) {
-        runCatching {
-            chromahub.rhythm.app.features.local.data.metadata.PersonalArchive.atomicWrite(
-                historyFile,
-                gson.toJson(events).toByteArray(),
+            if (ledger.state("legacy_history_imported") != null) return@synchronized
+            val signature = "${historyFile.length()}:${historyFile.lastModified()}"
+            if (
+                failedLegacySignature == signature &&
+                    android.os.SystemClock.elapsedRealtime() < retryLegacyAfter
             )
+                return@synchronized
+            try {
+                if (historyFile.exists())
+                    historyFile.bufferedReader().use { input ->
+                        LegacyPlaybackImport.read(input) { events ->
+                            ledger.importLegacyBatch(
+                                events.map { event ->
+                                    val id =
+                                        "legacy:" +
+                                            kr.co.metadata.crawler.CatalogFileStore.hash(
+                                                "${event.songId}:${event.startMillis()}:${event.endMillis()}:${event.durationMs}"
+                                            )
+                                    event.toRecord(id)
+                                }
+                            )
+                            Thread.yield()
+                        }
+                    }
+                // Only a fully parsed source can complete migration. Retain the original file.
+                ledger.state("legacy_history_imported", "1")
+                failedLegacySignature = null
+            } catch (cancelled: java.util.concurrent.CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                failedLegacySignature = signature
+                retryLegacyAfter = android.os.SystemClock.elapsedRealtime() + 5 * 60_000
+                android.util.Log.w(
+                    "PlaybackStats",
+                    "Legacy history retained; import will resume",
+                    failure,
+                )
+            }
         }
-    }
+
+    private fun PlaybackEvent.toRecord(id: String) =
+        chromahub.rhythm.app.features.local.data.experience.ListeningRecord(
+            id,
+            id,
+            "segment",
+            songId,
+            "legacy:$songId",
+            songTitle.orEmpty(),
+            artistName.orEmpty(),
+            albumName.orEmpty(),
+            genre,
+            startMillis(),
+            endMillis(),
+            durationMs,
+            0,
+            0,
+            0,
+            1f,
+            "legacy_import",
+        )
+
+    private fun recordEvent(event: PlaybackEvent) =
+        synchronized(fileLock) {
+            ensureHistoryReady()
+            // Compatibility callers must write the current journal, not rewrite an already-imported
+            // array.
+            ListeningLedger.get(context)
+                .record(event.toRecord("legacy:" + java.util.UUID.randomUUID()))
+        }
 }

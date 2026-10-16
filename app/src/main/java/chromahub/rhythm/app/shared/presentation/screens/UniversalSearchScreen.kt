@@ -41,9 +41,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +66,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -88,7 +92,6 @@ import chromahub.rhythm.app.shared.presentation.components.SettingScope
 import chromahub.rhythm.app.shared.presentation.components.common.M3PlaceholderType
 import chromahub.rhythm.app.shared.presentation.components.dialogs.SwitchModeDialog
 import chromahub.rhythm.app.ui.LocalMiniPlayerPadding
-import chromahub.rhythm.app.util.GenreUtils
 import chromahub.rhythm.app.util.HapticUtils
 import chromahub.rhythm.app.util.HapticType
 import chromahub.rhythm.app.util.ImageUtils
@@ -139,7 +142,7 @@ fun UniversalSearchScreen(
     val isLandscapeTablet = isTablet && windowScreenWidthDp() > windowScreenHeightDp()
     val horizontalPadding = if (isTablet) 32.dp else 24.dp
 
-    var query by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
@@ -153,11 +156,11 @@ fun UniversalSearchScreen(
         }
     }
 
-    var showFilters by remember { mutableStateOf(false) }
-    var filterSongs by remember { mutableStateOf(true) }
-    var filterAlbums by remember { mutableStateOf(true) }
-    var filterArtists by remember { mutableStateOf(true) }
-    var filterPlaylists by remember { mutableStateOf(true) }
+    var showFilters by rememberSaveable { mutableStateOf(false) }
+    var filterSongs by rememberSaveable { mutableStateOf(true) }
+    var filterAlbums by rememberSaveable { mutableStateOf(true) }
+    var filterArtists by rememberSaveable { mutableStateOf(true) }
+    var filterPlaylists by rememberSaveable { mutableStateOf(true) }
 
 
     var showAllSongsPage by remember { mutableStateOf(false) }
@@ -209,46 +212,14 @@ fun UniversalSearchScreen(
     val isGenreDetectionComplete by localViewModel.isGenreDetectionComplete.collectAsState()
 
 
-    val genres = remember(localSongs) {
-        localSongs.flatMap { GenreUtils.splitGenres(it.genre) }
-            .distinctBy { it.lowercase() }.sortedBy { it.lowercase() }
-    }
-    val genreSongCounts = remember(genres, localSongs) {
-        genres.associateWith { genre -> localSongs.count { GenreUtils.matchesGenre(it.genre, genre) } }
-    }
-
-    val matchedLocalSongs = remember(query, localSongs, filterSongs) {
-        if (!filterSongs || query.isBlank()) emptyList()
-        else {
-            val lowerQuery = query.lowercase()
-            localSongs.filter {
-                it.title.lowercase().contains(lowerQuery) ||
-                        it.artist.lowercase().contains(lowerQuery) ||
-                        it.album.lowercase().contains(lowerQuery) ||
-                        GenreUtils.matchesGenreQuery(it.genre, lowerQuery)
-            }
-        }
-    }
-    val matchedLocalAlbums = remember(query, fullLocalAlbums, filterAlbums) {
-        if (!filterAlbums || query.isBlank()) emptyList()
-        else {
-            val lowerQuery = query.lowercase()
-            fullLocalAlbums.filter { album ->
-                album.title.contains(query, true) ||
-                album.artist.contains(query, true) ||
-                album.songs.any { it.title.lowercase().contains(lowerQuery) }
-            }
-        }
-    }
-    val matchedLocalArtists = remember(query, localArtists, filterArtists) {
-        if (!filterArtists || query.isBlank()) emptyList()
-        else localArtists.filter { it.name.contains(query, true) }
-    }
-    val matchedLocalPlaylists = remember(query, localPlaylists, filterPlaylists) {
-        if (!filterPlaylists || query.isBlank()) emptyList()
-        else localPlaylists.filter { it.name.contains(query, true) }
-    }
-
+    val search = rememberLocalSearch(query, localSongs, fullLocalAlbums, localArtists, localPlaylists,
+        filterSongs, filterAlbums, filterArtists, filterPlaylists)
+    val genreSongCounts = search.genreCounts
+    val genres = remember(genreSongCounts) { genreSongCounts.keys.toList() }
+    val matchedLocalSongs = search.results.songs
+    val matchedLocalAlbums = search.results.albums
+    val matchedLocalArtists = search.results.artists
+    val matchedLocalPlaylists = search.results.playlists
 
     val hasResults = matchedLocalSongs.isNotEmpty() || matchedLocalAlbums.isNotEmpty() ||
         matchedLocalArtists.isNotEmpty() || matchedLocalPlaylists.isNotEmpty()
@@ -398,7 +369,7 @@ fun UniversalSearchScreen(
                                 UniversalGenreBrowseSection(
                                     genres = genres,
                                     genreSongCounts = genreSongCounts,
-                                    isGenreDetectionComplete = isGenreDetectionComplete,
+                                    isGenreDetectionComplete = isGenreDetectionComplete && search.genresReady,
                                     onGenreClick = { genre ->
                                         HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                                         query = genre
@@ -493,7 +464,7 @@ fun UniversalSearchScreen(
                             }
                         }
 
-                        if (searchHistory.isEmpty()) {
+                        if (searchHistory.isEmpty() && search.genresReady && genres.isEmpty()) {
                             item(key = "empty_prompt") {
                                 val cookieShape = rememberExpressiveShape("COOKIE_12")
                                 val smallCookieShape = rememberExpressiveShape("COOKIE_6")
@@ -572,6 +543,13 @@ fun UniversalSearchScreen(
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.padding(horizontal = 32.dp)
                                     )
+                                    Text(
+                                        text = stringResource(R.string.local_search_scope),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                                    )
                                 }
                             }
                         }
@@ -580,7 +558,7 @@ fun UniversalSearchScreen(
                             UniversalGenreBrowseSection(
                                 genres = genres,
                                 genreSongCounts = genreSongCounts,
-                                isGenreDetectionComplete = isGenreDetectionComplete,
+                                isGenreDetectionComplete = isGenreDetectionComplete && search.genresReady,
                                 onGenreClick = { genre ->
                                     HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                                     query = genre
@@ -590,7 +568,20 @@ fun UniversalSearchScreen(
                     }
                 }
             } else {
-                if (!hasResults && !false) {
+                if (search.searching) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(
+                            start = horizontalPadding, end = horizontalPadding,
+                            top = statusBarsTop + 48.dp, bottom = totalBottomPadding),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        M3CircularLoader(Modifier.size(32.dp))
+                        Text(stringResource(R.string.local_search_loading),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else if (!hasResults) {
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1104,15 +1095,20 @@ fun UniversalSearchScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         BasicTextField(
                             value = query,
-                            onValueChange = { query = it },
+                            onValueChange = { query = it.take(256) },
                             modifier = Modifier.weight(1f).focusRequester(focusRequester),
                             textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Medium),
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = {
+                                if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                focusManager.clearFocus()
+                            }),
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             decorationBox = { innerTextField ->
                                 Box(contentAlignment = Alignment.CenterStart) {
                                     if (query.isEmpty()) {
-                                        Text(stringResource(R.string.universalsearchscreen_search_everywhere), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(stringResource(R.string.universalsearchscreen_search_everywhere), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                     innerTextField()
                                 }
@@ -2051,7 +2047,7 @@ private fun UniversalGenreBrowseItemCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "$songCount songs",
+                    text = androidx.compose.ui.res.pluralStringResource(R.plurals.ui_songs_count, songCount, songCount),
                     style = MaterialTheme.typography.labelSmall,
                     color = colorPair.second.copy(alpha = 0.75f),
                     fontWeight = FontWeight.SemiBold

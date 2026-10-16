@@ -50,6 +50,11 @@ fun SearchDiscoveryPanel(
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
+            stringResource(R.string.local_search_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
             stringResource(R.string.discovery_keywords),
             style = MaterialTheme.typography.titleMedium,
         )
