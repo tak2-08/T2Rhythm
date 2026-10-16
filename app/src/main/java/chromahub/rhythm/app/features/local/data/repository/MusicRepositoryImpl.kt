@@ -67,6 +67,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -187,7 +188,11 @@ class MusicRepository(context: Context) {
     val scanHistory: StateFlow<List<ScanHistoryEntry>> = _scanHistory.asStateFlow()
     
     // Song cache to avoid duplicate MediaStore queries
-    private var cachedSongs: List<Song>? = null
+    private val cachedSongState = MutableStateFlow<List<Song>?>(null)
+    private var cachedSongs: List<Song>?
+        get() = cachedSongState.value
+        set(value) { cachedSongState.value = value }
+    private val metadataReadDispatcher = Dispatchers.IO.limitedParallelism(2)
     private var cacheTimestamp: Long = 0
     private val CACHE_VALIDITY_MS = 60_000 // 1 minute
     
@@ -247,6 +252,16 @@ class MusicRepository(context: Context) {
      * Updates the internal song cache with the given list and persists it to Room.
      * Call this when the ViewModel modifies (e.g. merges metadata) into the song list.
      */
+    suspend fun persistEditedSongs(songs: List<Song>) = withContext(Dispatchers.IO) {
+        val previous = cachedSongs
+        val previousArtists = previous?.associate { it.id to (it.artist to it.albumArtist) }
+        val artistsChanged = previousArtists == null || previousArtists.size != songs.size ||
+            songs.any { previousArtists[it.id] != (it.artist to it.albumArtist) }
+        // Retain incremental writes for a single cover/title edit in a large library.
+        saveSongsToRoom(songs, clearArtistCache = false, previousSongs = previous)
+        if (artistsChanged) roomDb.artistDao().deleteAll()
+    }
+
     fun updateAndPersistSongs(songs: List<Song>) {
         val previousSongs = cachedSongs
         if (previousSongs == songs) {
@@ -5033,8 +5048,8 @@ class MusicRepository(context: Context) {
         }
         
         // Second, check for cached JSON lyrics in app's files directory
-        val fileName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
-        val file = File(context.filesDir, "lyrics/$fileName")
+        val fileName = chromahub.rhythm.app.util.LyricsCacheFiles.name(artist, title)
+        val file = chromahub.rhythm.app.util.LyricsCacheFiles.forReading(File(context.filesDir, "lyrics"), artist, title)
         Log.d(TAG, "===== Checking for saved JSON file: $fileName (exists=${file.exists()}) =====")
         return try {
             if (file.exists()) {
@@ -5419,7 +5434,7 @@ class MusicRepository(context: Context) {
      */
     private fun saveLocalLyrics(artist: String, title: String, lyricsData: LyricsData) {
         try {
-            val fileName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            val fileName = chromahub.rhythm.app.util.LyricsCacheFiles.name(artist, title)
             val lyricsDir = File(context.filesDir, "lyrics")
             lyricsDir.mkdirs()
 
@@ -6288,7 +6303,7 @@ class MusicRepository(context: Context) {
             }
 
             try {
-                val fileName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                val fileName = chromahub.rhythm.app.util.LyricsCacheFiles.name(artist, title)
                 val lyricsDir = File(context.filesDir, "lyrics")
                 val file = File(lyricsDir, fileName)
                 if (file.exists()) {
@@ -6526,7 +6541,7 @@ class MusicRepository(context: Context) {
                             updatedSongs.add(updatedSong)
                             // Cache the detected genre using async apply() to prevent blocking
                             try {
-                                genrePrefs.edit { putString(cacheKey, genre) }
+                                // Persist derived genres below; keep manual preference overrides intact.
                                 Log.d(TAG, "Detected and cached genre '$genre' for song ID $songId: ${song.title}")
                             } catch (e: Exception) {
                                 Log.e(TAG, "Failed to cache genre for song ID $songId", e)
@@ -6537,7 +6552,7 @@ class MusicRepository(context: Context) {
                             val updatedSong = song.copy(genre = "-")
                             updatedSongs.add(updatedSong)
                             try {
-                                genrePrefs.edit { putString(cacheKey, "-") }
+                                // The negative result is persisted in Room below.
                             } catch (e: Exception) {
                                 Log.e(TAG, "Failed to cache negative genre sentinel", e)
                             }
@@ -6572,12 +6587,23 @@ class MusicRepository(context: Context) {
                 updatedMap[originalSong.id] ?: originalSong
             }
 
+            val beforeById = songs.associateBy { it.id }
+            roomDb.withTransaction {
+                updatedSongs.forEach { result ->
+                    beforeById[result.id]?.let { before ->
+                        roomDb.songDao().updateDetectedGenre(result.id, result.uri.toString(), before.genre, result.genre)
+                    }
+                }
+            }
+            cachedSongState.update { current -> current?.let { chromahub.rhythm.app.util.mergeDetectedGenres(it, songs, finalSongs) } }
+
             val genreCount = finalSongs.count { song -> 
                 song.genre != null && song.genre.isNotBlank() && !song.genre.equals("unknown", ignoreCase = true)
             }
             Log.d(TAG, "Background genre detection complete. $genreCount out of ${finalSongs.size} songs now have genres")
             onComplete?.invoke(finalSongs)
             
+        } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel
         } catch (e: Exception) {
             Log.e(TAG, "Critical error during genre detection", e)
             // Always invoke onComplete to prevent hanging UI
@@ -6613,7 +6639,7 @@ class MusicRepository(context: Context) {
             val batchStartTime = System.currentTimeMillis()
 
             val batchResults = batch.map { song ->
-                async(Dispatchers.IO) {
+                async(metadataReadDispatcher) {
                     try {
                         val formatInfo = AudioFormatDetector.detectFormat(context, song.uri, song)
                         song.copy(
@@ -6622,6 +6648,7 @@ class MusicRepository(context: Context) {
                             channels = if (formatInfo.channelCount > 0) formatInfo.channelCount else -1,
                             codec = if (formatInfo.codec != "Unknown") formatInfo.codec else "-"
                         )
+                    } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel
                     } catch (e: Exception) {
                         song.copy(bitrate = -1, sampleRate = -1, channels = -1, codec = "-")
                     }
@@ -6632,10 +6659,13 @@ class MusicRepository(context: Context) {
             processedCount += batchResults.size
             onProgress?.invoke(processedCount, songsWithoutMetadata.size)
 
-            val batchEntities = batchResults.map { it.toEntity() }
-
-            // Immediately persist batch metadata to Room DB & update memory cache
-            roomDb.songDao().upsertAll(batchEntities)
+            // Update only technical columns: full-entity upserts could revert an edit made
+            // while the probe was running, or resurrect a song deleted in the meantime.
+            roomDb.withTransaction {
+                batchResults.forEach { info ->
+                    roomDb.songDao().updateAudioMetadata(info.id, info.uri.toString(), info.bitrate, info.sampleRate, info.channels, info.codec)
+                }
+            }
             onBatchComplete?.invoke(batchResults)
 
             val batchDuration = System.currentTimeMillis() - batchStartTime
@@ -6648,7 +6678,7 @@ class MusicRepository(context: Context) {
             updatedMap[originalSong.id] ?: originalSong
         }
 
-        cachedSongs = finalSongs
+        cachedSongState.update { current -> current?.let { chromahub.rhythm.app.util.mergeAudioMetadata(it, finalSongs) } }
         onComplete?.invoke(finalSongs)
     }
     

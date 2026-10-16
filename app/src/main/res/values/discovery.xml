@@ -49,7 +49,7 @@
     <string name="discovery_mode_precise">Speech model assisted</string>
     <string name="discovery_mode_hybrid">Hybrid · choose stronger evidence</string>
     <string name="discovery_model_name">Vosk Korean speech model</string>
-    <string name="discovery_model_size">Optional Korean model: about 87 MB download and 265 MB installed. Installation waits for Wi-Fi and charging.</string>
+    <string name="discovery_model_size">Optional Korean model: about 87 MB download and 265 MB installed. Download starts on an internet connection, including mobile data. Only lyrics analysis waits for charging and idle time.</string>
     <string name="discovery_remove_model">Remove speech model</string>
     <string name="discovery_install_model">Install Korean model</string>
     <string name="discovery_model_ready">Model installed. Analysis continues in short resumable chunks.</string>

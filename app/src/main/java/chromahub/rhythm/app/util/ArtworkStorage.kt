@@ -59,7 +59,7 @@ object ArtworkStorage {
         } finally { bitmap.recycle() }
     }
     suspend fun copy(context: Context, source: Uri, target: File, lossless: Boolean = false): Uri = withContext(Dispatchers.IO) {
-        val result = context.imageLoader.execute(ImageRequest.Builder(context).data(source).size(1600).allowHardware(false).build()) as? SuccessResult
+        val result = context.imageLoader.execute(ImageRequest.Builder(context).data(source).memoryCachePolicy(coil.request.CachePolicy.DISABLED).diskCachePolicy(coil.request.CachePolicy.DISABLED).size(1600).allowHardware(false).build()) as? SuccessResult
             ?: error("Invalid artwork")
         write(result.drawable.toBitmap(), target, lossless)
         Uri.fromFile(target)

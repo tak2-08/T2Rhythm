@@ -54,6 +54,12 @@ class RhythmApplication : Application(), ImageLoaderFactory {
     
     override fun onCreate() {
         super.onCreate()
+        chromahub.rhythm.app.util.ArtworkInvalidation.initialize(this)
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
+            try { chromahub.rhythm.app.features.local.data.discovery.SpeechModelStore.resumePending(this@RhythmApplication) }
+            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (error: Exception) { Log.w(TAG, "Unable to resume model download", error) }
+        }
         
         instance = this
         
@@ -149,6 +155,7 @@ class RhythmApplication : Application(), ImageLoaderFactory {
         return ImageLoader.Builder(this)
             .okHttpClient(imageOkHttpClient)
             .components {
+                add(chromahub.rhythm.app.util.ArtworkRevisionInterceptor())
                 add(chromahub.rhythm.app.util.coil.AudioArtworkKeyer())
                 add(chromahub.rhythm.app.util.coil.StreamingArtworkKeyer())
                 add(chromahub.rhythm.app.util.coil.StreamingArtworkStringKeyer())

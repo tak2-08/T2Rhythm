@@ -180,7 +180,7 @@ class CatalogEnrichmentService private constructor(private val context: Context)
         val directory = File(root, "images").apply { mkdirs() }
         val owned = source.scheme == "file" && source.path?.endsWith(".webp") == true && source.path?.startsWith(directory.path + "/") == true
         val target = if (owned) File(requireNotNull(source.path)) else {
-            val result = context.imageLoader.execute(ImageRequest.Builder(context).data(source).size(1600).allowHardware(false).build()) as? SuccessResult
+            val result = context.imageLoader.execute(ImageRequest.Builder(context).data(source).memoryCachePolicy(coil.request.CachePolicy.DISABLED).diskCachePolicy(coil.request.CachePolicy.DISABLED).size(1600).allowHardware(false).build()) as? SuccessResult
                 ?: return@withContext source
             val bytes = java.io.ByteArrayOutputStream().use { stream ->
                 check(result.drawable.toBitmap().compress(chromahub.rhythm.app.util.ArtworkStorage.format(), 86, stream)); stream.toByteArray()

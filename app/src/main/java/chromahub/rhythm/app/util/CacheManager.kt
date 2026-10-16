@@ -8,6 +8,7 @@ package chromahub.rhythm.app.util
 import android.content.Context
 import android.util.Log
 import coil.ImageLoader
+import coil.imageLoader
 import coil.annotation.ExperimentalCoilApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -229,7 +230,9 @@ object CacheManager {
             Log.d(TAG, "Starting cache cleanup...")
             
             // Clear internal cache directory
-            clearCacheDirectory(context.cacheDir)
+            context.cacheDir.listFiles()?.filter { it.name !in setOf("image_cache", "media_transfers") }?.forEach {
+                if (it.isDirectory) clearCacheDirectory(it) else it.delete()
+            }
             
             // Clear scan-time embedded artwork from filesDir (regenerable from tags)
             clearCacheDirectory(File(context.filesDir, "embedded_artwork"))
@@ -262,6 +265,7 @@ object CacheManager {
                 }
             }
             
+            ArtworkInvalidation.invalidate(context)
             Log.d(TAG, "Cache cleanup completed successfully")
             
         } catch (e: Exception) {
@@ -459,13 +463,14 @@ object CacheManager {
     @OptIn(ExperimentalCoilApi::class)
     suspend fun clearImageCache(context: Context, imageLoader: ImageLoader? = null) = withContext(Dispatchers.IO) {
         try {
+            ArtworkInvalidation.invalidate(context)
             Log.d(TAG, "Clearing image cache...")
             
             MediaUtils.clearRawArtworkCache()
             MediaUtils.clearArtworkDiskCache(context.cacheDir)
             
             // Clear Coil image cache
-            imageLoader?.let { loader ->
+            (imageLoader ?: context.imageLoader).let { loader ->
                 try {
                     loader.memoryCache?.clear()
                     loader.diskCache?.clear()

@@ -229,7 +229,7 @@ object MediaUtils {
         return try {
             val file = File(filePath)
             if (!file.isFile) return null
-            "${file.canonicalPath}|${file.lastModified()}|${file.length()}"
+            "${file.canonicalPath}|${file.lastModified()}|${file.length()}|${ArtworkInvalidation.changes.value}"
         } catch (_: Exception) {
             null
         }

@@ -76,7 +76,10 @@ object DownloadRegistry {
 
     @Synchronized
     fun update(context: Context, id: String, change: (DownloadRecord) -> DownloadRecord) {
-        get(context, id)?.let { save(context, change(it)) }
+        get(context, id)?.let { record ->
+            // A worker finishing a progress callback must never undo an explicit cancel.
+            if (record.state != "CANCELLED") save(context, change(record))
+        }
     }
 
     fun completedAudio(context: Context, sourceId: String): DownloadRecord? =
@@ -155,7 +158,7 @@ object DownloadRegistry {
                     if (
                         record.state == "SUCCEEDED" ||
                             record.state == "CANCELLED" ||
-                            !work.state.isFinished
+                            work.state == WorkInfo.State.RUNNING
                     )
                         record.state
                     else work.state.name,

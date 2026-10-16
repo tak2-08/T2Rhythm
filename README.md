@@ -39,6 +39,8 @@ T2Rhythm은 **Rhythm을 바탕으로 만든 한국형 오픈소스 음악 앱**�
 
 [한국어 초성 검색·검색 최적화·기록 이전 개선 안내](docs/LIBRARY_SEARCH_1311.md)
 
+[인기 곡 재생·다운로드 표시·캐시 갱신·음성 모델 설치 개선](docs/POPULAR_PLAYBACK_CACHE_1312.md)
+
 [인기 리스트·저부하 기록·완청 보호·빠른 통계 안내](docs/PERFORMANCE_AND_POPULAR_1310.md)
 
 ## 내 기록으로 만드는 개인 추천

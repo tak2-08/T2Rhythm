@@ -3016,4 +3016,12 @@
     <string name="personal_feedback_short">Tap the same reaction again to undo.</string>
     <string name="personal_hide_section">Hide section</string>
     <string name="personal_show_section">Show section</string>
+    <string name="popular_stream">Play without saving</string>
+    <string name="popular_source_hint">Choose a source, then play now or download for offline listening.</string>
+    <string name="popular_play_local">Play from your library</string>
+    <string name="popular_downloading">Downloading</string>
+    <string name="popular_download_album">Download album tracks</string>
+    <string name="popular_album_download_hint">Choose a source for each missing song. Existing songs play from your library; downloads continue in the background. Only tracks listed in the popular list are included.</string>
+    <string name="discovery_model_installing">Verifying and installing the model…</string>
+    <string name="discovery_model_wait_network">Waiting for a connection, available storage or a download slot</string>
 </resources>

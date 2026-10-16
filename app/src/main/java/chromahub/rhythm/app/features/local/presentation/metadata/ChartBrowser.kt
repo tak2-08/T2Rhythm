@@ -258,7 +258,11 @@ fun ChartBrowser(onDismiss: () -> Unit) {
 }
 
 @Composable
-internal fun AudioSourcePicker(track: ChartTrack, onDismiss: () -> Unit) {
+internal fun AudioSourcePicker(
+    track: ChartTrack,
+    onPlay: ((chromahub.rhythm.app.shared.data.model.Song) -> Unit)? = null,
+    onDismiss: () -> Unit,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var service by remember { mutableStateOf("YOUTUBE") }
@@ -346,7 +350,10 @@ internal fun AudioSourcePicker(track: ChartTrack, onDismiss: () -> Unit) {
             ) {
                 item {
                     Text(
-                        context.getString(R.string.discovery_audio_source_hint),
+                        context.getString(
+                            if (onPlay != null) R.string.popular_source_hint
+                            else R.string.discovery_audio_source_hint
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -472,21 +479,47 @@ internal fun AudioSourcePicker(track: ChartTrack, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = selected != null && !busy,
-                onClick = {
-                    if (
-                        android.os.Build.VERSION.SDK_INT < 29 &&
-                            androidx.core.content.ContextCompat.checkSelfPermission(
-                                context,
-                                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
-                    )
-                        permission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    else download()
-                },
-            ) {
-                Text(context.getString(R.string.discovery_download_audio))
+            Row {
+                if (onPlay != null)
+                    TextButton(
+                        enabled = selected != null && !busy,
+                        onClick = {
+                            val candidate = selected ?: return@TextButton
+                            scope.launch {
+                                busy = true
+                                failed = false
+                                try {
+                                    val song = StreamingAudio.song(track, candidate)
+                                    onPlay(song)
+                                    onDismiss()
+                                } catch (cancel: CancellationException) {
+                                    throw cancel
+                                } catch (_: Exception) {
+                                    failed = true
+                                } finally {
+                                    busy = false
+                                }
+                            }
+                        },
+                    ) {
+                        Text(context.getString(R.string.popular_stream))
+                    }
+                TextButton(
+                    enabled = selected != null && !busy,
+                    onClick = {
+                        if (
+                            android.os.Build.VERSION.SDK_INT < 29 &&
+                                androidx.core.content.ContextCompat.checkSelfPermission(
+                                    context,
+                                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                        )
+                            permission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                        else download()
+                    },
+                ) {
+                    Text(context.getString(R.string.discovery_download_audio))
+                }
             }
         },
         dismissButton = {

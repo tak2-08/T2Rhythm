@@ -55,7 +55,7 @@ class AudioArtworkFetcher(
                 if (c.moveToFirst()) "${c.getLong(0)}:${c.getLong(1)}" else "unknown"
             }
         }.getOrNull().orEmpty()
-        val key = kr.co.metadata.crawler.CatalogFileStore.hash("$uri:$signature:${System.currentTimeMillis() / (2 * 3600_000L)}")
+        val key = kr.co.metadata.crawler.CatalogFileStore.hash("$uri:$signature:${chromahub.rhythm.app.util.ArtworkInvalidation.changes.value}:${System.currentTimeMillis() / (2 * 3600_000L)}")
         val encoded = File(directory, "$key.bin")
         if (encoded.isFile && encoded.length() > 0) {
             encoded.setLastModified(System.currentTimeMillis())

@@ -15,19 +15,27 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.work.WorkManager
 import chromahub.rhythm.app.R
 import chromahub.rhythm.app.features.local.data.discovery.ChartRepository
 import chromahub.rhythm.app.features.local.data.discovery.ChartSnapshot
+import chromahub.rhythm.app.features.local.data.discovery.PopularLibrary
+import chromahub.rhythm.app.features.local.data.video.DownloadRecord
+import chromahub.rhythm.app.features.local.data.video.DownloadRegistry
+import chromahub.rhythm.app.features.local.data.video.DownloadedAudioLibrary
+import chromahub.rhythm.app.shared.data.model.Song
 import chromahub.rhythm.app.shared.presentation.components.common.CollapsibleHeaderScreen
 import chromahub.rhythm.app.shared.presentation.components.icons.Icon
 import chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon
 import chromahub.rhythm.app.ui.LocalMiniPlayerPadding
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kr.co.metadata.crawler.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
-fun PopularListScreen() {
+fun PopularListScreen(songs: List<Song> = emptyList(), onPlay: (Song) -> Unit = {}) {
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     val repository = remember(context) { ChartRepository(context) }
@@ -39,6 +47,72 @@ fun PopularListScreen() {
     var filter by rememberSaveable { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<ChartTrack?>(null) }
     var info by remember { mutableStateOf(false) }
+    var lookup by remember { mutableStateOf(PopularLibrary(emptyList())) }
+    var indexedSongs by remember { mutableStateOf<List<Song>?>(null) }
+    val matchingReady = indexedSongs === songs
+    var downloads by remember { mutableStateOf(emptyList<DownloadRecord>()) }
+    var completed by remember { mutableStateOf(PopularLibrary(emptyList())) }
+    var albumDownload by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(songs) {
+        lookup = withContext(Dispatchers.Default) { PopularLibrary(songs) }
+        indexedSongs = songs
+    }
+    LaunchedEffect(context) {
+        var workState: List<Pair<String, androidx.work.WorkInfo.State>>? = null
+        var history = emptyList<DownloadRecord>()
+        var completedState = emptyList<DownloadRecord>()
+        combine(
+                WorkManager.getInstance(context).getWorkInfosByTagFlow(DownloadRegistry.TAG),
+                DownloadRegistry.revision,
+            ) { work, _ ->
+                work
+            }
+            .debounce(250)
+            .collect { work ->
+                val restored =
+                    withContext(Dispatchers.IO) {
+                        val jobs = work.associateBy { it.id.toString() }
+                        val state = work.map { it.id.toString() to it.state }
+                        if (state != workState) {
+                            history = DownloadRegistry.recent(context, 1000)
+                            workState = state
+                        }
+                        (work
+                                .filter { !it.state.isFinished }
+                                .mapNotNull { DownloadRegistry.get(context, it.id.toString()) } +
+                                history)
+                            .distinctBy { it.id }
+                            .map { DownloadRegistry.merge(it, jobs[it.id]) }
+                    }
+                downloads = restored
+                val ready =
+                    restored.filter { it.kind == "AUDIO" && it.state == "SUCCEEDED" }.take(20)
+                if (ready != completedState) {
+                    completedState = ready
+                    completed =
+                        withContext(Dispatchers.IO) {
+                            PopularLibrary(
+                                ready.mapNotNull { record ->
+                                    DownloadedAudioLibrary.existing(context, record)?.let { (uri, _)
+                                        ->
+                                        Song(
+                                            uri.lastPathSegment?.takeIf {
+                                                it.toLongOrNull() != null
+                                            } ?: "download:" + record.id,
+                                            record.title,
+                                            record.artist,
+                                            record.album,
+                                            duration = 0L,
+                                            uri = uri,
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                }
+            }
+    }
+
     LaunchedEffect(refresh) {
         loading = true
         try {
@@ -107,6 +181,7 @@ fun PopularListScreen() {
                             onClick = {
                                 tab = i
                                 filter = null
+                                albumDownload = false
                             },
                             text = { Text(stringResource(title)) },
                         )
@@ -160,10 +235,18 @@ fun PopularListScreen() {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    if (albumDownload && filter != null)
+                        Text(
+                            stringResource(R.string.popular_album_download_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     if (filter != null)
                         InputChip(
                             selected = true,
-                            onClick = { filter = null },
+                            onClick = {
+                                filter = null
+                                albumDownload = false
+                            },
                             label = { Text(stringResource(R.string.discovery_clear_filter)) },
                             trailingIcon = {
                                 Icon(MaterialSymbolIcon("close"), null, Modifier.size(18.dp))
@@ -188,6 +271,11 @@ fun PopularListScreen() {
                 }
             if (tab == 0)
                 itemsIndexed(members, key = { _, item -> item.key }) { _, row ->
+                    val local = lookup.find(row.track) ?: completed.find(row.track)
+                    val transfer =
+                        downloads.firstOrNull {
+                            PopularLibrary.active(it) && PopularLibrary.matches(it, row.track)
+                        }
                     ListItem(
                         headlineContent = {
                             Text(row.track.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -223,15 +311,24 @@ fun PopularListScreen() {
                             }
                         },
                         trailingContent = {
-                            IconButton(onClick = { selected = row.track }) {
-                                Icon(
-                                    MaterialSymbolIcon("download"),
-                                    stringResource(R.string.discovery_download_audio),
-                                    Modifier.size(24.dp),
-                                )
+                            PopularAction(
+                                local != null,
+                                transfer != null,
+                                transfer?.let {
+                                    if (it.totalBytes > 0)
+                                        (it.bytes.toFloat() / it.totalBytes).coerceIn(0f, 1f)
+                                    else null
+                                },
+                                enabled = matchingReady,
+                            ) {
+                                if (local != null) onPlay(local)
+                                else if (transfer == null) selected = row.track
                             }
                         },
-                        modifier = Modifier.clickable { selected = row.track },
+                        modifier =
+                            Modifier.clickable(enabled = matchingReady) {
+                                if (local != null) onPlay(local) else selected = row.track
+                            },
                     )
                 }
             else
@@ -268,18 +365,56 @@ fun PopularListScreen() {
                             }
                         },
                         trailingContent = {
-                            Icon(MaterialSymbolIcon("chevron_right"), null, Modifier.size(24.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (tab == 1) {
+                                    val active =
+                                        downloads.any { record ->
+                                            PopularLibrary.active(record) &&
+                                                entry.value.any {
+                                                    PopularLibrary.matches(record, it.track)
+                                                }
+                                        }
+                                    val owned =
+                                        entry.value.all {
+                                            lookup.find(it.track) != null ||
+                                                completed.find(it.track) != null
+                                        }
+                                    PopularAction(
+                                        owned,
+                                        active,
+                                        null,
+                                        album = true,
+                                        enabled = matchingReady,
+                                    ) {
+                                        if (owned)
+                                            (lookup.find(first) ?: completed.find(first))?.let(
+                                                onPlay
+                                            )
+                                        else {
+                                            filter = entry.key
+                                            tab = 0
+                                            albumDownload = true
+                                        }
+                                    }
+                                }
+                                Icon(
+                                    MaterialSymbolIcon("chevron_right"),
+                                    null,
+                                    Modifier.size(24.dp),
+                                )
+                            }
                         },
                         modifier =
                             Modifier.clickable {
                                 filter = entry.key
                                 tab = 0
+                                albumDownload = false
                             },
                     )
                 }
         }
     }
-    selected?.let { AudioSourcePicker(it) { selected = null } }
+    selected?.let { AudioSourcePicker(it, onPlay = onPlay) { selected = null } }
     if (info)
         AlertDialog(
             onDismissRequest = { info = false },
@@ -305,3 +440,41 @@ private fun providerName(provider: Provider) =
         Provider.GENIE -> "지니"
         else -> "벅스"
     }
+
+@Composable
+internal fun PopularAction(
+    local: Boolean,
+    downloading: Boolean,
+    progress: Float?,
+    album: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val description =
+        stringResource(
+            if (local) R.string.popular_play_local
+            else if (downloading) R.string.popular_downloading
+            else if (album) R.string.popular_download_album else R.string.discovery_download_audio
+        )
+    IconButton(onClick = onClick, enabled = enabled && (!downloading || local)) {
+        Box(contentAlignment = Alignment.Center) {
+            if (downloading && !local) {
+                if (progress == null)
+                    CircularProgressIndicator(Modifier.size(30.dp), strokeWidth = 2.dp)
+                else
+                    CircularProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.size(30.dp),
+                        strokeWidth = 2.dp,
+                    )
+            }
+            Icon(
+                MaterialSymbolIcon(
+                    if (local) "play_arrow" else if (downloading) "arrow_downward" else "download"
+                ),
+                description,
+                Modifier.size(if (downloading && !local) 18.dp else 24.dp),
+            )
+        }
+    }
+}

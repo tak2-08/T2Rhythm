@@ -89,6 +89,8 @@ import androidx.paging.cachedIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -1223,8 +1225,39 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 _artists.value = artwork.second
                 _currentSong.value?.let { song ->
                     val saved = withContext(Dispatchers.IO) { chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(application).read(song) }
-                    if (saved != null && saved.hasLyrics() &&
-                        (_currentLyrics.value?.hasLyrics() != true || _currentLyrics.value?.isErrorMessage() == true)) _currentLyrics.value = saved
+                    if (_currentSong.value?.id == song.id && saved != null && saved.hasLyrics() && saved != _currentLyrics.value) {
+                        lyricsFetchJob?.cancel()
+                        repository.updateLyricsCache(song.artist, song.title, song.id, saved)
+                        resetBluetoothLyricsBroadcastState(clearLastBroadcast = true)
+                        _currentLyrics.value = saved
+                    }
+                }
+            }
+        }
+
+        // Updating the URI as well as clearing caches restarts existing Compose painters.
+        viewModelScope.launch {
+            chromahub.rhythm.app.util.ArtworkInvalidation.changes.drop(1).collectLatest { generation ->
+                if (generation == 0L) return@collectLatest
+                fun fresh(song: Song) = song.copy(artworkUri = chromahub.rhythm.app.util.ArtworkInvalidation.version(song.artworkUri, generation))
+                val before = _songs.value
+                val refreshed = withContext(Dispatchers.Default) { before.map(::fresh) }
+                // A concurrent scan or edit owns a newer list; never replace it with a stale copy.
+                if (_songs.value === before) _songs.value = refreshed
+                _albums.value = _albums.value.map { it.copy(artworkUri = chromahub.rhythm.app.util.ArtworkInvalidation.version(it.artworkUri, generation)) }
+                _artists.value = _artists.value.map { it.copy(artworkUri = chromahub.rhythm.app.util.ArtworkInvalidation.version(it.artworkUri, generation)) }
+                _currentQueue.value = _currentQueue.value.copy(songs = _currentQueue.value.songs.map(::fresh))
+                _playlists.value = _playlists.value.map { it.copy(songs = it.songs.map(::fresh), artworkUri = chromahub.rhythm.app.util.ArtworkInvalidation.version(it.artworkUri, generation)) }
+                _currentSong.value = _currentSong.value?.let(::fresh)
+                _currentSong.value?.let(::extractColorsFromAlbumArt)
+                mediaController?.let { controller ->
+                    val index = controller.currentMediaItemIndex
+                    val current = _currentSong.value
+                    if (current != null && index in 0 until controller.mediaItemCount) {
+                        val item = controller.getMediaItemAt(index)
+                        if (item.mediaId == current.id) controller.replaceMediaItem(index,
+                            item.buildUpon().setMediaMetadata(item.mediaMetadata.buildUpon().setArtworkUri(current.artworkUri).build()).build())
+                    }
                 }
             }
         }
@@ -2375,18 +2408,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         Log.d(TAG, "Starting background genre detection for ${songs.value.size} songs")
         _isGenreDetectionRunning.value = true
 
+        val original = songs.value
         try {
             repository.detectGenresInBackground(
-                songs = songs.value,
+                songs = original,
                 onProgress = { current, total ->
                     // Optional: Could emit progress updates to UI if needed
                     Log.d(TAG, "Genre detection progress: $current/$total")
                 },
                 onComplete = { updatedSongs ->
-                    // Update the songs state with the new genre information FIRST
-                    _songs.value = updatedSongs
-                    // Persist genre data with the updated snapshot so future launches reuse it.
-                    repository.updateAndPersistSongs(updatedSongs)
+                    _songs.update { current -> chromahub.rhythm.app.util.mergeDetectedGenres(current, original, updatedSongs) }
+                    // The repository updates only unchanged genre columns, never old full rows.
                     // Then mark detection as complete AFTER songs are updated to prevent race condition
                     viewModelScope.launch {
                         delay(100) // Small delay to ensure songs state propagates
@@ -2417,15 +2449,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 Log.d(TAG, "Audio metadata extraction progress: $current/$total")
             },
             onBatchComplete = { batchSongs ->
-                val batchMap = batchSongs.associateBy { it.id }
-                _songs.value = _songs.value.map { song -> batchMap[song.id] ?: song }
+                _songs.update { current -> chromahub.rhythm.app.util.mergeAudioMetadata(current, batchSongs) }
             },
             onComplete = { updatedSongs ->
-                // Update the songs state with the new audio metadata information
-                _songs.value = updatedSongs
-                // Update repository cache and persist metadata to disk cache
-                Log.d(TAG, "Background metadata extraction completed, updating repository cache and persisting ${updatedSongs.size} songs to cache")
-                repository.updateAndPersistSongs(updatedSongs)
+                _songs.update { current -> chromahub.rhythm.app.util.mergeAudioMetadata(current, updatedSongs) }
+                // Technical columns were already committed by the repository's batch transaction.
+                Log.d(TAG, "Background metadata extraction completed, merged technical metadata for ${updatedSongs.size} songs")
                 appSettings.setAudioMetadataExtractionCompleted(true)
                 val songsWithMetadata = updatedSongs.count { 
                     it.bitrate != null && it.sampleRate != null && it.channels != null && it.codec != null 
@@ -2999,14 +3028,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             
-            // Update albums and artists to reflect the new metadata
+            // Grouping must read the edited library, not the previous cached song list.
+            repository.persistEditedSongs(updatedSongs)
             _albums.value = repository.loadAlbums()
             _artists.value = repository.loadArtists()
-            
-            // Persist the updated songs list so metadata/artwork edits survive restarts.
-            repository.updateAndPersistSongs(updatedSongs)
             savePlaylists()
             
+            chromahub.rhythm.app.util.ArtworkInvalidation.request(getApplication<Application>())
             Log.d(TAG, "Updated song metadata: ${updatedSong.title} by ${updatedSong.artist}")
         }
     }
@@ -3039,6 +3067,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     currentArtist
                 }
             }
+            chromahub.rhythm.app.util.ArtworkInvalidation.request(getApplication<Application>())
             onComplete()
         }
     }
@@ -3059,6 +3088,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             savePlaylists(immediate = true)
+            chromahub.rhythm.app.util.ArtworkInvalidation.request(getApplication<Application>())
             onComplete()
         }
     }
@@ -8307,13 +8337,26 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(getApplication<Application>()).saveFetched(song, value, reviewed = true)
             repository.updateLyricsCache(song.artist, song.title, song.id, value)
         }
-        if (currentSong.value?.uri == song.uri) { _currentLyrics.value = value; currentFetchingSongId = song.id }
+        withContext(Dispatchers.Main) {
+            if (currentSong.value?.uri == song.uri) {
+                lyricsFetchJob?.cancel()
+                resetBluetoothLyricsBroadcastState(clearLastBroadcast = true)
+                _currentLyrics.value = value
+                currentFetchingSongId = song.id
+                currentLoadedLyricsSongId = song.id
+            }
+        }
     }
 
     fun saveEditedLyrics(editedLyrics: String, timeOffset: Int = 0, format: String? = null) {
+        val editedSong = _currentSong.value ?: return
+        val previousFetch = lyricsFetchJob
+        previousFetch?.cancel()
+        lyricsFetchJob = null
         viewModelScope.launch(Dispatchers.IO) {
+            previousFetch?.join()
             try {
-                val song = _currentSong.value
+                val song = editedSong
                 if (song != null) {
                     val sanitizedLyrics = editedLyrics
                         .replace("\uFEFF", "")
@@ -8341,16 +8384,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         (!isWordByWord && !isTtml && sanitizedLyrics.contains(Regex("\\[\\d{2}:\\d{2}\\.\\d{2,3}]")))
                     
                     // Load existing cache if exists to preserve other formats
-                    val fileName = "${artist}_${title}.json".replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                    val fileName = chromahub.rhythm.app.util.LyricsCacheFiles.name(artist, title)
                     val lyricsDir = File(getApplication<Application>().filesDir, "lyrics")
                     if (!lyricsDir.exists()) {
                         lyricsDir.mkdirs()
                     }
                     val file = File(lyricsDir, fileName)
                     
-                    val existingLyricsData = if (file.exists()) {
+                    val readFile = chromahub.rhythm.app.util.LyricsCacheFiles.forReading(lyricsDir, artist, title)
+                    val existingLyricsData = if (readFile.exists()) {
                         try {
-                            val cachedJson = file.readText()
+                            val cachedJson = readFile.readText()
                             Gson().fromJson(cachedJson, LyricsData::class.java)
                         } catch (e: Exception) {
                             null
@@ -8389,7 +8433,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                             LyricsData(
                                 plainLyrics = sanitizedLyrics,
                                 syncedLyrics = existingLyricsData?.syncedLyrics,
-                                wordByWordLyrics = existingLyricsData?.wordByWordLyrics
+                                wordByWordLyrics = null
                             )
                         }
                     } else if (isWordByWord) {
@@ -8448,7 +8492,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                                 LyricsData(
                                     plainLyrics = generatedPlain,
                                     syncedLyrics = normalizedLyrics,
-                                    wordByWordLyrics = existingLyricsData?.wordByWordLyrics
+                                    wordByWordLyrics = null
                                 )
                             }
                         } else {
@@ -8460,27 +8504,35 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                             LyricsData(
                                 plainLyrics = generatedPlain,
                                 syncedLyrics = normalizedLyrics,
-                                wordByWordLyrics = existingLyricsData?.wordByWordLyrics
+                                wordByWordLyrics = null
                             )
                         }
                     } else {
                         LyricsData(
                             plainLyrics = sanitizedLyrics,
-                            syncedLyrics = existingLyricsData?.syncedLyrics,
-                            wordByWordLyrics = existingLyricsData?.wordByWordLyrics
+                            syncedLyrics = null,
+                            wordByWordLyrics = null
                         )
                     }
                     
                     // Save to cache (internal storage)
                     val json = Gson().toJson(lyricsData)
-                    file.writeText(json)
                     
+                    repository.clearLyricsCacheForSong(artist, title, song.id)
+                    // Recreate the compatibility file after clearing its old revision.
+                    chromahub.rhythm.app.features.local.data.metadata.PersonalArchive.atomicWrite(file, json.toByteArray())
                     repository.updateLyricsCache(artist, title, song.id, lyricsData)
-                    chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(getApplication<Application>()).saveFetched(song, lyricsData)
+                    chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(getApplication<Application>()).saveFetched(song, lyricsData, reviewed = true)
 
                     // Update in-memory state
-                    _currentLyrics.value = lyricsData
-                    currentFetchingSongId = song.id
+                    withContext(Dispatchers.Main) {
+                        resetBluetoothLyricsBroadcastState(clearLastBroadcast = true)
+                        if (_currentSong.value?.id == song.id) {
+                            _currentLyrics.value = lyricsData
+                            currentFetchingSongId = song.id
+                            currentLoadedLyricsSongId = song.id
+                        }
+                    }
                     
                     Log.d(TAG, "Saved edited lyrics for: $title by $artist (format: $format, isSynced: $isSynced, isWordByWord: $isWordByWord)")
                 } else {

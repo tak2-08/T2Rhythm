@@ -57,9 +57,11 @@ object M3ImageUtils {
     ) {
         val context = LocalContext.current
         
-        val imageRequest = remember(data, context) {
+        val artworkRevision by ArtworkInvalidation.changes.collectAsState()
+        val imageRequest = remember(data, context, artworkRevision) {
             ImageRequest.Builder(context)
                 .data(data)
+                .setParameter("t2_artwork_revision", artworkRevision)
                 .crossfade(150)
                 .memoryCachePolicy(CachePolicy.ENABLED)
                 .diskCachePolicy(CachePolicy.ENABLED)

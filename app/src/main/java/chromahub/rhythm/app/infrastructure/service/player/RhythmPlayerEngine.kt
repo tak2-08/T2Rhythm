@@ -551,8 +551,7 @@ class RhythmPlayerEngine(
             baseDataSourceFactory,
             object : ResolvingDataSource.Resolver {
                 override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
-
-                    return dataSpec
+                    return chromahub.rhythm.app.features.local.data.discovery.StreamingAudio.resolve(dataSpec)
                 }
             }
         )
