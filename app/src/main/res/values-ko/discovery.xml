@@ -49,7 +49,7 @@
     <string name="discovery_mode_precise">정밀 모델 분석</string>
     <string name="discovery_mode_hybrid">하이브리드 · 근거를 비교해 선택</string>
     <string name="discovery_model_name">Vosk 한국어 음성 모델</string>
-    <string name="discovery_model_size">선택형 한국어 모델: 다운로드 약 87MB·설치 약 265MB. Wi-Fi·충전 상태에서 설치합니다.</string>
+    <string name="discovery_model_size">선택형 한국어 모델: 다운로드 약 87MB·설치 약 265MB. 모바일 데이터를 포함해 인터넷 연결 시 다운로드합니다. 가사 분석은 충전·유휴 상태에서만 진행합니다.</string>
     <string name="discovery_remove_model">음성 모델 삭제</string>
     <string name="discovery_install_model">한국어 모델 설치</string>
     <string name="discovery_model_ready">모델이 설치되었습니다. 분석은 짧은 구간으로 나눠 이어서 처리합니다.</string>

@@ -106,7 +106,7 @@ class RhythmBitmapLoader(
     }
 
     override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> {
-        val key = uri.toString()
+        val key = uri.toString() + "|artrev=" + chromahub.rhythm.app.util.ArtworkInvalidation.changes.value
         synchronized(cacheLock) {
             if (lastUriKey == key) {
                 val current = cachedBitmap

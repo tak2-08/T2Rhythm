@@ -30,11 +30,13 @@ class AutomaticLyricsStore private constructor(private val context: Context) {
     suspend fun saveFetched(song: Song, data: LyricsData, embed: Boolean = true, reviewed: Boolean = false) = withContext(Dispatchers.IO) {
         if ((!reviewed && !catalog.preferences.options.value.autoLyrics) || !data.hasLyrics() || data.isErrorMessage()) return@withContext
         locks.computeIfAbsent(key(song)) { Mutex() }.withLock {
+            if (!reviewed && prefs.getBoolean("reviewed:${key(song)}", false)) return@withLock
             root.mkdirs()
             write(File(root, "${key(song)}.data.json"), Gson().toJson(data))
             saveFormat(File(root, "${key(song)}.lrc"), data.syncedLyrics)
             saveFormat(File(root, "${key(song)}.txt"), data.plainLyrics)
             saveFormat(File(root, "${key(song)}.json"), data.wordByWordLyrics)
+            if (reviewed) prefs.edit(commit = true) { putBoolean("reviewed:${key(song)}", true) }
             if (embed && catalog.preferences.options.value.embedLyrics) {
                 prefs.edit(commit = true) { putString("pending:${key(song)}", CatalogSongCodec.encode(song)) }
                 attemptEmbedding(song, data)

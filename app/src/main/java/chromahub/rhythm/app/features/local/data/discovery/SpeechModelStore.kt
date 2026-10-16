@@ -18,6 +18,7 @@ object SpeechModelStore {
     const val SHA256 = "eea36124087fed26c59996a4761519458e3bd185e8ea9d9865ad8760c4a1d989"
     const val URL = "https://alphacephei.com/vosk/models/vosk-model-small-ko-0.22.zip"
     internal val access = Mutex()
+    private val queueLock = Mutex()
 
     fun directory(context: Context) = File(context.noBackupFilesDir, "speech_models/$NAME")
 
@@ -31,37 +32,61 @@ object SpeechModelStore {
 
     suspend fun enqueue(context: Context) =
         withContext(Dispatchers.IO + NonCancellable) {
-            if (installed(context)) return@withContext
-            val manager = WorkManager.getInstance(context)
+            queueLock.withLock {
+                if (installed(context)) return@withContext
+                val manager = WorkManager.getInstance(context)
+                val existing =
+                    manager
+                        .getWorkInfosForUniqueWork("speech_model_ko")
+                        .get(15, java.util.concurrent.TimeUnit.SECONDS)
+                        .firstOrNull { !it.state.isFinished }
+                val task =
+                    OneTimeWorkRequestBuilder<SpeechModelDownloadWorker>()
+                        .apply { existing?.let { setId(it.id) } }
+                        .addTag(DownloadRegistry.TAG)
+                        .setConstraints(
+                            Constraints.Builder()
+                                .setRequiredNetworkType(NetworkType.CONNECTED)
+                                .setRequiresStorageNotLow(true)
+                                .build()
+                        )
+                        .build()
+                if (existing != null) {
+                    manager.updateWork(task).get(15, java.util.concurrent.TimeUnit.SECONDS)
+                    return@withContext
+                }
+                DownloadRegistry.save(
+                    context,
+                    DownloadRecord(
+                        task.id.toString(),
+                        "MODEL",
+                        NAME,
+                        NAME,
+                        context.getString(R.string.discovery_model_name),
+                        totalBytes = BYTES,
+                    ),
+                )
+                manager
+                    .enqueueUniqueWork("speech_model_ko", ExistingWorkPolicy.KEEP, task)
+                    .result
+                    .get()
+            }
+        }
+
+    suspend fun resumePending(context: Context) =
+        withContext(Dispatchers.IO) {
+            val pending =
+                WorkManager.getInstance(context)
+                    .getWorkInfosForUniqueWork("speech_model_ko")
+                    .get(15, java.util.concurrent.TimeUnit.SECONDS)
             if (
-                manager.getWorkInfosForUniqueWork("speech_model_ko").get().any {
-                    !it.state.isFinished
+                pending.any {
+                    !it.state.isFinished &&
+                        (it.constraints.requiresCharging() ||
+                            it.constraints.requiredNetworkType == NetworkType.UNMETERED)
                 }
             )
-                return@withContext
-            val task =
-                OneTimeWorkRequestBuilder<SpeechModelDownloadWorker>()
-                    .addTag(DownloadRegistry.TAG)
-                    .setConstraints(
-                        Constraints.Builder()
-                            .setRequiredNetworkType(NetworkType.UNMETERED)
-                            .setRequiresCharging(true)
-                            .setRequiresStorageNotLow(true)
-                            .build()
-                    )
-                    .build()
-            DownloadRegistry.save(
-                context,
-                DownloadRecord(
-                    task.id.toString(),
-                    "MODEL",
-                    NAME,
-                    NAME,
-                    context.getString(R.string.discovery_model_name),
-                    totalBytes = BYTES,
-                ),
-            )
-            manager.enqueueUniqueWork("speech_model_ko", ExistingWorkPolicy.KEEP, task).result.get()
+                enqueue(context)
         }
 
     suspend fun remove(context: Context) =
@@ -80,7 +105,16 @@ object SpeechModelStore {
     internal suspend fun install(context: Context, archive: File) =
         withContext(AnalysisBudget.dispatcher) {
             val job = currentCoroutineContext()[Job]
-            val budget = AnalysisBudget(context, { job?.isActive != false })
+            // Installation is user-requested I/O, not a charging-only analysis task.
+            // Yield cooperatively without repeatedly restarting checksum/unzip on battery power.
+            var yieldedAt = android.os.SystemClock.elapsedRealtime()
+            suspend fun checkpoint() {
+                job?.ensureActive()
+                if (android.os.SystemClock.elapsedRealtime() - yieldedAt >= 16) {
+                    delay(48)
+                    yieldedAt = android.os.SystemClock.elapsedRealtime()
+                }
+            }
             val digest = java.security.MessageDigest.getInstance("SHA-256")
             archive.inputStream().use { input ->
                 val buffer = ByteArray(64 * 1024)
@@ -88,7 +122,7 @@ object SpeechModelStore {
                     val n = input.read(buffer)
                     if (n < 0) break
                     digest.update(buffer, 0, n)
-                    budget.checkpoint()
+                    checkpoint()
                 }
             }
             require(
@@ -103,7 +137,7 @@ object SpeechModelStore {
                 var entries = 0
                 ZipInputStream(archive.inputStream().buffered()).use { zip ->
                     while (true) {
-                        budget.checkpoint()
+                        checkpoint()
                         val entry = zip.nextEntry ?: break
                         require(++entries <= 256 && entry.name.startsWith("$NAME/"))
                         val relative = entry.name.removePrefix("$NAME/")
@@ -125,7 +159,7 @@ object SpeechModelStore {
                                     total += n
                                     require(total <= 384L * 1024 * 1024)
                                     output.write(buffer, 0, n)
-                                    budget.checkpoint()
+                                    checkpoint()
                                 }
                             }
                         }
@@ -137,8 +171,10 @@ object SpeechModelStore {
                         File(stage, "conf/model.conf").isFile &&
                         File(stage, "graph/HCLr.fst").isFile
                 )
+                checkpoint()
                 File(stage, "verified.sha256").writeText(SHA256)
                 access.withLock {
+                    job?.ensureActive()
                     val destination = directory(context)
                     val previous = File(parent, "$NAME.previous")
                     previous.deleteRecursively()
@@ -169,7 +205,7 @@ class SpeechModelDownloadWorker(context: Context, params: WorkerParameters) :
                             ?: return@run Result.failure()
                     setForeground(MediaTransfer.foreground(applicationContext, record))
                     DownloadRegistry.update(applicationContext, taskId) {
-                        it.copy(state = "RUNNING")
+                        it.copy(state = "RUNNING", error = null)
                     }
                     if (!SpeechModelStore.installed(applicationContext)) {
                         val file =
@@ -185,8 +221,12 @@ class SpeechModelDownloadWorker(context: Context, params: WorkerParameters) :
                                 }
                                 setProgress(workDataOf("bytes" to bytes, "total" to total))
                             }
+                        DownloadRegistry.update(applicationContext, taskId) {
+                            it.copy(state = "INSTALLING", error = null)
+                        }
                         SpeechModelStore.install(applicationContext, file)
                     }
+                    currentCoroutineContext().ensureActive()
                     val bytes =
                         SpeechModelStore.directory(applicationContext)
                             .walkTopDown()

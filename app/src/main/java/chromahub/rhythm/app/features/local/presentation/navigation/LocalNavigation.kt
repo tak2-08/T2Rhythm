@@ -1752,7 +1752,7 @@ private fun LocalNavigationContent(
                 }
 
                 composable(Screen.Popular.route) {
-                    chromahub.rhythm.app.features.local.presentation.metadata.PopularListScreen()
+                    chromahub.rhythm.app.features.local.presentation.metadata.PopularListScreen(songs = viewModel.songs.collectAsState().value, onPlay = viewModel::playSong)
                 }
 
                 composable(

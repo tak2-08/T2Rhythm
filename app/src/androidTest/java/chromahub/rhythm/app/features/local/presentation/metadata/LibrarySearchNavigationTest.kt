@@ -108,7 +108,6 @@ class LibrarySearchNavigationTest {
         // The real startup performs a delayed MediaStore staleness check. Let it inspect the
         // real library before injecting this screen-only fixture with a different track count.
         instrumentation.waitForIdleSync()
-        SystemClock.sleep(2500)
         val deadline = SystemClock.elapsedRealtime() + 60000
         while (
             (!vm.isInitialized.value || vm.isMediaScanning.value || vm.isLibraryRefreshing.value) &&
@@ -116,7 +115,11 @@ class LibrarySearchNavigationTest {
         ) SystemClock.sleep(100)
         assertTrue(vm.isInitialized.value)
         assertFalse(vm.isLibraryRefreshing.value)
+        // The delayed check is scheduled after initialization, which can be slow on cold starts.
+        SystemClock.sleep(5000)
         activity.scenario.onActivity {
+            // Keep this search fixture independent of the previous test's persistent mini player.
+            vm.clearQueue()
             seed(vm, "_songs", songs)
             seed(
                 vm,
@@ -207,7 +210,7 @@ class LibrarySearchNavigationTest {
         fun visit(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
             if (node == null) return null
             val values =
-                if (description) listOf(node.contentDescription)
+                if (description) listOf(node.contentDescription, node.text)
                 else listOf(node.text, node.hintText)
             if (
                 values.filterNotNull().any { value ->
@@ -231,7 +234,22 @@ class LibrarySearchNavigationTest {
             }
             SystemClock.sleep(100)
         }
-        throw AssertionError("No visible accessibility node: $label")
+        instrumentation.uiAutomation.takeScreenshot()?.let { bitmap ->
+            File(context.getExternalFilesDir(null), "library-search-failure.png")
+                .outputStream()
+                .use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            bitmap.recycle()
+        }
+        var state = ""
+        activity.scenario.onActivity { screen ->
+            val vm = androidx.lifecycle.ViewModelProvider(screen)[MusicViewModel::class.java]
+            state =
+                "songs=" +
+                    vm.songs.value.map { it.id } +
+                    ", filtered=" +
+                    vm.filteredSongs.value.map { it.id }
+        }
+        throw AssertionError("No visible accessibility node: $label; $state")
     }
 
     private fun click(label: String, description: Boolean = false) {

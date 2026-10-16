@@ -6,12 +6,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.work.WorkManager
 import chromahub.rhythm.app.R
 import chromahub.rhythm.app.features.local.data.discovery.*
 import chromahub.rhythm.app.features.local.data.experience.PersonalCollections
 import chromahub.rhythm.app.features.local.data.video.DownloadRegistry
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 
+@OptIn(FlowPreview::class)
 @Composable
 fun LearningPreferences() {
     val context = LocalContext.current
@@ -28,10 +32,39 @@ fun LearningPreferences() {
             PersonalCollections.options(context).refreshHours.takeIf { it in 1..48 } ?: 6
         )
     }
+    var model by remember {
+        mutableStateOf<chromahub.rhythm.app.features.local.data.video.DownloadRecord?>(null)
+    }
     var refreshChoices by remember { mutableStateOf(false) }
-    val revision by DownloadRegistry.revision.collectAsState()
-    LaunchedEffect(revision) {
-        installed = withContext(Dispatchers.IO) { SpeechModelStore.installed(context) }
+    LaunchedEffect(context) {
+        val previous =
+            withContext(Dispatchers.IO) {
+                DownloadRegistry.recent(context, 1000).firstOrNull { it.kind == "MODEL" }
+            }
+        combine(
+                WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("speech_model_ko"),
+                DownloadRegistry.revision,
+            ) { work, _ ->
+                work
+            }
+            .debounce(250)
+            .collect { work ->
+                val state =
+                    withContext(Dispatchers.IO) {
+                        val latest =
+                            work
+                                .mapNotNull { job ->
+                                    DownloadRegistry.get(context, job.id.toString())?.let {
+                                        DownloadRegistry.merge(it, job)
+                                    }
+                                }
+                                .maxByOrNull { it.createdAt }
+                                ?: previous?.let { DownloadRegistry.get(context, it.id) }
+                        SpeechModelStore.installed(context) to latest
+                    }
+                installed = state.first
+                model = state.second
+            }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -83,7 +116,7 @@ fun LearningPreferences() {
                 }
             else
                 OutlinedButton(
-                    enabled = !busy,
+                    enabled = !busy && model?.state !in setOf("RUNNING", "INSTALLING"),
                     onClick = {
                         scope.launch {
                             busy = true
@@ -100,14 +133,41 @@ fun LearningPreferences() {
                         }
                     },
                 ) {
-                    Text(context.getString(R.string.discovery_install_model))
+                    Text(
+                        context.getString(
+                            if (model?.state in setOf("RUNNING", "INSTALLING"))
+                                R.string.popular_downloading
+                            else R.string.discovery_install_model
+                        )
+                    )
                 }
             Text(
                 context.getString(
-                    if (installed) R.string.discovery_model_ready else R.string.discovery_model_wait
+                    if (installed) R.string.discovery_model_ready
+                    else if (model?.state == "INSTALLING") R.string.discovery_model_installing
+                    else if (model?.state == "RUNNING") R.string.discovery_downloading
+                    else if (model?.state == "ENQUEUED") R.string.discovery_model_wait_network
+                    else if (model?.state == "FAILED") R.string.discovery_download_failed
+                    else R.string.discovery_model_wait
                 ),
                 style = MaterialTheme.typography.labelSmall,
             )
+        }
+        if (!installed && model?.state in setOf("RUNNING", "INSTALLING", "ENQUEUED")) {
+            val task = model!!
+            if (task.totalBytes > 0 && task.state != "INSTALLING")
+                LinearProgressIndicator(
+                    progress = { (task.bytes.toFloat() / task.totalBytes).coerceIn(0f, 1f) },
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                )
+            else LinearProgressIndicator(androidx.compose.ui.Modifier.fillMaxWidth())
+            TextButton(
+                onClick = {
+                    scope.launch(Dispatchers.IO) { DownloadRegistry.cancel(context, task.id) }
+                }
+            ) {
+                Text(context.getString(R.string.discovery_cancel_download))
+            }
         }
         Box {
             TextButton(onClick = { refreshChoices = true }) {

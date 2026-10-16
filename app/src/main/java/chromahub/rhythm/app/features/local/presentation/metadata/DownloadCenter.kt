@@ -173,6 +173,7 @@ fun DownloadCenter(onDismiss: () -> Unit) {
                                     "FAILED" -> R.string.discovery_download_failed
                                     "CANCELLED" -> R.string.discovery_download_cancelled
                                     "RUNNING" -> R.string.discovery_downloading
+                                    "INSTALLING" -> R.string.discovery_model_installing
                                     else -> R.string.discovery_download_waiting
                                 }
                             ),
