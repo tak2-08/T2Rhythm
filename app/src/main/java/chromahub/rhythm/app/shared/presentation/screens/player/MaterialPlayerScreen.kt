@@ -1661,7 +1661,8 @@ fun MaterialPlayerScreen(
                         visible = showAlbumArt,
                         enter = fadeIn() + slideInVertically { it },
                         exit = fadeOut() + slideOutVertically { it },
-                        modifier = Modifier.weight(1f, fill = showLyricsView).fillMaxWidth()
+                        modifier = Modifier.weight(1f, fill = showLyricsView)
+                            .then(if (showLyricsView) Modifier.fillMaxWidth() else Modifier)
                     ) {
                         // State for artwork swipe gestures
                         var artworkOffsetX by remember { mutableFloatStateOf(0f) }
