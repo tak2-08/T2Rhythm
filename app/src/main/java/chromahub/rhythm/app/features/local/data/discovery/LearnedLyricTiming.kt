@@ -8,8 +8,9 @@ object LearnedLyricTiming {
     const val VERSION = "manual-intervals-2"
     private fun positions(text: List<String>): List<Double> {
         val weights = text.map { LocalLyricAlignment.normalized(it).length.coerceAtLeast(2).toDouble().pow(.65) }
+        val total = weights.sum()
         var cumulative = 0.0
-        return weights.map { weight -> (cumulative / weights.sum()).also { cumulative += weight } }
+        return weights.map { weight -> (cumulative / total).also { cumulative += weight } }
     }
     fun fit(text: List<String>, duration: Long, genre: String, baseline: List<TimedLine>, examples: List<TimingTraining>, audio: List<Double> = emptyList()): List<TimedLine> {
         val references = TimingReferencePolicy.balanced(examples).filter { it.pcm.isNotBlank() && it.lines.size >= 3 }

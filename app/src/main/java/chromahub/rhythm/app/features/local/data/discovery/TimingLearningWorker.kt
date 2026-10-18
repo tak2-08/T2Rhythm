@@ -83,7 +83,8 @@ class TimingLearningWorker(context: Context, params: WorkerParameters) : Corouti
     companion object {
         const val NAME = "lyric_timing_feedback_learning"
         fun enqueue(context: Context, userInitiated: Boolean = false, pass: Int = 0) {
-            WorkManager.getInstance(context).enqueueUniqueWork(NAME, ExistingWorkPolicy.APPEND_OR_REPLACE,
+            WorkManager.getInstance(context).enqueueUniqueWork(NAME,
+                if (userInitiated) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.APPEND_OR_REPLACE,
                 OneTimeWorkRequestBuilder<TimingLearningWorker>().setInputData(workDataOf("user" to userInitiated, "pass" to pass))
                     .setBackoffCriteria(BackoffPolicy.LINEAR, 30, TimeUnit.SECONDS)
                     .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).setRequiresStorageNotLow(true).build()).build())

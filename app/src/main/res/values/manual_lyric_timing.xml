@@ -12,7 +12,7 @@
     <string name="timing_play_first">Play this song first, then mark its playback position.</string>
     <string name="timing_export">Export LRC</string>
     <string name="timing_save_error">Could not save. The original or song may have changed. Your draft is kept.</string>
-    <string name="timing_saved">Lyrics saved. Your reviewed timing is queued for learning.</string>
+    <string name="timing_saved">Lyrics saved. Manually recorded or corrected timing is used for learning.</string>
     <string name="timing_line_number">Line %1$d / %2$d</string>
     <string name="timing_selected_line">%1$d · %2$s</string>
     <string name="timing_undo">Undo</string>

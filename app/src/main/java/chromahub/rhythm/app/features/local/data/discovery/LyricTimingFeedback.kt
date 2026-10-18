@@ -22,6 +22,11 @@ class LyricTimingFeedback(private val context: Context) {
         if (proposal.kind != "LYRICS") return@synchronized
         val existing = read().filter { it.id != proposal.id }
         val next = if (proposal.state == "ACCEPTED") {
+            // Accepting our unchanged estimate is preference feedback, not independent timing truth.
+            if (proposal.method != "manual_timing" &&
+                (proposal.predictedValue == null || proposal.predictedValue == proposal.value)) {
+                write(existing); return@synchronized
+            }
             val signature = proposal.sourceSignature.removePrefix(proposal.songKey + ":")
             val feature = ListeningLedger.get(context).feature(proposal.songKey, signature)
             val duration = proposal.sourceSignature.substringAfterLast(':').toLongOrNull() ?: return@synchronized
@@ -51,13 +56,15 @@ class LyricTimingFeedback(private val context: Context) {
                 val recognized = words?.let { LocalLyricAlignment.speech(review.example.lines.map { it.text }, it.words, song.duration) }
                 val calibration = recognized?.let { TimingSpeechCalibration.measure(review.example.lines, it) }
                 review.copy(example = review.example.copy(pcm = feature.pcmSha256,
-                    audio = chromahub.rhythm.app.features.local.data.experience.AudioVectors.describe(feature), reviewed = true,
+                    audio = chromahub.rhythm.app.features.local.data.experience.AudioVectors.describe(feature),
+                    reviewed = review.example.reviewed || (review.errorMs ?: 0.0) > 0,
                     speechOffsetMs = calibration?.first, speechEndOffsetMs = calibration?.second), pending = false, calibrationAttempted = words != null)
             }
         }.distinctBy { it.example.pcm }
         write(next)
     }
-    fun examples() = read().filter { !it.pending && !it.example.pcm.startsWith("pending:") }.map { it.example.copy(reviewed = true) }
+    fun examples() = read().filter { !it.pending && !it.example.pcm.startsWith("pending:") &&
+        (it.example.reviewed || (it.errorMs ?: 0.0) > 0) }.map { it.example.copy(reviewed = true) }
     fun discard(id: String) = synchronized(lock) { write(read().filter { it.id != id }) }
     private fun write(next: List<TimingReview>) {
         val bounded = next.take(96).toMutableList()

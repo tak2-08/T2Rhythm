@@ -8355,7 +8355,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             chromahub.rhythm.app.features.local.data.discovery.LocalLyricAlignment.parse(proposal.value).joinToString("\n") { it.text },
             proposal.value, source = "T2Rhythm reviewed alignment", isCorrected = true)
         withContext(Dispatchers.IO) {
-            chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(getApplication<Application>()).saveFetched(song, value, reviewed = true)
+            chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(getApplication<Application>()).saveFetched(song, value, embed = false, reviewed = true)
             repository.updateLyricsCache(song.artist, song.title, song.id, value)
         }
         withContext(Dispatchers.Main) {

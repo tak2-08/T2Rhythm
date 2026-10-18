@@ -12,7 +12,7 @@
     <string name="timing_play_first">이 곡을 먼저 재생한 뒤 현재 위치를 찍어 주세요.</string>
     <string name="timing_export">LRC 파일 내보내기</string>
     <string name="timing_save_error">저장하지 못했습니다. 원본 가사나 음원이 바뀌었을 수 있습니다. 작업 초안은 보관합니다.</string>
-    <string name="timing_saved">가사를 저장했습니다. 확인한 시간 매핑을 학습에 반영합니다.</string>
+    <string name="timing_saved">가사를 저장했습니다. 수동으로 기록·수정한 시간은 학습에 반영합니다.</string>
     <string name="timing_line_number">%1$d / %2$d줄</string>
     <string name="timing_selected_line">%1$d줄 · %2$s</string>
     <string name="timing_undo">실행 취소</string>

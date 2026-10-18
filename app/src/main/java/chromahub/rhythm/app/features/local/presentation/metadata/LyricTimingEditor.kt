@@ -66,7 +66,7 @@ fun LyricTimingEditor(song: Song, original: LyricsData, viewModel: MusicViewMode
     val undo = remember { mutableStateListOf<Triple<List<LyricTimingMark>, Int, Boolean>>() }
     val list = rememberLazyListState()
     val requireEnds = remember(original, proposal) { proposal == null && LocalLyricAlignment.parse(original.getBestLyrics().orEmpty()).isEmpty() }
-    val ready = rows.isNotEmpty() && rows.all { it.start != null && (!requireEnds || it.end != null) } && ManualLyricTiming.valid(rows, song.duration)
+    val ready = remember(rows, song.duration, requireEnds) { rows.isNotEmpty() && rows.all { it.start != null && (!requireEnds || it.end != null) } && ManualLyricTiming.valid(rows, song.duration) }
     fun snapshot() = LyricTimingDraft(EnrichmentStore.signature(song), original, proposal?.id, rows, selected)
     suspend fun persist() { if (rows.isNotEmpty()) { val draft = snapshot(); withContext(Dispatchers.IO) { drafts.save(song, draft) } } }
     fun close() { if (!busy) scope.launch {
@@ -134,10 +134,12 @@ fun LyricTimingEditor(song: Song, original: LyricsData, viewModel: MusicViewMode
                     require(ManualLyricTiming.valid(rows, song.duration))
                     if (proposal != null) store.adjustTiming(proposal.id, ManualLyricTiming.lines(rows), song.duration)
                     else store.proposal(song, "LYRICS", LocalLyricAlignment.lrc(ManualLyricTiming.lines(rows)), 1.0,
-                        "manual_timing", rows.size, original).also { check(store.propose(it)) }
+                        if (LocalLyricAlignment.parse(original.getBestLyrics().orEmpty()) != ManualLyricTiming.lines(rows)) "manual_timing" else "confirmed_timing",
+                        rows.size, original).also { check(store.propose(it)) }
                 }
                 if (applyOverride != null) applyOverride(reviewed) else viewModel.applyReviewedLyrics(song, reviewed, false)
                 withContext(Dispatchers.IO) {
+                    LyricSuggestionWorker.cancel(context, song)
                     store.decide(reviewed.id, "ACCEPTED")
                     TimingRetryQueue(context).remove(song.uri.toString())
                     drafts.delete(song)

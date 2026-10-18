@@ -67,7 +67,7 @@ class ManualLyricTimingFlowTest {
             val vm: MusicViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
             MaterialTheme { if (!closed) LyricTimingEditor(track, original, vm, playbackOverride = transport,
                 applyOverride = { proposal -> AutomaticLyricsStore.get(context).saveFetched(track,
-                    LyricsData(text, proposal.value, source = "T2Rhythm reviewed alignment", isCorrected = true), reviewed = true) }) { closed = true } }
+                    LyricsData(text, proposal.value, source = "T2Rhythm reviewed alignment", isCorrected = true), embed = false, reviewed = true) }) { closed = true } }
         }
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("timing-mark-start").fetchSemanticsNodes().isNotEmpty() }
         val starts = listOf(1234L, 6789L, 12_345L); val ends = listOf(3456L, 8999L, 19_876L)
@@ -105,7 +105,7 @@ class ManualLyricTimingFlowTest {
         assertNull(AutomaticLyricsStore.get(context).read(track))
         assertEquals(1234L, LyricTimingDraftStore(context).read(track, original, null)!!.rows.first().start)
         compose.runOnIdle { open = true }
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("timing-lines").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("timing-mark-start").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("timing-lines").performScrollToIndex(0)
         compose.onNodeWithText("00:01.234 → 00:03.456").assertExists()
         LyricTimingDraftStore(context).delete(track)
@@ -155,7 +155,10 @@ class ManualLyricTimingFlowTest {
             val changed = old.value.replace("[00:01]", "[00:02]")
             assertFalse(store.propose(store.proposal(track, "LYRICS", changed, .3, "learned_estimate", 4, original, learningRevision = "old")))
             assertFalse(store.propose(store.proposal(track, "LYRICS", old.value, .3, "learned_estimate", 4, original, learningRevision = "new")))
-            assertTrue(store.propose(store.proposal(track, "LYRICS", changed, .3, "learned_estimate", 4, original, learningRevision = "new")))
+            val next = store.proposal(track, "LYRICS", changed, .3, "learned_estimate", 4, original, learningRevision = "new")
+            assertTrue(store.propose(next))
+            store.decide(next.id, "ACCEPTED")
+            assertTrue("An unchanged accepted estimate must not become its own training target", LyricTimingFeedback(ctx).read().isEmpty())
         } finally { root.deleteRecursively() }
     }
     @Test fun retriesAreBoundedPerModelAndPerDay() {
@@ -215,7 +218,7 @@ class ManualLyricTimingFlowTest {
             val truth = text.lines().mapIndexed { i, line -> TimedLine(2000L + i * 6000, line, 5000L + i * 6000) }
             val original = LyricsData(text, null, source = "manual test text")
             val target = tracks.first { it.uri == uris.last() }
-            runBlocking { AutomaticLyricsStore.get(context).saveFetched(target, original, reviewed = true) }
+            runBlocking { AutomaticLyricsStore.get(context).saveFetched(target, original, embed = false, reviewed = true) }
             runBlocking { LyricSuggestionWorker.enqueue(context, target, original) }
             val targetWork = LyricSuggestionWorker.name(chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides.key(target))
             compose.waitUntil(90_000) { WorkManager.getInstance(context).getWorkInfosForUniqueWork(targetWork).get().any { it.state == WorkInfo.State.SUCCEEDED } }

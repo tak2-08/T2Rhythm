@@ -11,16 +11,20 @@ object ManualLyricTiming {
     fun fromText(text: List<String>) = text.map { LyricTimingMark(it) }
     fun fromTimed(lines: List<TimedLine>) = lines.map { LyricTimingMark(it.text, it.ms, it.endMs) }
     fun lines(rows: List<LyricTimingMark>): List<TimedLine> = rows.map { TimedLine(requireNotNull(it.start), it.text, it.end) }
-    fun valid(rows: List<LyricTimingMark>, duration: Long, complete: Boolean = false): Boolean =
-        rows.size in 1..1000 && duration > 0 && rows.all { it.text.isNotBlank() } &&
-            rows.withIndex().all { (i, row) ->
-                (!complete || row.start != null && row.end != null) &&
-                (row.start == null || row.start in 0 until duration) &&
-                (row.end == null || row.start != null && row.end > row.start && row.end <= duration) &&
-                (row.start == null || rows.take(i).lastOrNull { it.start != null }?.let { previous ->
-                    row.start > previous.start!! && (previous.end == null || previous.end <= row.start)
-                } != false)
+    fun valid(rows: List<LyricTimingMark>, duration: Long, complete: Boolean = false): Boolean {
+        if (rows.size !in 1..1000 || duration <= 0) return false
+        var previous: LyricTimingMark? = null
+        for (row in rows) {
+            if (row.text.isBlank() || complete && (row.start == null || row.end == null)) return false
+            if (row.start != null && row.start !in 0 until duration) return false
+            if (row.end != null && (row.start == null || row.end <= row.start || row.end > duration)) return false
+            if (row.start != null) {
+                if (previous?.let { row.start <= it.start!! || it.end?.let { end -> end > row.start } == true } == true) return false
+                previous = row
             }
+        }
+        return true
+    }
     fun mark(rows: List<LyricTimingMark>, index: Int, end: Boolean, time: Long, duration: Long): List<LyricTimingMark> {
         require(index in rows.indices)
         val old = rows[index]
