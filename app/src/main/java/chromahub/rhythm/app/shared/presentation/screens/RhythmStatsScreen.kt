@@ -262,7 +262,7 @@ private fun StatsPageContent(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(24.dp)
                         ) {
-                            chromahub.rhythm.app.features.local.presentation.metadata.PersonalExperiencePanel()
+                            chromahub.rhythm.app.features.local.presentation.metadata.ListeningReportPanel(viewModel)
                             ListeningOverviewCard(
                                 stats = stats, 
                                 previousStats = previousSummary,
@@ -295,7 +295,7 @@ private fun StatsPageContent(
                             .padding(horizontal = 20.dp),
                         verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
-                        chromahub.rhythm.app.features.local.presentation.metadata.PersonalExperiencePanel()
+                        chromahub.rhythm.app.features.local.presentation.metadata.ListeningReportPanel(viewModel)
                         ListeningOverviewCard(
                             stats = stats, 
                             previousStats = previousSummary,

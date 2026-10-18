@@ -18,6 +18,19 @@ internal class ContextPreferenceIndex(context: Context) :
     ) {
     private val gson = Gson()
 
+    data class Pattern(val dimension: String, val bucket: String, val genres: List<Pair<String, Double>>)
+    /** Read the compact learning projection; opening settings never scans the sensor journal. */
+    fun patterns(): List<Pattern> {
+        val groups = linkedMapOf<Pair<String, String>, MutableList<Pair<String, Double>>>()
+        readableDatabase.rawQuery("SELECT dimension,bucket,item,value FROM totals WHERE dimension IN ('place','volume','output','hour','motion') AND value>=1 ORDER BY dimension,bucket,value DESC LIMIT 2000", null).use { c ->
+            while (c.moveToNext()) {
+                val values = groups.getOrPut(c.getString(0) to c.getString(1)) { mutableListOf() }
+                if (values.size < 3) values += c.getString(2) to c.getDouble(3)
+            }
+        }
+        return groups.entries.take(100).map { Pattern(it.key.first, it.key.second, it.value) }
+    }
+
     @Keep
     data class Contribution(
         val dimension: String,

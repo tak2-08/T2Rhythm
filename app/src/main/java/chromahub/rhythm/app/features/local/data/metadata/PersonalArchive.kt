@@ -264,6 +264,7 @@ class PersonalArchive(private val context: Context) {
             val local = File(context.filesDir, "music_metadata")
             listOf(
                     "records",
+                    "artwork_choices",
                     "images",
                     "lyrics",
                     "originals",

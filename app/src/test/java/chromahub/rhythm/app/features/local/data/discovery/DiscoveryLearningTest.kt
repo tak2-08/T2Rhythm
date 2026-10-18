@@ -120,16 +120,11 @@ class DiscoveryLearningTest {
         assertTrue(guess.confidence <= .45)
         assertEquals("learned_estimate", guess.method)
         assertEquals(3, guess.evidence)
-        assertNull(
-            LocalLyricAlignment.light(
-                listOf("하나", "둘", "셋"),
-                200000,
-                "other",
-                "pop",
-                List(1000) { .1 },
-                samples.take(2),
-            )
-        )
+        val draft = LocalLyricAlignment.light(
+            listOf("하나", "둘", "셋"), 200000, "other", "pop", List(1000) { .1 }, samples.take(2)
+        )!!
+        assertEquals("waveform_estimate", draft.method)
+        assertTrue(draft.confidence < guess.confidence)
     }
 
     @Test

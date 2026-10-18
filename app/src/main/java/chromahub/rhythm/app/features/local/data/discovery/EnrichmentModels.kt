@@ -164,7 +164,7 @@ object LocalLyricAlignment {
         val textKey = lines.map(::normalized)
         examples
             .firstOrNull {
-                it.pcm == pcm &&
+                pcm.isNotBlank() && it.pcm == pcm &&
                     valid(it.lines, duration) &&
                     it.lines.map { l -> normalized(l.text) } == textKey
             }
@@ -182,16 +182,23 @@ object LocalLyricAlignment {
                 .let { all ->
                     all.filter { it.genre.equals(genre.trim(), ignoreCase = true) }.ifEmpty { all }
                 }
-        if (training.size < 3 || envelope.size < 30) return null
+        if (envelope.size < 30) return null
+        val learned = training.size >= 3
+        val energy = envelope.filter { it.isFinite() && it >= 0 }.sorted()
+        if (energy.isEmpty() || energy.last() <= .000001) return null
+        val floor = energy[energy.size / 5]
+        val threshold = floor + (energy[energy.size * 4 / 5] - floor) * .18
+        val active = envelope.indices.filter { envelope[it].isFinite() && envelope[it] >= threshold }
+        if (active.size < 5) return null
         val intro =
-            training
-                .map { it.lines.first().ms.toDouble() / it.durationMs }
+            (if (learned) training.map { it.lines.first().ms.toDouble() / it.durationMs }
+                else listOf(active.first().toDouble() / envelope.size))
                 .sorted()
                 .let { it[it.size / 2] }
                 .coerceIn(.01, .22)
         val outro =
-            training
-                .map { it.lines.last().ms.toDouble() / it.durationMs }
+            (if (learned) training.map { it.lines.last().ms.toDouble() / it.durationMs }
+                else listOf(active.last().toDouble() / envelope.size))
                 .sorted()
                 .let { it[it.size / 2] }
                 .coerceIn(.6, .99)
@@ -239,8 +246,8 @@ object LocalLyricAlignment {
         if (!valid(guessed, duration)) return null
         return TimingGuess(
             guessed,
-            (.25 + training.size.coerceAtMost(40) * .004).coerceAtMost(.45),
-            "learned_estimate",
+            if (learned) (.25 + training.size.coerceAtMost(40) * .004).coerceAtMost(.45) else .18,
+            if (learned) "learned_estimate" else "waveform_estimate",
             training.size,
         )
     }

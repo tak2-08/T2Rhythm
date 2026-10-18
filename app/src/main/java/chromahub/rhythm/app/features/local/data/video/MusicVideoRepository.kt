@@ -51,13 +51,47 @@ class MusicVideoRepository(private val context: Context) {
     private val records = File(root, "records").apply { mkdirs() }
     private val gson = Gson()
     private fun record(key: String) = File(records, "${kr.co.metadata.crawler.CatalogFileStore.hash(key)}.json")
+    fun key(song: Song): String = chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides.key(song)
+    /** Upgrade legacy URI links before a rebuild; a tombstone prevents removed links reappearing. */
+    fun get(song: Song): MusicVideo? = synchronized(downloadInstallLock) {
+        val stable = key(song)
+        if (record(stable).isFile) return@synchronized get(stable)
+        val legacy = get(song.uri.toString()) ?: return@synchronized null
+        legacy.copy(songKey = stable).also(::save)
+    }
+    fun library(): List<MusicVideo> = synchronized(downloadInstallLock) {
+        val saved = records.listFiles().orEmpty().asSequence().filter { it.length() in 1..16000 }
+            .mapNotNull { runCatching { gson.fromJson(it.readText(), MusicVideo::class.java) }.getOrNull() }
+            .filter { it.source == "local" && it.fileName?.let { name -> File(name).name == name && File(root, name).isFile } == true }
+            .toList()
+        val known = saved.mapNotNull { it.fileName }.toSet()
+        val loose = root.listFiles().orEmpty().filter { it.isFile && it.extension in setOf("webm", "mp4") && it.name !in known && !it.name.startsWith("import-") && !it.name.startsWith("original-") }
+            .map { MusicVideo("orphan:${it.name}", "local", fileName = it.name, title = it.name, bytes = it.length()) }
+        (saved + loose).distinctBy { it.fileName }.sortedByDescending { it.addedAt }
+    }
+    fun attach(song: Song, video: MusicVideo) = synchronized(downloadInstallLock) {
+        require(uri(video)?.path?.let { File(it).isFile } == true)
+        save(video.copy(songKey = key(song), title = song.title, addedAt = System.currentTimeMillis()))
+    }
+    /** Explicit storage deletion also tombstones every shared link. Downloads cannot resurrect it. */
+    fun deleteFile(video: MusicVideo) = synchronized(downloadInstallLock) {
+        val name = requireNotNull(video.fileName)
+        require(File(name).name == name && File(name).extension in setOf("webm", "mp4"))
+        val references = records.listFiles().orEmpty().filter { it.length() in 1..16000 }.mapNotNull {
+            runCatching { gson.fromJson(it.readText(), MusicVideo::class.java) }.getOrNull()
+        }.filter { it.fileName == name }
+        val file = File(root, name)
+        check(!file.exists() || file.delete())
+        references.forEach { remove(it.songKey) }
+        revision.value++
+    }
     fun get(key: String): MusicVideo? = runCatching { gson.fromJson(record(key).readText(), MusicVideo::class.java) }.getOrNull()?.takeIf {
         it.songKey == key && (it.source == "youtube" && MusicVideoLinks.validId(it.videoId) || it.source == "local" && it.fileName?.let { name -> File(name).name == name && File(root, name).isFile } == true)
     }
     internal fun pendingLinks(): List<MusicVideo> = records.listFiles().orEmpty().asSequence().filter { it.length() in 1..16000 }
         .mapNotNull { file -> runCatching { gson.fromJson(file.readText(),MusicVideo::class.java) }.getOrNull() }
         .filter { it.source=="youtube" && MusicVideoLinks.validId(it.videoId) }.take(1000).toList()
-    fun save(video: MusicVideo) = synchronized(downloadInstallLock) { require(video.offsetMs in -600_000..600_000); require(video.source == "local" || MusicVideoLinks.validId(video.videoId)); PersonalArchive.atomicWrite(record(video.songKey), gson.toJson(video).toByteArray()); PersonalArchive.enqueue(context) }
+    fun save(video: MusicVideo) = synchronized(downloadInstallLock) { require(video.offsetMs in -600_000..600_000); require(video.source == "local" || MusicVideoLinks.validId(video.videoId)); PersonalArchive.atomicWrite(record(video.songKey), gson.toJson(video).toByteArray()); revision.value++; PersonalArchive.enqueue(context) }
     suspend fun link(key: String, url: String, title: String): MusicVideo = withContext(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
         val linked = MusicVideo(key, "youtube", MusicVideoLinks.youtubeId(url) ?: error("Invalid YouTube link"), title = title)
         save(linked)
@@ -65,13 +99,16 @@ class MusicVideoRepository(private val context: Context) {
         linked
     }
     fun uri(video: MusicVideo): Uri? = video.fileName?.takeIf { File(it).name == it }?.let { Uri.fromFile(File(root, it)) }
-    fun remove(key: String) = synchronized(downloadInstallLock) { PersonalArchive.atomicWrite(record(key), gson.toJson(MusicVideo(key, "removed")).toByteArray()); PersonalArchive.enqueue(context) } // Shared video assets are preserved for recovery.
+    fun remove(key: String) = synchronized(downloadInstallLock) { PersonalArchive.atomicWrite(record(key), gson.toJson(MusicVideo(key, "removed")).toByteArray()); revision.value++; PersonalArchive.enqueue(context) } // Shared video assets are preserved for recovery.
     fun installDownload(key: String, expectedId: String, imported: MusicVideo): Boolean = synchronized(downloadInstallLock) {
         val current = get(key)
         if (current?.source != "youtube" || current.videoId != expectedId) return@synchronized false
         save(imported.copy(offsetMs = current.offsetMs)); true
     }
-    companion object { internal val downloadInstallLock = Any() }
+    companion object {
+        internal val downloadInstallLock = Any()
+        val revision = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    }
     suspend fun search(song: Song): List<VideoCandidate> = withContext(Dispatchers.IO) {
         val body = com.google.gson.JsonObject().apply {
             addProperty("query", "${song.artist} ${song.title} official music video")

@@ -29,6 +29,7 @@ data class EnrichmentProposal(
     val createdAt: Long = System.currentTimeMillis(),
     val state: String = "PENDING",
     val decidedAt: Long = 0,
+    val predictedValue: String? = null,
 )
 
 @Keep
@@ -64,6 +65,7 @@ class EnrichmentStore(private val context: Context) {
             File(context.cacheDir, "enrichment-model.json"),
             gson.toJson(model).toByteArray(),
         )
+        revision.value++
     }
 
     fun get(id: String): EnrichmentProposal? =
@@ -120,8 +122,17 @@ class EnrichmentStore(private val context: Context) {
             old.copy(state = state, decidedAt = System.currentTimeMillis()).also {
                 save(it)
                 InferredGenres.update(context, it)
+                LyricTimingFeedback(context).record(it)
             }
         }
+
+    fun adjustTiming(id: String, lines: List<TimedLine>, duration: Long): EnrichmentProposal = synchronized(lock) {
+        val old = get(id) ?: error("Suggestion no longer exists")
+        require(old.kind == "LYRICS" && old.state == "PENDING")
+        require(LocalLyricAlignment.valid(lines, duration))
+        require(lines.map { it.text } == LocalLyricAlignment.parse(old.value).map { it.text })
+        old.copy(value = LocalLyricAlignment.lrc(lines), predictedValue = old.predictedValue ?: old.value).also(::save)
+    }
 
     fun proposal(
         song: Song,

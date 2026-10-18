@@ -1003,6 +1003,7 @@ fun PlayerScreen(
             },
             canvasArtwork = canvasArtwork,
             canvasLoading = canvasLoading,
+            lyricSuggestion = { chromahub.rhythm.app.features.local.presentation.metadata.LyricSuggestionButton(song, lyrics, musicViewModel) },
             modifier = Modifier.fillMaxSize()
         )
     }

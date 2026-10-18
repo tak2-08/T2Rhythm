@@ -71,6 +71,7 @@ import chromahub.rhythm.app.util.ColorExtractor
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -2324,7 +2325,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         Log.d(TAG, "Performing full MediaStore refresh...")
         try {
             val currentCount = _songs.value.size
-            val cachedSongMap = _songs.value.associateBy { it.id }
+            val cachedSongMap = _songs.value.associateBy { repository.catalog.songKey(it) }
             // Run all heavy IO work off the main thread
             val (freshSongs, freshAlbums, freshArtists) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 repository.refreshMusicData(
@@ -2335,20 +2336,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
             // Merge cached metadata into fresh songs to preserve post-scan processing data
             val mergedSongs = freshSongs.map { fresh ->
-                val cached = cachedSongMap[fresh.id]
+                val cached = cachedSongMap[repository.catalog.songKey(fresh)]
                 if (cached != null) {
-                    val isCachedFileValid = cached.artworkUri?.scheme == "file" &&
-                        cached.artworkUri.path?.let { File(it).exists() } == true
-                    val hasArtworkOverride = runCatching {
-                        getApplication<Application>().getSharedPreferences("artwork_overrides", Context.MODE_PRIVATE)
-                            .getString("uri_${cached.id}", null) != null
-                    }.getOrDefault(false)
-                    val keepCachedArtwork = isCachedFileValid || hasArtworkOverride
-                    val resolvedArtworkUri = if (keepCachedArtwork) {
-                        cached.artworkUri
-                    } else {
-                        fresh.artworkUri ?: cached.artworkUri
-                    }
+                    val resolvedArtworkUri = repository.catalog.apply(fresh).artworkUri
 
                     fresh.copy(
                         genre = fresh.genre ?: cached.genre,
@@ -2505,6 +2495,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * Triggers a refresh of all music data by rescanning the device's MediaStore.
      * This will update the songs, albums, and artists in the ViewModel.
      */
+    suspend fun rebuildLibraryDatabase() {
+        scanJob?.cancelAndJoin()
+        repository.clearSongCacheData()
+        refreshLibrary()
+        scanJob?.join()
+    }
+
     fun refreshLibrary(showMediaScanLoader: Boolean = true) {
         mediaScanNotificationSequence += 1
         val notificationSequence = mediaScanNotificationSequence
@@ -2973,10 +2970,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     
     /**
      * Updates the current song metadata in the UI and library
-     * @param updatedSong The song with updated metadata
+     * @param update The song with updated metadata
      */
-    fun updateCurrentSongMetadata(updatedSong: Song) {
+    fun updateCurrentSongMetadata(update: Song) {
         viewModelScope.launch {
+            val updatedSong = withContext(Dispatchers.IO) { update.copy(artworkUri = repository.catalog.apply(update).artworkUri) }
             // Update the song in the main songs list
             val updatedSongs = _songs.value.map { song ->
                 if (song.id == updatedSong.id) updatedSong else song
