@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import chromahub.rhythm.app.R
 import chromahub.rhythm.app.features.local.data.experience.*
@@ -21,11 +21,25 @@ import java.util.Locale
 import java.util.UUID
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Before
 
 class PersonalInsightsScreensTest {
-    @get:Rule val compose = createComposeRule()
+    @get:Rule val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
     private val base get() = InstrumentationRegistry.getInstrumentation().targetContext
-    private val context get() = base.createConfigurationContext(Configuration(base.resources.configuration).apply { setLocale(Locale.KOREAN) })
+    private val context get() = compose.activity
+    @Before
+    @Suppress("DEPRECATION")
+    fun configureActivityAndDialogLocale() {
+        // Dialogs create their own Compose root from the Activity's resources. A LocalContext
+        // override alone only translates inline content, leaving dialog buttons in English.
+        compose.runOnUiThread {
+            Locale.setDefault(Locale.KOREAN)
+            listOf(context.resources, base.resources).forEach { resources ->
+                val config = Configuration(resources.configuration).apply { setLocale(Locale.KOREAN) }
+                resources.updateConfiguration(config, resources.displayMetrics)
+            }
+        }
+    }
     private fun capture(name: String) {
         val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         File(base.getExternalFilesDir(null), name).outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
