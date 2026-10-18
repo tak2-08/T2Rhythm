@@ -48,7 +48,7 @@ jobs:
       - name: Build app (GitHub and F-Droid flavors)
         env:
           APPLE_MUSIC_FALLBACK_TOKEN: ${{ secrets.APPLE_MUSIC_FALLBACK_TOKEN }}
-        run: ./gradlew assembleGithubRelease assembleFdroidRelease --stacktrace
+        run: ./gradlew assembleGithubRelease assembleFdroidRelease -PrequireReleaseSigning=true --stacktrace
 
       - name: Generate checksums
         run: |
