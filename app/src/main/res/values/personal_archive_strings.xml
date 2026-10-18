@@ -20,7 +20,7 @@
     <string name="catalog_included_list">Included</string>
     <string name="catalog_excluded_list">Excluded</string>
     <string name="personal_archive_title">Permanent backup folder</string>
-    <string name="personal_archive_hint">Original metadata, artwork and listening records are kept as recoverable files in your backup folder. Automatic backups run when charging or at least 90% charged, with low device load; Sync now is always available.</string>
+    <string name="personal_archive_hint" formatted="false">Original metadata, artwork and listening records are kept as recoverable files in your backup folder. Automatic backups run when charging or at least 90% charged, with low device load; Sync now is always available.</string>
     <string name="personal_archive_permission">Check backup folder access and available device storage. Local originals are retained until synchronization succeeds.</string>
     <string name="personal_archive_choose">Choose backup folder</string>
     <string name="personal_archive_sync">Back up plain files now</string>
@@ -33,9 +33,9 @@
     <string name="personal_song_habit">%1$d plays · %2$d completed · %3$d early skips · %4$d consecutive repeats</string>
     <string name="personal_interval">Typical listening interval: %1$d hours</string>
     <string name="personal_history_empty">Play music to start your permanent listening journal. Existing history is preserved.</string>
-    <string name="personal_audio_hint">Whole-track PCM fingerprints, waveform summaries and spectral features are analyzed on-device when charging or at least 90% charged, with low device load. Unsupported files are skipped.</string>
+    <string name="personal_audio_hint" formatted="false">Whole-track PCM fingerprints, waveform summaries and spectral features are analyzed on-device when charging or at least 90% charged, with low device load. Unsupported files are skipped.</string>
     <string name="personal_audio_analyze">Schedule audio analysis</string>
-    <string name="personal_audio_scheduled">Analysis will run when charging or at least 90% charged, with low device load.</string>
+    <string name="personal_audio_scheduled" formatted="false">Analysis will run when charging or at least 90% charged, with low device load.</string>
     <string name="personal_rules_version">Experience rules v%1$d</string>
     <string name="personal_rules_import">Import recommendation and home rules (JSON)</string>
     <string name="personal_rules_applied">Rules applied without reinstalling the app.</string>
