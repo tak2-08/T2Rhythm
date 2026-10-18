@@ -1,30 +1,30 @@
 {
-  "source_revision": "e1e87798a912c550e95ea87216362b211a40dd76",
+  "source_revision": "e543cee2b2a2f51c7ffbcf5ffbc9fbc9748390e0",
   "assets": [
     {
-      "name": "T2Rhythm-5.5.499.1314.apk",
-      "size": 73890084,
-      "sha256": "2784ea1f09fd4f29c210935e14845e44ccc141fa4b1ed48e7a4b1ab259e091f5",
+      "name": "T2Rhythm-5.5.499.1315.apk",
+      "size": 73914660,
+      "sha256": "5d05fbc8af820c8e9f72bdf6e520757e84a7a540c95ed691ce724ee65676bb61",
       "parts": [
-        "release-000.part",
-        "release-001.part",
-        "release-002.part",
-        "release-003.part",
-        "release-004.part"
+        "asset-0-000.part",
+        "asset-0-001.part",
+        "asset-0-002.part",
+        "asset-0-003.part",
+        "asset-0-004.part"
       ]
     },
     {
-      "name": "T2Rhythm-5.5.499.1314-debug.apk",
-      "size": 102485816,
-      "sha256": "d71d17d2894a08937c78b1d079a353adcd8d505491ea1d2a82d0985661b4aac2",
+      "name": "T2Rhythm-5.5.499.1315-debug.apk",
+      "size": 102522680,
+      "sha256": "6dd227818e10784f3f7d27d7481941b9b7e004aec4ea0d5e92b1477e2f742ea9",
       "parts": [
-        "debug-000.part",
-        "debug-001.part",
-        "debug-002.part",
-        "debug-003.part",
-        "debug-004.part",
-        "debug-005.part",
-        "debug-006.part"
+        "asset-1-000.part",
+        "asset-1-001.part",
+        "asset-1-002.part",
+        "asset-1-003.part",
+        "asset-1-004.part",
+        "asset-1-005.part",
+        "asset-1-006.part"
       ]
     }
   ]
