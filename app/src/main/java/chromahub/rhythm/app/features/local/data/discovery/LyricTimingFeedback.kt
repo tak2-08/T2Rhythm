@@ -43,17 +43,18 @@ class LyricTimingFeedback(private val context: Context) {
         write(next)
     }
     fun resolve(song: chromahub.rhythm.app.shared.data.model.Song) = resolveAll(listOf(song))
-    fun resolveAll(songs: List<chromahub.rhythm.app.shared.data.model.Song>) = synchronized(lock) {
+    fun resolveAll(songs: List<chromahub.rhythm.app.shared.data.model.Song>, checkpoint: () -> Unit = {}) = synchronized(lock) {
         if (songs.isEmpty()) return@synchronized
         val byKey = songs.associateBy { it.uri.toString() }
         val next = read().mapNotNull { review ->
+            checkpoint()
             val song = byKey[review.example.key] ?: return@mapNotNull review
             val feature = ListeningLedger.get(context).feature(song.uri.toString(), "${song.dateModified}:${song.duration}") ?: return@mapNotNull review
             if (review.sourceSignature != null && review.sourceSignature != EnrichmentStore.signature(song)) null
             else if (!review.pending && review.example.pcm != feature.pcmSha256) review
             else {
                 val words = SpeechAlignment.read(context, song.uri.toString())?.takeIf { it.complete && it.signature == EnrichmentStore.signature(song) }
-                val recognized = words?.let { LocalLyricAlignment.speech(review.example.lines.map { it.text }, it.words, song.duration) }
+                val recognized = words?.let { LocalLyricAlignment.speech(review.example.lines.map { it.text }, it.words, song.duration, checkpoint) }
                 val calibration = recognized?.let { TimingSpeechCalibration.measure(review.example.lines, it) }
                 review.copy(example = review.example.copy(pcm = feature.pcmSha256,
                     audio = chromahub.rhythm.app.features.local.data.experience.AudioVectors.describe(feature),

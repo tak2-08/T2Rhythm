@@ -44,7 +44,7 @@ class TimingLearningWorker(context: Context, params: WorkerParameters) : Corouti
                     SpeechAlignment.schedule(applicationContext, song, userInitiated = user); speechScheduled++
                 }
             }
-            feedback.resolveAll(resolved)
+            feedback.resolveAll(resolved, budget::blockingCheckpoint)
             val candidates = mutableListOf<TimingTraining>()
             // Rotate the bounded scan so a large library does not permanently hide later references.
             val prefs = applicationContext.getSharedPreferences("timing_learning", Context.MODE_PRIVATE)

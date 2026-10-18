@@ -47,7 +47,7 @@ object TimingValidation {
             val nextError = error(training) ?: continue
             errors += nextError to error(oldTraining)
             val speech = SpeechAlignment.read(context, sample.key)?.takeIf { it.complete && it.signature == "${sample.key}:${feature.sourceSignature}" }
-            val raw = speech?.let { LocalLyricAlignment.speech(sample.lines.map { line -> line.text }, it.words, sample.durationMs) }
+            val raw = speech?.let { LocalLyricAlignment.speech(sample.lines.map { line -> line.text }, it.words, sample.durationMs, checkpoint) }
             if (raw != null) speechErrors += distance(TimingSpeechCalibration.apply(raw, training.filter { it.pcm != sample.pcm }, sample.durationMs)) to
                 distance(TimingSpeechCalibration.apply(raw, oldTraining.filter { it.pcm != sample.pcm }, sample.durationMs))
         }

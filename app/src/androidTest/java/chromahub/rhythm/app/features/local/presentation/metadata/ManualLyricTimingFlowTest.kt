@@ -133,6 +133,11 @@ class ManualLyricTimingFlowTest {
                 decodedDurationMs = 20_000, rmsDb = -10.0, peakDb = -1.0, zeroCrossingRate = .1,
                 spectralBands = List(8) { .1 }, waveform = List(256) { .2 }, alignmentEnvelope = List(100) { .2 })
             ListeningLedger.get(ctx).saveFeature(track.uri.toString(), "${track.dateModified}:${track.duration}", audio)
+            try {
+                feedback.resolveAll(listOf(track)) { throw kotlinx.coroutines.CancellationException("stop") }
+                fail("Canceled learning must not commit a partial label update")
+            } catch (_: kotlinx.coroutines.CancellationException) { }
+            assertTrue(feedback.read().single().pending)
             feedback.resolve(track)
             assertFalse(feedback.read().single().pending)
             assertEquals("manual-recording", feedback.examples().single().pcm)
