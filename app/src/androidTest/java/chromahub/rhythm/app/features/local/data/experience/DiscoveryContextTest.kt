@@ -9,6 +9,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DiscoveryContextTest {
+    @get:org.junit.Rule val analysisLoad = chromahub.rhythm.app.features.local.data.experience.AnalysisRetryRule()
     private val context
         get() = InstrumentationRegistry.getInstrumentation().targetContext
 

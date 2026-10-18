@@ -16,10 +16,42 @@ import kotlin.math.pow
 internal class RecommendationTrainingIndex(private val context: Context) {
     private val gson = Gson()
 
+    private fun path() = File(context.cacheDir, "recommendation-index-${context.filesDir.path.hashCode()}.db")
+
+    private fun ensureCompactionColumn(db: SQLiteDatabase) {
+        val exists=db.rawQuery("PRAGMA table_info(events)",null).use { c ->
+            var found=false;while(c.moveToNext()) if(c.getString(1)=="compacted") found=true;found
+        }
+        if(!exists) db.execSQL("ALTER TABLE events ADD COLUMN compacted INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("CREATE INDEX IF NOT EXISTS compact_training ON events(compacted,at)")
+    }
+
+    internal fun compactPayloads(cutoff: Long, budget: AnalysisBudget) {
+        val file=path()
+        if(!file.exists()) return
+        SQLiteDatabase.openDatabase(file.path,null,SQLiteDatabase.OPEN_READWRITE).use { db ->
+            ensureCompactionColumn(db)
+            while(true) {
+                budget.blockingCheckpoint()
+                val rows=buildList {
+                    db.rawQuery("SELECT id,payload FROM events WHERE compacted=0 AND at<? LIMIT 32",arrayOf(cutoff.toString())).use { c ->
+                        while(c.moveToNext()) add(c.getString(0) to c.getString(1))
+                    }
+                }
+                if(rows.isEmpty()) break
+                val values=rows.map { (id,json) -> id to gson.toJson(HistoryRetention.compact(gson.fromJson(json,RecommendationEvent::class.java))) }
+                db.beginTransaction()
+                try {
+                    values.forEach { (id,json) -> db.execSQL("UPDATE events SET payload=?,compacted=1 WHERE id=?",arrayOf(json,id)) }
+                    db.setTransactionSuccessful()
+                } finally { db.endTransaction() }
+            }
+        }
+    }
+
     fun train(root: File, budget: AnalysisBudget): RecommendationModel {
         if (!budget.allowed()) throw AnalysisDeferred()
-        val path =
-            File(context.cacheDir, "recommendation-index-${context.filesDir.path.hashCode()}.db")
+        val path = path()
         val db = SQLiteDatabase.openOrCreateDatabase(path, null)
         try {
             db.execSQL(
@@ -46,6 +78,7 @@ internal class RecommendationTrainingIndex(private val context: Context) {
                     SQLiteDatabase.CONFLICT_REPLACE,
                 )
             }
+            ensureCompactionColumn(db)
             for (file in
                 root.listFiles { f -> f.extension == "jsonl" }.orEmpty().sortedBy { it.name }) {
                 budget.blockingCheckpoint()
@@ -94,6 +127,7 @@ internal class RecommendationTrainingIndex(private val context: Context) {
                                             put("item_key", e.key)
                                             put("at", e.at)
                                             put("payload", line)
+                                            put("compacted", if (e.compacted) 1 else 0)
                                         },
                                         SQLiteDatabase.CONFLICT_IGNORE,
                                     )

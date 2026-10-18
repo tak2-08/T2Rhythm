@@ -125,6 +125,7 @@ fun PersonalExperiencePanel() {
                 Switch(tasteReviews, onCheckedChange = { value -> tasteReviews = value; scope.launch(Dispatchers.IO) { TasteMemory.get(context).reviewsEnabled(value) } })
             }
             Text(stringResource(R.string.taste_reviews_description), style = MaterialTheme.typography.bodySmall)
+            HistoryRetentionPanel()
             MobilityContextSettings()
             ListeningContextPanel()
             HorizontalDivider()

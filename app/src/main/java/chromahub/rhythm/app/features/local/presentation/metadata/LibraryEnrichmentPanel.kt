@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.work.WorkManager
@@ -47,14 +48,29 @@ fun LibraryEnrichmentPanel() {
     var message by remember { mutableStateOf<String?>(null) }
     var plan by remember { mutableStateOf<CatalogBatchPlan?>(null) }
     var pending by remember { mutableStateOf(0) }
+    var candidateCount by remember { mutableIntStateOf(-1) }
+    var libraryCount by remember { mutableIntStateOf(0) }
     var grants by remember { mutableStateOf(emptyList<android.content.IntentSender>()) }
     var afterGrant by remember { mutableStateOf<(() -> Unit)?>(null) }
     val progress = jobs.firstOrNull { !it.state.isFinished }?.progress
-    LaunchedEffect(jobs, changes) {
+    suspend fun filteredSongs(): List<chromahub.rhythm.app.shared.data.model.Song> {
+        val policy = LibraryFilterPolicy(settings.mediaScanMode.value, settings.blacklistedSongs.value,
+            settings.blacklistedFolders.value, settings.whitelistedSongs.value, settings.whitelistedFolders.value)
+        return LocalMusicModule.provideMusicRepository(context).loadSongs().filter { policy.includes(it.id, it.path ?: it.uri.path) }
+    }
+    LaunchedEffect(jobs, changes, options) {
         withContext(Dispatchers.IO) {
             val snapshot = CatalogBatchPlan.read(context)
             val count = (AutomaticLyricsStore.get(context).pending() + CatalogTagWrites(context).pending()).distinctBy { it.uri }.size
             withContext(Dispatchers.Main) { plan = snapshot; pending = count }
+            if (!active) {
+                val songs = filteredSongs()
+                val remaining = CatalogBatchHistory(context).use { history ->
+                    history.migrateLegacy(songs, options)
+                    history.pending(songs, options).size
+                }
+                withContext(Dispatchers.Main) { candidateCount = remaining; libraryCount = songs.size }
+            }
         }
     }
     lateinit var requestNextGrant: () -> Unit
@@ -84,22 +100,32 @@ fun LibraryEnrichmentPanel() {
             legacyPermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         } else requestNextGrant()
     }
-    fun begin() {
+    fun begin(recheck: Boolean = false) {
         busy = true; message = null
         scope.launch {
             try {
-                val songs = withContext(Dispatchers.IO) {
-                    val policy = LibraryFilterPolicy(settings.mediaScanMode.value, settings.blacklistedSongs.value, settings.blacklistedFolders.value,
-                        settings.whitelistedSongs.value, settings.whitelistedFolders.value)
-                    LocalMusicModule.provideMusicRepository(context).loadSongs().filter { policy.includes(it.id, it.path ?: it.uri.path) }
-                }
+                val songs = withContext(Dispatchers.IO) { filteredSongs() }
                 if (songs.isEmpty()) { message = context.getString(R.string.catalog_empty_library); busy = false; return@launch }
-                withContext(Dispatchers.IO) {
-                    val existing = CatalogBatchPlan.read(context)
-                    if (existing == null || existing.next >= existing.keys.size) CatalogBatchPlan.create(context, songs)
+                val selected = withContext(Dispatchers.IO) {
+                    CatalogBatchHistory(context).use { history ->
+                        history.migrateLegacy(songs, options)
+                        val candidates = if (recheck) songs else history.pending(songs, options)
+                        if (candidates.isEmpty()) return@use emptyList()
+                        val signature = history.policy(options)
+                        val existing = CatalogBatchPlan.read(context)
+                        if (!recheck && existing != null && existing.next < existing.keys.size &&
+                            (existing.policy == null || existing.policy == signature)) {
+                            val remaining = existing.keys.drop(existing.next).toHashSet()
+                            val resume = candidates.filter { catalog.songKey(it) in remaining }
+                            if (resume.isNotEmpty()) return@use resume
+                        }
+                        CatalogBatchPlan.create(context, candidates, signature)
+                        candidates
+                    }
                 }
+                if (selected.isEmpty()) { message = context.getString(R.string.catalog_all_checked); candidateCount = 0; busy = false; return@launch }
                 afterGrant = { LibraryEnrichmentWorker.enqueue(context) }
-                grants = if (options.embedLyrics || options.writeTags) CatalogAudioPermissions.requests(context, songs) else emptyList()
+                grants = if (options.embedLyrics || options.writeTags) CatalogAudioPermissions.requests(context, selected) else emptyList()
                 if (options.embedLyrics || options.writeTags) continueWithConsent() else requestNextGrant()
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (_: Exception) { busy = false; message = context.getString(R.string.catalog_error) }
@@ -128,6 +154,8 @@ fun LibraryEnrichmentPanel() {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.catalog_batch_title), style = MaterialTheme.typography.titleLarge)
             Text(stringResource(R.string.catalog_batch_hint), style = MaterialTheme.typography.bodySmall)
+            if (!active && candidateCount >= 0) Text(context.getString(R.string.catalog_candidates, candidateCount, libraryCount), style = MaterialTheme.typography.bodyMedium)
+            if (!active && candidateCount == 0 && libraryCount > 0) Text(stringResource(R.string.catalog_all_checked), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = { advanced = !advanced }) { Text(stringResource(R.string.catalog_options_expand)) }
             if (advanced) {
             toggle(R.string.catalog_replace_all, options.replaceTags) { catalog.preferences.update(options.copy(replaceTags = it)) }
@@ -153,6 +181,8 @@ fun LibraryEnrichmentPanel() {
             toggle(R.string.catalog_profile_fields, options.profiles) { catalog.preferences.update(options.copy(profiles = it)) }
             toggle(R.string.catalog_lyrics_fields, options.lyrics) { catalog.preferences.update(options.copy(lyrics = it)) }
             Text(stringResource(R.string.catalog_lyrics_follow_settings), style = MaterialTheme.typography.bodySmall)
+            TextButton(enabled = !active && !busy && integrations && options.enabled && libraryCount > 0,
+                onClick = { begin(recheck = true) }) { Text(stringResource(R.string.catalog_recheck_completed)) }
             }
             if (!integrations) Text(stringResource(R.string.catalog_integrations_off), color = MaterialTheme.colorScheme.error)
             plan?.let { snapshot ->
@@ -161,7 +191,7 @@ fun LibraryEnrichmentPanel() {
                 if (active) LinearProgressIndicator(progress = { if (snapshot.keys.isEmpty()) 0f else done.toFloat() / snapshot.keys.size }, modifier = Modifier.fillMaxWidth())
             }
             message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            Button(enabled = !active && !busy && integrations && options.enabled, onClick = ::begin, modifier = Modifier.fillMaxWidth()) {
+            Button(enabled = !active && !busy && integrations && options.enabled && candidateCount > 0, onClick = { begin() }, modifier = Modifier.fillMaxWidth().testTag("catalog-batch-start")) {
                 Text(stringResource(if (plan?.let { it.next < it.keys.size } == true) R.string.catalog_resume else R.string.catalog_batch_start))
             }
             if (active) OutlinedButton(onClick = { workManager.cancelUniqueWork(LibraryEnrichmentWorker.WORK_NAME) }, modifier = Modifier.fillMaxWidth()) {

@@ -14,6 +14,7 @@ import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 
 @Keep
@@ -43,12 +44,17 @@ object DownloadRegistry {
     val revision = MutableStateFlow(0L)
     private val gson = Gson()
 
+    private fun removals(context: Context) = context.getSharedPreferences("removed_downloads", Context.MODE_PRIVATE)
+
+    private fun removed(context: Context, id: String) = removals(context).getLong(id, 0L) > 0
+
     private fun root(context: Context) =
         File(context.filesDir, "music_metadata/downloads").apply { mkdirs() }
 
     @Synchronized
     fun save(context: Context, record: DownloadRecord) {
         require(runCatching { UUID.fromString(record.id) }.isSuccess)
+        if (removed(context, record.id)) return
         PersonalArchive.atomicWrite(
             File(root(context), record.id + ".json"),
             gson.toJson(record).toByteArray(),
@@ -68,6 +74,7 @@ object DownloadRegistry {
     fun get(context: Context, id: String): DownloadRecord? =
         runCatching {
                 require(UUID.fromString(id).toString() == id)
+                if (removed(context, id)) return@runCatching null
                 val file = File(root(context), "$id.json")
                 require(file.length() in 1..16_000)
                 gson.fromJson(file.readText(), DownloadRecord::class.java)
@@ -148,6 +155,57 @@ object DownloadRegistry {
         update(context, id) { if (it.state == "SUCCEEDED") it else it.copy(state = "CANCELLED") }
         WorkManager.getInstance(context).cancelWorkById(UUID.fromString(id))
         MediaTransfer.discard(context, id)
+    }
+
+    /** One explicit action removes the failed transfer and its history, without another prompt. */
+    suspend fun removeFailed(context: Context, id: String) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+            val record = synchronized(this@DownloadRegistry) {
+                val value = get(context, id) ?: return@withContext
+                require(value.state in setOf("FAILED", "CANCELLED"))
+                val preferences = removals(context)
+                val cutoff = System.currentTimeMillis() - 7 * 86_400_000L
+                // Only cancellation race guards remain, for a bounded seven days, without payloads.
+                val edit = preferences.edit()
+                preferences.all.forEach { (key, at) -> if (at is Long && at < cutoff) edit.remove(key) }
+                check(edit.putLong(id, System.currentTimeMillis()).commit())
+                value
+            }
+            try {
+                WorkManager.getInstance(context).cancelWorkById(UUID.fromString(id)).result.get(15, java.util.concurrent.TimeUnit.SECONDS)
+                MediaTransfer.discardChecked(context, id)
+                if (record.kind == "AUDIO") DownloadedAudioLibrary.discardPending(context, record)
+                if (record.kind == "MODEL") {
+                    val manager=WorkManager.getInstance(context)
+                    val active=manager.getWorkInfosForUniqueWork("speech_model_ko").get(15,java.util.concurrent.TimeUnit.SECONDS).any { !it.state.isFinished }
+                    chromahub.rhythm.app.features.local.data.discovery.SpeechModelStore.access.withLock {
+                        val parent=chromahub.rhythm.app.features.local.data.discovery.SpeechModelStore.directory(context).parentFile!!
+                        parent.listFiles().orEmpty().filter { it.isDirectory && it.name.matches(Regex("install-[0-9a-f-]{36}")) && (!active || it.name=="install-$id") }
+                            .forEach { check(!it.exists() || it.deleteRecursively()) }
+                    }
+                }
+                synchronized(this@DownloadRegistry) {
+                    val file = File(root(context), "$id.json")
+                    check(!file.exists() || file.delete())
+                    revision.value++
+                }
+            } catch (error: Exception) {
+                // Retain a visible retryable entry if the filesystem refused deletion.
+                synchronized(this@DownloadRegistry) { removals(context).edit().remove(id).commit(); revision.value++ }
+                throw error
+            }
+        }
+
+    suspend fun removeAllFailed(context: Context) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+        val records = root(context).listFiles().orEmpty().filter { it.extension == "json" }
+            .mapNotNull { get(context, it.nameWithoutExtension) }
+            .filter { it.state in setOf("FAILED", "CANCELLED") }
+        var failure: Exception? = null
+        for (record in records) {
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            try { removeFailed(context, record.id) } catch (error: Exception) { failure = error }
+        }
+        failure?.let { throw it }
     }
 
     fun merge(record: DownloadRecord, work: WorkInfo?): DownloadRecord =

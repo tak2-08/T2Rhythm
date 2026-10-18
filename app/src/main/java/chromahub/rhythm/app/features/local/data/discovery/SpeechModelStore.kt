@@ -102,7 +102,7 @@ object SpeechModelStore {
                 }
         }
 
-    internal suspend fun install(context: Context, archive: File) =
+    internal suspend fun install(context: Context, archive: File, taskId: String? = null) =
         withContext(AnalysisBudget.dispatcher) {
             val job = currentCoroutineContext()[Job]
             // Installation is user-requested I/O, not a charging-only analysis task.
@@ -131,7 +131,14 @@ object SpeechModelStore {
             )
             val parent = directory(context).parentFile!!.apply { mkdirs() }
             require(parent.usableSpace > 400L * 1024 * 1024)
-            val stage = File(parent, "install-${java.util.UUID.randomUUID()}").apply { mkdirs() }
+            val owner =
+                taskId?.also { require(java.util.UUID.fromString(it).toString() == it) }
+                    ?: java.util.UUID.randomUUID().toString()
+            val stage =
+                File(parent, "install-$owner").apply {
+                    deleteRecursively()
+                    mkdirs()
+                }
             try {
                 var total = 0L
                 var entries = 0
@@ -224,7 +231,7 @@ class SpeechModelDownloadWorker(context: Context, params: WorkerParameters) :
                         DownloadRegistry.update(applicationContext, taskId) {
                             it.copy(state = "INSTALLING", error = null)
                         }
-                        SpeechModelStore.install(applicationContext, file)
+                        SpeechModelStore.install(applicationContext, file, taskId)
                     }
                     currentCoroutineContext().ensureActive()
                     val bytes =

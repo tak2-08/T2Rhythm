@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="catalog_options_changed">Task settings changed. Start again with the current settings.</string>
+    <string name="catalog_all_checked">Checked with the current settings. New tracks and changed information or settings become eligible again.</string>
+    <string name="catalog_candidates">%1$d tracks to process · %2$d in library</string>
+    <string name="catalog_recheck_completed">Check completed tracks again</string>
+    <string name="download_remove_failed">Delete failed files and history</string>
+    <string name="download_remove_failed_all">Delete files and history for failed or cancelled downloads</string>
+    <string name="retention_title">History storage and automatic summaries</string>
+    <string name="retention_description">Keep detailed records for %1$d days. Older history keeps compact listening intervals and recommendation features, preserving dates, listening time, completion, preference changes and contextual relationships. Fine coordinates and raw sensor detail are reduced. Music, lyrics and favourites are retained.</string>
+    <string name="retention_conditions">Maintenance runs in small slices at low load while plugged in or at 90% battery or higher. Closed monthly journals are replaced with summaries.</string>
+    <string name="retention_saved">Space saved in history files: %1$s</string>
+</resources>

@@ -10,7 +10,8 @@ import java.io.File
 
 /** Store checkpoint only after each song's permanent records and pending writes have committed. */
 data class CatalogBatchPlan(val keys: List<String>, val next: Int = 0, val changed: Int = 0,
-                            val skipped: Int = 0, val failed: Int = 0, val runId: String = java.util.UUID.randomUUID().toString()) {
+                            val skipped: Int = 0, val failed: Int = 0, val runId: String = java.util.UUID.randomUUID().toString(),
+                            val policy: String? = null) {
     companion object {
         private fun file(context: Context) = File(CatalogEnrichmentService.get(context).root, "batch.json")
         fun read(context: Context): CatalogBatchPlan? = runCatching {
@@ -22,12 +23,12 @@ data class CatalogBatchPlan(val keys: List<String>, val next: Int = 0, val chang
             val progress = if (progressFile.isFile) JSONObject(progressFile.readText()) else JSONObject()
             val data = if (progress.optString("runId") == manifest.getString("runId")) progress else JSONObject()
             CatalogBatchPlan(List(array.length()) { array.getString(it) }, data.optInt("next"), data.optInt("changed"),
-                data.optInt("skipped"), data.optInt("failed"), manifest.getString("runId"))
+                data.optInt("skipped"), data.optInt("failed"), manifest.getString("runId"), manifest.optString("policy").takeIf(String::isNotBlank))
         }.getOrNull()
-        fun create(context: Context, songs: List<Song>): CatalogBatchPlan = CatalogBatchPlan(
-            songs.map(CatalogEnrichmentService.get(context)::songKey).distinct()).also {
+        fun create(context: Context, songs: List<Song>, policy: String? = null): CatalogBatchPlan = CatalogBatchPlan(
+            songs.map(CatalogEnrichmentService.get(context)::songKey).distinct(), policy = policy).also {
                 val file = file(context); file.parentFile?.mkdirs()
-                val manifest = JSONObject().apply { put("runId", it.runId); put("keys", JSONArray(it.keys)) }.toString()
+                val manifest = JSONObject().apply { put("runId", it.runId); put("keys", JSONArray(it.keys)); put("policy", it.policy.orEmpty()) }.toString()
                 val atomic = AtomicFile(file); val stream = atomic.startWrite()
                 try { stream.write(manifest.toByteArray(Charsets.UTF_8)); atomic.finishWrite(stream) }
                 catch (error: Exception) { atomic.failWrite(stream); throw error }

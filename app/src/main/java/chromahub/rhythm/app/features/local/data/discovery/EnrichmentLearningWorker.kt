@@ -196,15 +196,15 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
         fun enqueue(context: Context, continuation: Boolean = false) {
             val constraints =
                 Constraints.Builder()
-                    .setRequiresCharging(true)
-                    .setRequiresDeviceIdle(true)
+
+
                     .setRequiresBatteryNotLow(true)
                     .setRequiresStorageNotLow(true)
                     .build()
             val manager = WorkManager.getInstance(context)
             manager.enqueueUniquePeriodicWork(
                 "enrichment_learning_periodic",
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 PeriodicWorkRequestBuilder<EnrichmentLearningWorker>(12, TimeUnit.HOURS)
                     .setConstraints(constraints)
                     .build(),

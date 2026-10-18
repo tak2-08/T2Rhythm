@@ -182,7 +182,10 @@ class PersonalArchive(private val context: Context) {
                         throw AnalysisSliceEnded()
                     val signature = "${source.length()}:${source.lastModified()}"
                     val key = "synced:private-art-v1:${tree ?: directory?.path}:$relative"
-                    if (!force && syncIndex.signature(key) == signature) return@forEach
+                    if (!force && syncIndex.signature(key) == signature) {
+                        if (selectedTree != null) cleanupSummarizedBackups(selectedTree, relative, source, budget)
+                        return@forEach
+                    }
                     val snapshot =
                         if (relative.startsWith("T2Rhythm/listening_history/"))
                             File.createTempFile("journal-snapshot-", ".jsonl", context.cacheDir)
@@ -222,6 +225,7 @@ class PersonalArchive(private val context: Context) {
                     }
                     syncIndex.remember(key, signature)
                     copied++
+                    if (selectedTree != null) cleanupSummarizedBackups(selectedTree, relative, source, budget)
                     delay(40)
                 }
                 if (migrateGalleryImages(selectedTree, directory))
@@ -590,6 +594,34 @@ class PersonalArchive(private val context: Context) {
         return true
     }
 
+    /** Delete only redundant old history backups, after verifying the published replacement. */
+    private fun cleanupSummarizedBackups(root: DocumentFile, relative: String, source: File, budget: AnalysisBudget?) {
+        if (!relative.startsWith("T2Rhythm/listening_history/") || source.extension!="jsonl") return
+        val path=relative.split('/')
+        var directory: DocumentFile = root
+        for (name in path.dropLast(1)) directory=directory.findFile(name)?.takeIf { it.isDirectory } ?: return
+        val name=path.last()
+        val previous=directory.listFiles().filter { it.name?.startsWith("$name.previous-")==true }.take(8)
+        if(previous.isEmpty()) return
+        val current=directory.findFile(name) ?: return
+        val snapshot=File.createTempFile("retention-proof-",".jsonl",context.cacheDir)
+        try {
+            chromahub.rhythm.app.features.local.data.experience.ListeningLedger.get(context).copyJournal(source,snapshot)
+            val cutoff=System.currentTimeMillis()-chromahub.rhythm.app.features.local.data.experience.HistoryRetention.DETAIL_DAYS*86_400_000L
+            val coverage=snapshot.inputStream().use { chromahub.rhythm.app.features.local.data.experience.JournalCoverage.read(it,cutoff,budget) } ?: return
+            val expected=snapshot.inputStream().use { chromahub.rhythm.app.features.local.data.experience.JournalCoverage.digest(it,budget) }
+            val published=context.contentResolver.openInputStream(current.uri)?.use {
+                chromahub.rhythm.app.features.local.data.experience.JournalCoverage.digest(it,budget)
+            } ?: return
+            if(expected!=published) return
+            for(old in previous) {
+                budget?.blockingCheckpoint()
+                val covered=context.contentResolver.openInputStream(old.uri)?.use { coverage.covers(it,budget) }==true
+                if(covered) check(old.delete())
+            }
+        } finally { snapshot.delete() }
+    }
+
     /** Keep the previous complete file if a document provider fails during publication. */
     private fun publish(
         root: DocumentFile,
@@ -725,14 +757,14 @@ class PersonalArchive(private val context: Context) {
             val manager = WorkManager.getInstance(context)
             val constraints =
                 Constraints.Builder()
-                    .setRequiresCharging(true)
-                    .setRequiresDeviceIdle(true)
+
+
                     .setRequiresBatteryNotLow(true)
                     .setRequiresStorageNotLow(true)
                     .build()
             manager.enqueueUniquePeriodicWork(
                 "personal_archive_periodic_v2",
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 PeriodicWorkRequestBuilder<PersonalArchiveWorker>(6, TimeUnit.HOURS)
                     .setInputData(workDataOf("archive_constraints_v2" to true))
                     .setConstraints(constraints)
@@ -746,8 +778,8 @@ class PersonalArchive(private val context: Context) {
                     .setInitialDelay(if (continuation) 1 else 15, TimeUnit.MINUTES)
                     .setConstraints(
                         Constraints.Builder()
-                            .setRequiresCharging(true)
-                            .setRequiresDeviceIdle(true)
+
+
                             .setRequiresBatteryNotLow(true)
                             .setRequiresStorageNotLow(true)
                             .build()

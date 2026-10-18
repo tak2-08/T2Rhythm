@@ -95,8 +95,8 @@ object SpeechAlignment {
                     .setInputData(workDataOf("key" to key))
                     .setConstraints(
                         Constraints.Builder()
-                            .setRequiresCharging(true)
-                            .setRequiresDeviceIdle(true)
+
+
                             .setRequiresBatteryNotLow(true)
                             .setRequiresStorageNotLow(true)
                             .build()

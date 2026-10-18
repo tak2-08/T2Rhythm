@@ -238,6 +238,7 @@ data class RecommendationEvent(
     val startedAt: Long? = null,
     val completionRatio: Double? = null,
     val immediateRepeat: Boolean = false,
+    val compacted: Boolean = false,
 )
 
 @Keep
@@ -578,6 +579,7 @@ class RecommendationLearning private constructor(private val context: Context) {
 
     /** Heavy replay has no object monitor: UI and playback never wait behind training. */
     internal suspend fun rebuild(): RecommendationModel {
+        if (HistoryRetention.running) throw AnalysisDeferred()
         val job = kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]
         val budget = AnalysisBudget(context, { job?.isActive != false }, 90_000)
         TasteMemory.get(context).recover(budget)

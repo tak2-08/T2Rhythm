@@ -57,11 +57,15 @@ data class ListeningRecord(
     val playCompletionRatio: Double? = null,
     val immediateRepeat: Boolean = false,
     val omittedEvents: Int = 0,
+    val compacted: Boolean = false,
+    val replaces: List<String>? = null,
+    val sourceSegments: Int = 1,
+    val completionReachedAt: Long? = null,
 )
 
-/** Indexed on-device source of truth. Raw journals are retained forever and can rebuild the DB. */
+/** Indexed source of truth. Older journals retain compact observations and can rebuild the DB. */
 class ListeningLedger private constructor(private val context: Context) :
-    SQLiteOpenHelper(context, "listening_ledger.db", null, 3) {
+    SQLiteOpenHelper(context, "listening_ledger.db", null, 4) {
     private val gson = Gson()
     private val lock = Any()
     @Volatile private var recovered = false
@@ -80,7 +84,7 @@ class ListeningLedger private constructor(private val context: Context) :
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
-            "CREATE TABLE records (id TEXT PRIMARY KEY, play_id TEXT NOT NULL, kind TEXT NOT NULL, song_key TEXT NOT NULL, song_id TEXT NOT NULL, started INTEGER NOT NULL, ended INTEGER NOT NULL, listened INTEGER NOT NULL, artist TEXT NOT NULL, genre TEXT, completed INTEGER NOT NULL, recorded INTEGER NOT NULL, payload TEXT NOT NULL, title TEXT, album TEXT)"
+            "CREATE TABLE records (id TEXT PRIMARY KEY, play_id TEXT NOT NULL, kind TEXT NOT NULL, song_key TEXT NOT NULL, song_id TEXT NOT NULL, started INTEGER NOT NULL, ended INTEGER NOT NULL, listened INTEGER NOT NULL, artist TEXT NOT NULL, genre TEXT, completed INTEGER NOT NULL, recorded INTEGER NOT NULL, payload TEXT NOT NULL, title TEXT, album TEXT, compacted INTEGER NOT NULL DEFAULT 0)"
         )
         db.execSQL("CREATE INDEX records_time ON records(kind, started, ended)")
         db.execSQL("CREATE INDEX records_song ON records(song_key, kind, started)")
@@ -94,6 +98,7 @@ class ListeningLedger private constructor(private val context: Context) :
             "INSERT INTO state VALUES ('history_generation',?)",
             arrayOf(java.util.UUID.randomUUID().toString()),
         )
+        compactionTables(db)
         affinityTables(db)
         db.execSQL(
             "CREATE TABLE completed_songs(song_key TEXT PRIMARY KEY,first_completed INTEGER NOT NULL)"
@@ -102,6 +107,11 @@ class ListeningLedger private constructor(private val context: Context) :
         db.execSQL("INSERT INTO state VALUES ('recent_index_ready','1')")
         db.execSQL("INSERT INTO state VALUES ('compact_stats_ready','1')")
         db.execSQL("INSERT INTO state(key,value) VALUES ('affinity_index_ready','1')")
+    }
+
+    private fun compactionTables(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS superseded (id TEXT PRIMARY KEY, summary_id TEXT NOT NULL)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS compact_history ON records(compacted,started)")
     }
 
     private fun affinityTables(db: SQLiteDatabase) {
@@ -126,6 +136,8 @@ class ListeningLedger private constructor(private val context: Context) :
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         affinityTables(db)
+        if (oldVersion < 4) db.execSQL("ALTER TABLE records ADD COLUMN compacted INTEGER NOT NULL DEFAULT 0")
+        compactionTables(db)
         if (oldVersion < 3) {
             db.execSQL("ALTER TABLE records ADD COLUMN title TEXT")
             db.execSQL("ALTER TABLE records ADD COLUMN album TEXT")
@@ -246,16 +258,34 @@ class ListeningLedger private constructor(private val context: Context) :
         }
 
     private fun upsert(record: ListeningRecord, json: String) {
+        if (readableDatabase.rawQuery("SELECT 1 FROM superseded WHERE id=?", arrayOf(record.id)).use { it.moveToFirst() }) return
         val newer =
             readableDatabase
-                .rawQuery("SELECT recorded,listened FROM records WHERE id=?", arrayOf(record.id))
+                .rawQuery("SELECT recorded,listened,compacted FROM records WHERE id=?", arrayOf(record.id))
                 .use {
                     it.moveToFirst() &&
-                        (it.getLong(0) > record.recordedAt ||
+                        (it.getInt(2) == 1 && !record.compacted && it.getLong(0) >= record.recordedAt ||
+                            it.getLong(0) > record.recordedAt ||
                             (it.getLong(0) == record.recordedAt &&
                                 it.getLong(1) > record.listenedMs))
                 }
         if (newer) return
+        if (record.compacted) {
+            require(record.replaces.orEmpty().size <= 128 && record.id !in record.replaces.orEmpty())
+            for (old in record.replaces.orEmpty()) {
+                val existing = readableDatabase.rawQuery("SELECT song_key,play_id,listened,kind FROM records WHERE id=?", arrayOf(old)).use {
+                    if (it.moveToFirst()) listOf<Any>(it.getString(0), it.getString(1), it.getLong(2), it.getString(3)) else null
+                }
+                if (existing != null) {
+                    require(existing[0] == record.songKey && existing[1] == record.playId)
+                    if (existing[3] == "segment") writableDatabase.execSQL("UPDATE song_affinity SET listened=MAX(0,listened-?) WHERE song_key=?",
+                        arrayOf(existing[2], record.songKey))
+                    writableDatabase.delete("records", "id=?", arrayOf(old))
+                    writableDatabase.delete("affinity_records", "id=?", arrayOf(old))
+                }
+                writableDatabase.execSQL("INSERT OR IGNORE INTO superseded VALUES (?,?)", arrayOf(old,record.id))
+            }
+        }
         val values =
             ContentValues().apply {
                 put("id", record.id)
@@ -273,6 +303,7 @@ class ListeningLedger private constructor(private val context: Context) :
                 put("payload", json)
                 put("title", record.title)
                 put("album", record.album)
+                put("compacted", if (record.compacted) 1 else 0)
             }
         check(
             writableDatabase.insertWithOnConflict(
@@ -293,14 +324,14 @@ class ListeningLedger private constructor(private val context: Context) :
                 record.endedAt,
                 record.recordedAt,
             )
-        if (record.kind in setOf("segment", "play") && (record.playCompletionRatio ?: 0.0) >= .9) {
+        if (record.kind in setOf("segment", "play") && ((record.playCompletionRatio ?: 0.0) >= .9 || record.completionReachedAt != null)) {
             writableDatabase.execSQL(
                 "INSERT OR IGNORE INTO completed_songs VALUES (?,?)",
-                arrayOf<Any>(record.songKey, record.endedAt),
+                arrayOf<Any>(record.songKey, record.completionReachedAt ?: record.endedAt),
             )
             writableDatabase.execSQL(
                 "UPDATE completed_songs SET first_completed=MIN(first_completed,?) WHERE song_key=?",
-                arrayOf<Any>(record.endedAt, record.songKey),
+                arrayOf<Any>(record.completionReachedAt ?: record.endedAt, record.songKey),
             )
         }
         if (record.kind == "segment" || record.kind == "play") {
@@ -712,14 +743,14 @@ class ListeningLedger private constructor(private val context: Context) :
                             "UPDATE records SET title=?,album=? WHERE id=? AND recorded=? AND (title IS NULL OR album IS NULL)",
                             arrayOf<Any>(record.title, record.album, record.id, record.recordedAt),
                         )
-                        if ((record.playCompletionRatio ?: 0.0) >= .9) {
+                        if ((record.playCompletionRatio ?: 0.0) >= .9 || record.completionReachedAt != null) {
                             writableDatabase.execSQL(
                                 "INSERT OR IGNORE INTO completed_songs VALUES (?,?)",
-                                arrayOf<Any>(record.songKey, record.endedAt),
+                                arrayOf<Any>(record.songKey, record.completionReachedAt ?: record.endedAt),
                             )
                             writableDatabase.execSQL(
                                 "UPDATE completed_songs SET first_completed=MIN(first_completed,?) WHERE song_key=?",
-                                arrayOf<Any>(record.endedAt, record.songKey),
+                                arrayOf<Any>(record.completionReachedAt ?: record.endedAt, record.songKey),
                             )
                         }
                         state("compact_stats_cursor", row.toString())
@@ -951,6 +982,7 @@ class ListeningLedger private constructor(private val context: Context) :
             File(context.filesDir, "listening_summaries").deleteRecursively()
             monthCache = null
             writableDatabase.delete("records", null, null)
+            writableDatabase.delete("superseded", null, null)
             writableDatabase.delete("completed_songs", null, null)
             writableDatabase.delete("recent_songs", null, null)
             state("recent_index_ready", "1")
@@ -963,6 +995,105 @@ class ListeningLedger private constructor(private val context: Context) :
             File(context.filesDir, "listening_history").listFiles()?.forEach { it.delete() }
             revision.update { it + 1 }
         }
+
+    /** Each transaction covers at most one small play; playback never waits behind a month of I/O. */
+    internal fun compactBefore(cutoff: Long, budget: AnalysisBudget): Int {
+        var changed = 0
+        while (true) {
+            budget.blockingCheckpoint()
+            val group = readableDatabase.rawQuery(
+                "SELECT play_id FROM records WHERE compacted=0 AND ended<? ORDER BY started LIMIT 1", arrayOf(cutoff.toString())
+            ).use { if (it.moveToFirst()) it.getString(0) else null } ?: break
+            val rows = buildList {
+                readableDatabase.rawQuery("SELECT payload FROM records WHERE play_id=? AND compacted=0 AND ended<? ORDER BY started LIMIT 128",
+                    arrayOf(group,cutoff.toString())).use { c -> while(c.moveToNext()) add(gson.fromJson(c.getString(0),ListeningRecord::class.java)) }
+            }
+            if (rows.isEmpty()) break
+            val summaries = ListeningCompaction.summarizePlay(rows)
+            synchronized(lock) {
+                writableDatabase.beginTransaction()
+                try {
+                    // Ignore a stale snapshot if import updated a record during preprocessing.
+                    val unchanged = rows.all { r -> readableDatabase.rawQuery("SELECT recorded,ended FROM records WHERE id=? AND compacted=0", arrayOf(r.id)).use {
+                        it.moveToFirst() && it.getLong(0)==r.recordedAt && it.getLong(1)==r.endedAt
+                    } }
+                    if (unchanged) {
+                        summaries.forEach { upsert(it,gson.toJson(it)) }
+                        rows.map { Instant.ofEpochMilli(it.startedAt).atZone(ZoneId.of(it.timezone)).toLocalDate().toString().take(7) }.distinct()
+                            .forEach { state("compaction_dirty:$it","1") }
+                        state("context_compaction_pending","1")
+                        state("history_generation",java.util.UUID.randomUUID().toString())
+                        changed += rows.size
+                    }
+                    writableDatabase.setTransactionSuccessful()
+                } finally { writableDatabase.endTransaction() }
+            }
+        }
+        if (changed>0) invalidate()
+        return changed
+    }
+
+    /** Replace a closed monthly journal only after its canonical database rows are fully written. */
+    internal fun rewriteCompactedJournals(cutoff: Long, budget: AnalysisBudget) {
+        val root=File(context.filesDir,"listening_history")
+        val months=root.listFiles().orEmpty().filter { Regex("\\d{4}-\\d{2}(?:-import-[a-f0-9]{12})?\\.jsonl").matches(it.name) }.map { it.name.take(7) }.distinct()
+        for (name in months) {
+            val file=File(root,"$name.jsonl")
+            val month=runCatching { java.time.YearMonth.parse(name) }.getOrNull() ?: continue
+            val end=month.plusMonths(1).atDay(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()+86_400_000L
+            if(month.atDay(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()-86_400_000L>=cutoff) continue
+            budget.blockingCheckpoint()
+            val marker="compacted_journal:${file.name}"
+            if(file.exists() && state(marker)==file.length().toString() && state("compaction_dirty:$month")!="1") {
+                removeCoveredImports(root,name,file,cutoff,budget)
+                continue
+            }
+            val length=synchronized(lock) { file.length() }
+            val pending=File.createTempFile("history-summary-",".tmp",root)
+            try {
+                java.io.FileOutputStream(pending).use { output ->
+                    output.bufferedWriter().use { writer ->
+                        val start=month.atDay(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()-86_400_000L
+                        readableDatabase.rawQuery("SELECT payload FROM records WHERE started>=? AND started<? ORDER BY started,id", arrayOf(start.toString(),end.toString())).use { c ->
+                            while(c.moveToNext()) {
+                                budget.blockingCheckpoint()
+                                val json=c.getString(0)
+                                val r=gson.fromJson(json,ListeningRecord::class.java)
+                                val ownMonth=Instant.ofEpochMilli(r.startedAt).atZone(ZoneId.of(r.timezone)).toLocalDate().toString().take(7)
+                                if(ownMonth==month.toString()) { writer.write(json);writer.newLine() }
+                            }
+                        }
+                        writer.flush();output.fd.sync()
+                    }
+                }
+                synchronized(lock) {
+                    if(file.length()==length) {
+                        check(pending.renameTo(file))
+                        state("journal_offset:${file.name}",file.length().toString())
+                        state(marker,file.length().toString())
+                        state("compaction_dirty:$month","0")
+                    }
+                }
+            } finally { pending.delete() }
+            if(file.exists()) removeCoveredImports(root,name,file,cutoff,budget)
+        }
+    }
+
+    private fun removeCoveredImports(root: File, month: String, canonical: File, cutoff: Long, budget: AnalysisBudget) {
+        val imports=root.listFiles().orEmpty().filter { Regex("$month-import-[a-f0-9]{12}\\.jsonl").matches(it.name) }
+        if(imports.isEmpty()) return
+        val coverage=canonical.inputStream().use { JournalCoverage.read(it,cutoff,budget) } ?: return
+        for(imported in imports) {
+            budget.blockingCheckpoint()
+            val signature=imported.length() to imported.lastModified()
+            if(imported.inputStream().use { coverage.covers(it,budget) }) synchronized(lock) {
+                if(signature==(imported.length() to imported.lastModified())) {
+                    check(imported.delete())
+                    writableDatabase.delete("state","key=?",arrayOf("journal_offset:${imported.name}"))
+                }
+            }
+        }
+    }
 
     fun copyJournal(source: File, destination: File) {
         // Journals append under lock. Pin a complete prefix, then release the writer immediately.

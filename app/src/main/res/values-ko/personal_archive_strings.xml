@@ -20,7 +20,7 @@
     <string name="catalog_included_list">포함 목록</string>
     <string name="catalog_excluded_list">제외 목록</string>
     <string name="personal_archive_title">영구 백업 폴더</string>
-    <string name="personal_archive_hint">원본 정보·아트워크·청취 기록을 복구 가능한 파일로 백업 폴더에 보관합니다. 자동 백업은 충전·유휴 상태에서 처리하며, 지금 동기화는 언제든 사용할 수 있습니다.</string>
+    <string name="personal_archive_hint">원본 정보·아트워크·청취 기록을 복구 가능한 파일로 백업 폴더에 보관합니다. 자동 백업은 충전 중이거나 배터리 90% 이상이고 기기 부하가 낮을 때 처리하며, 지금 동기화는 언제든 사용할 수 있습니다.</string>
     <string name="personal_archive_permission">백업 폴더 접근 권한과 기기의 저장 공간을 확인해 주세요. 동기화가 완료될 때까지 앱 내부 원본도 보존합니다.</string>
     <string name="personal_archive_choose">백업 폴더 선택</string>
     <string name="personal_archive_sync">지금 파일 백업</string>
@@ -33,9 +33,9 @@
     <string name="personal_song_habit">%1$d회 · 완주 %2$d회 · 빠른 건너뛰기 %3$d회 · 최대 %4$d회 연속 반복</string>
     <string name="personal_interval">청취 간격 중앙값: %1$d시간</string>
     <string name="personal_history_empty">음악을 들으면 영구 청취 기록이 쌓입니다. 기존 기록도 보존합니다.</string>
-    <string name="personal_audio_hint">충전 중·유휴 상태에서 곡 전체의 PCM 지문·파형 요약·주파수 특성을 기기에서 분석합니다. 지원하지 않는 파일은 건너뜁니다.</string>
+    <string name="personal_audio_hint">충전 중이거나 배터리 90% 이상이고 기기 부하가 낮을 때 곡 전체의 PCM 지문·파형 요약·주파수 특성을 기기에서 분석합니다. 지원하지 않는 파일은 건너뜁니다.</string>
     <string name="personal_audio_analyze">오디오 분석 예약</string>
-    <string name="personal_audio_scheduled">충전 중이고 기기가 쉬고 있을 때 분석합니다.</string>
+    <string name="personal_audio_scheduled">충전 중이거나 배터리 90% 이상이고 기기 부하가 낮을 때 분석합니다.</string>
     <string name="personal_rules_version">경험·추천 규칙 v%1$d</string>
     <string name="personal_rules_import">추천·홈 구성 규칙 가져오기 (JSON)</string>
     <string name="personal_rules_applied">앱 재설치 없이 규칙을 적용했습니다.</string>
