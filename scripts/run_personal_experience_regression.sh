@@ -14,4 +14,5 @@ trap collect_evidence EXIT
 adb shell dumpsys battery set ac 1
 ./gradlew :app:connectedGithubDebugAndroidTest \
     -Pandroid.testInstrumentationRunnerArguments.class=chromahub.rhythm.app.features.local.data.metadata.AssetIntegrityRegressionTest,chromahub.rhythm.app.features.local.data.video.DownloadPlaybackRegressionTest,chromahub.rhythm.app.features.local.presentation.metadata.PersonalInsightsScreensTest,chromahub.rhythm.app.features.local.presentation.metadata.ArtworkRefreshTest,chromahub.rhythm.app.features.local.data.discovery.MetadataEditRaceTest \
+    -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
     --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx3g --console=plain
