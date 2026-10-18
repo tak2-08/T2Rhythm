@@ -79,7 +79,12 @@ class ManualLyricTimingFlowTest {
         compose.onNodeWithTag("timing-save").assertIsEnabled()
         screenshot("manual-lyrics-editor.png")
         compose.onNodeWithTag("timing-save").performClick()
-        compose.waitUntil(10_000) { closed }
+        try { compose.waitUntil(10_000) { closed } }
+        catch (error: Throwable) {
+            screenshot("manual-lyrics-save-failed.png")
+            compose.onRoot(useUnmergedTree = true).printToLog("ManualTimingSaveFailure")
+            throw error
+        }
         val saved = AutomaticLyricsStore.get(context).read(track)!!
         val timed = LocalLyricAlignment.parse(saved.syncedLyrics!!)
         assertEquals(starts, timed.map { it.ms }); assertEquals(ends, timed.map { it.endMs })

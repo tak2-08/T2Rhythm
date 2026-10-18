@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package chromahub.rhythm.app.features.local.presentation.metadata
 
-import android.widget.Toast
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -161,10 +161,12 @@ fun LyricTimingEditor(song: Song, original: LyricsData, viewModel: MusicViewMode
                     drafts.delete(song)
                     TimingLearningWorker.enqueue(context, userInitiated = true)
                 }
-                Toast.makeText(context, R.string.timing_saved, Toast.LENGTH_LONG).show()
                 onDismiss()
             } catch (cancel: CancellationException) { throw cancel }
-            catch (_: Exception) { message = context.getString(R.string.timing_save_error) }
+            catch (error: Exception) {
+                Log.e("LyricTimingEditor", "Could not finish saving reviewed timing", error)
+                message = context.getString(R.string.timing_save_error)
+            }
             finally { busy = false }
         }
     }
