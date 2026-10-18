@@ -73,6 +73,8 @@ class RhythmApplication : Application(), ImageLoaderFactory {
         val settings = AppSettings.getInstance(applicationContext)
         Log.d(TAG, "✓ AppSettings initialized")
         chromahub.rhythm.app.features.local.data.metadata.ArtworkPrivacyWorker.enqueue(this)
+        chromahub.rhythm.app.features.local.data.experience.AnalysisScheduling.install(this)
+        chromahub.rhythm.app.features.local.data.experience.HistoryRetention.enqueue(this)
         chromahub.rhythm.app.features.local.data.experience.RecommendationTrainingWorker.enqueue(this)
         chromahub.rhythm.app.features.local.data.experience.RecommendationRefreshWorker.enqueue(this)
         chromahub.rhythm.app.features.local.data.discovery.EnrichmentLearningWorker.enqueue(this)

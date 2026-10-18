@@ -60,7 +60,7 @@ internal object ListeningInsightCache {
             ListeningInsightAnalysis.analyze(records)
                 .copy(
                     computedAt = System.currentTimeMillis(),
-                    sampledSegments = records.count { it.kind == "segment" },
+                    sampledSegments = records.filter { it.kind == "segment" }.sumOf { it.sourceSegments.coerceAtLeast(1) },
                     historyGeneration = generation,
                     projectionZone = zone.id,
                 )

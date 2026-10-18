@@ -222,4 +222,13 @@ internal object MediaTransfer {
         File(context.cacheDir, "media_transfers/$id.json").delete()
         File(context.cacheDir, "hls_transfers/$id").deleteRecursively()
     }
+
+    fun discardChecked(context: Context, id: String) {
+        require(java.util.UUID.fromString(id).toString() == id)
+        listOf(File(context.cacheDir, "media_transfers/$id.part"),
+            File(context.cacheDir, "media_transfers/$id.json"),
+            File(context.cacheDir, "hls_transfers/$id")).forEach {
+            check(!it.exists() || it.deleteRecursively()) { "Unable to remove transfer file" }
+        }
+    }
 }

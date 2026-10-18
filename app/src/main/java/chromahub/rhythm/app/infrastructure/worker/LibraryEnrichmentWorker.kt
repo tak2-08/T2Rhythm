@@ -31,6 +31,12 @@ class LibraryEnrichmentWorker(context: Context, params: WorkerParameters) : Coro
         val existingAlbums = repository.loadAlbums().associateBy { catalog.albumKey(it.title, it.artist) }
         val existingArtists = repository.loadArtists().associateBy { catalog.artistKey(it.name) }
         var plan = CatalogBatchPlan.read(applicationContext) ?: return@withContext Result.failure()
+        val history = CatalogBatchHistory(applicationContext)
+        if (plan.policy != null && plan.policy != history.policy(options)) {
+            history.close()
+            return@withContext Result.failure(workDataOf("message" to applicationContext.getString(R.string.catalog_options_changed)))
+        }
+        try {
         val start = System.currentTimeMillis()
         val artists = mutableSetOf<String>()
         val albums = mutableSetOf<String>()
@@ -104,6 +110,7 @@ class LibraryEnrichmentWorker(context: Context, params: WorkerParameters) : Coro
                         if (options.writeTags && tagsChanged) { writes.add(updated); writes.attempt(updated) }
                     }
                     delay(2_000) // Also space legacy API fallbacks between library items.
+                    history.complete(song, updated, options)
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { failed = true }
             }
@@ -119,6 +126,7 @@ class LibraryEnrichmentWorker(context: Context, params: WorkerParameters) : Coro
         CatalogWriteWorker.enqueue(applicationContext)
         Result.success(workDataOf("done" to plan.next, "total" to plan.keys.size, "changed" to plan.changed,
             "skipped" to plan.skipped, "failed" to plan.failed))
+        } finally { history.close() }
     }
     private fun notification(plan: CatalogBatchPlan): ForegroundInfo {
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

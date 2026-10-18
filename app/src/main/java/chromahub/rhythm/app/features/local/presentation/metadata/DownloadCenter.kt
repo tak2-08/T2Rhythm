@@ -19,7 +19,7 @@ import chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolI
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.combine
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DownloadCenter(onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -27,6 +27,7 @@ fun DownloadCenter(onDismiss: () -> Unit) {
     var records by remember { mutableStateOf(emptyList<DownloadRecord>()) }
     var limit by remember { mutableIntStateOf(100) }
     var error by remember { mutableStateOf(false) }
+    var removing by remember { mutableStateOf(false) }
     LaunchedEffect(limit) {
         try {
             DownloadRegistry.recoverLegacy(context)
@@ -93,6 +94,27 @@ fun DownloadCenter(onDismiss: () -> Unit) {
                     ),
                     style = MaterialTheme.typography.titleSmall,
                 )
+                if (records.any { it.state in setOf("FAILED", "CANCELLED") })
+                    TextButton(
+                        enabled = !removing,
+                        onClick = {
+                            scope.launch {
+                                removing = true
+                                error = false
+                                try {
+                                    DownloadRegistry.removeAllFailed(context)
+                                } catch (cancel: CancellationException) {
+                                    throw cancel
+                                } catch (_: Exception) {
+                                    error = true
+                                } finally {
+                                    removing = false
+                                }
+                            }
+                        },
+                    ) {
+                        Text(context.getString(R.string.download_remove_failed_all))
+                    }
             }
             if (error)
                 item {
@@ -210,44 +232,68 @@ fun DownloadCenter(onDismiss: () -> Unit) {
                             else LinearProgressIndicator(Modifier.fillMaxWidth())
                         }
                         if (!active && record.state != "SUCCEEDED")
-                            TextButton(
-                                onClick = {
-                                    scope.launch {
-                                        try {
-                                            when (record.kind) {
-                                                "VIDEO" ->
-                                                    YouTubeVideoDownload.enqueue(
-                                                        context,
-                                                        record.key,
-                                                        record.sourceId,
-                                                        record.title,
-                                                        force = true,
-                                                    )
-                                                "AUDIO" ->
-                                                    AudioDownload.enqueueSource(
-                                                        context,
-                                                        if (record.service == "YOUTUBE")
-                                                            "https://www.youtube.com/watch?v=${record.sourceId}"
-                                                        else record.sourceId,
-                                                        record.title,
-                                                        record.artist,
-                                                        record.album,
-                                                    )
-                                                "MODEL" ->
-                                                    chromahub.rhythm.app.features.local.data
-                                                        .discovery
-                                                        .SpeechModelStore
-                                                        .enqueue(context)
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(
+                                    onClick = {
+                                        scope.launch {
+                                            try {
+                                                when (record.kind) {
+                                                    "VIDEO" ->
+                                                        YouTubeVideoDownload.enqueue(
+                                                            context,
+                                                            record.key,
+                                                            record.sourceId,
+                                                            record.title,
+                                                            force = true,
+                                                        )
+                                                    "AUDIO" ->
+                                                        AudioDownload.enqueueSource(
+                                                            context,
+                                                            if (record.service == "YOUTUBE")
+                                                                "https://www.youtube.com/watch?v=${record.sourceId}"
+                                                            else record.sourceId,
+                                                            record.title,
+                                                            record.artist,
+                                                            record.album,
+                                                        )
+                                                    "MODEL" ->
+                                                        chromahub.rhythm.app.features.local.data
+                                                            .discovery
+                                                            .SpeechModelStore
+                                                            .enqueue(context)
+                                                }
+                                            } catch (cancel: CancellationException) {
+                                                throw cancel
+                                            } catch (_: Exception) {
+                                                error = true
                                             }
-                                        } catch (cancel: CancellationException) {
-                                            throw cancel
-                                        } catch (_: Exception) {
-                                            error = true
                                         }
                                     }
+                                ) {
+                                    Text(context.getString(R.string.mv_retry))
                                 }
-                            ) {
-                                Text(context.getString(R.string.mv_retry))
+                                TextButton(
+                                    enabled = !removing,
+                                    onClick = {
+                                        scope.launch {
+                                            removing = true
+                                            error = false
+                                            try {
+                                                DownloadRegistry.removeFailed(context, record.id)
+                                            } catch (cancel: CancellationException) {
+                                                throw cancel
+                                            } catch (_: Exception) {
+                                                error = true
+                                            } finally {
+                                                removing = false
+                                            }
+                                        }
+                                    },
+                                ) {
+                                    Icon(MaterialSymbolIcon("delete"), null, Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(context.getString(R.string.download_remove_failed))
+                                }
                             }
                     }
                 }

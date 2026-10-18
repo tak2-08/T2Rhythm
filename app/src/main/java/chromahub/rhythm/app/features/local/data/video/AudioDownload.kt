@@ -333,6 +333,38 @@ internal object DownloadedAudioLibrary {
             }
             .getOrNull()
 
+    internal fun discardPending(context: Context, record: DownloadRecord) {
+        if (Build.VERSION.SDK_INT >= 29) {
+            require(java.util.UUID.fromString(record.id).toString() == record.id)
+            val resolver = context.contentResolver
+            // A process can die between MediaStore.insert and saving its URI in the registry.
+            // Locate only this job's unpublished files, including that short crash window.
+            @Suppress("DEPRECATION")
+            val collection = if (Build.VERSION.SDK_INT == 29)
+                MediaStore.setIncludePending(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI)
+            else MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+            val arguments = android.os.Bundle().apply {
+                putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION,
+                    "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ? AND ${MediaStore.MediaColumns.OWNER_PACKAGE_NAME}=? AND ${MediaStore.MediaColumns.IS_PENDING}=1 AND ${MediaStore.MediaColumns.RELATIVE_PATH}=?")
+                putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
+                    arrayOf("%-${record.id}.%", context.packageName, "Music/T2Rhythm/"))
+                if (Build.VERSION.SDK_INT >= 30)
+                    putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
+            }
+            val pending = resolver.query(collection, arrayOf(MediaStore.Audio.Media._ID), arguments, null)?.use { cursor ->
+                buildList {
+                    while (cursor.moveToNext()) add(android.content.ContentUris.withAppendedId(
+                        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, cursor.getLong(0)))
+                }
+            }.orEmpty()
+            pending.forEach { check(resolver.delete(it, null, null) > 0) }
+        } else {
+            val root = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC), "T2Rhythm")
+            root.listFiles().orEmpty().filter { it.name.startsWith(".") && it.name.contains("-${record.id}.") && it.name.endsWith(".part") }
+                .forEach { check(!it.exists() || it.delete()) }
+        }
+    }
+
     suspend fun publish(
         context: Context,
         record: DownloadRecord,

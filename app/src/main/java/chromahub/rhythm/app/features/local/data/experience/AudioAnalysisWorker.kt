@@ -53,7 +53,7 @@ class AudioAnalysisWorker(context: Context, params: WorkerParameters) : Coroutin
             WorkManager.getInstance(context).enqueueUniqueWork("audio_feature_analysis", if (continuation) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP,
                 OneTimeWorkRequestBuilder<AudioAnalysisWorker>()
                     .setConstraints(Constraints.Builder()
-                    .setRequiresCharging(true).setRequiresDeviceIdle(true).setRequiresBatteryNotLow(true).setRequiresStorageNotLow(true).build()).build())
+                    .setRequiresBatteryNotLow(true).setRequiresStorageNotLow(true).build()).build())
         }
         suspend fun analyze(context: Context, song: Song): AudioFeatures = withContext(AnalysisBudget.dispatcher) {
             val budget = AnalysisBudget(context); budget.checkpoint()

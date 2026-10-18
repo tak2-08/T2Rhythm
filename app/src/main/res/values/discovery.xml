@@ -44,12 +44,12 @@
     <string name="discovery_mobile">Allow mobile data for this download</string>
     <string name="discovery_queued">Added to background downloads.</string>
     <string name="discovery_learning_settings">On-device learning</string>
-    <string name="discovery_learning_hint">Learning and speech analysis run only while charging and idle. A missing model or insufficient evidence keeps the lightweight fallback. Suggestions never overwrite tags automatically.</string>
+    <string name="discovery_learning_hint" formatted="false">Learning and speech analysis run with low device load while plugged in or at 90% battery or higher. A missing model or insufficient evidence keeps the lightweight fallback. Suggestions never overwrite tags automatically.</string>
     <string name="discovery_mode_light">Lightweight · default</string>
     <string name="discovery_mode_precise">Speech model assisted</string>
     <string name="discovery_mode_hybrid">Hybrid · choose stronger evidence</string>
     <string name="discovery_model_name">Vosk Korean speech model</string>
-    <string name="discovery_model_size">Optional Korean model: about 87 MB download and 265 MB installed. Download starts on an internet connection, including mobile data. Only lyrics analysis waits for charging and idle time.</string>
+    <string name="discovery_model_size" formatted="false">Optional Korean model: about 87 MB download and 265 MB installed. Download starts on an internet connection, including mobile data. Only lyrics analysis waits for low device load and either external power or at least 90% battery.</string>
     <string name="discovery_remove_model">Remove speech model</string>
     <string name="discovery_install_model">Install Korean model</string>
     <string name="discovery_model_ready">Model installed. Analysis continues in short resumable chunks.</string>
@@ -60,7 +60,7 @@
     <string name="discovery_review_hint">Review the evidence and listen before applying. Originals and your decisions are kept so accepted changes can be undone.</string>
     <string name="discovery_pending">To review</string>
     <string name="discovery_history">Review history</string>
-    <string name="discovery_review_empty">No suggestions here yet. Learning needs tagged audio and timed-lyric examples, and waits for charging and idle time. Uncertain matches are withheld.</string>
+    <string name="discovery_review_empty" formatted="false">No suggestions here yet. Learning needs tagged audio and timed-lyric examples, and waits for low device load and either external power or at least 90% battery. Uncertain matches are withheld.</string>
     <string name="discovery_genre_proposal">Suggested genre</string>
     <string name="discovery_timing_proposal">Suggested lyric timing</string>
     <string name="discovery_proposal_strength">Reference score %1$d/100 · review required</string>

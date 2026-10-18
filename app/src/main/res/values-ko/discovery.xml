@@ -44,12 +44,12 @@
     <string name="discovery_mobile">이 다운로드에 모바일 데이터 허용</string>
     <string name="discovery_queued">백그라운드 다운로드에 추가했습니다.</string>
     <string name="discovery_learning_settings">온디바이스 학습 설정</string>
-    <string name="discovery_learning_hint">학습·음성 분석은 충전·유휴 상태에서만 실행합니다. 모델이 없거나 근거가 부족하면 가벼운 방식으로 돌아갑니다. 제안은 태그를 자동으로 덮어쓰지 않습니다.</string>
+    <string name="discovery_learning_hint" formatted="false">학습·음성 분석은 충전 중이거나 배터리 90% 이상이고 기기 부하가 낮을 때 실행합니다. 모델이 없거나 근거가 부족하면 가벼운 방식으로 돌아갑니다. 제안은 태그를 자동으로 덮어쓰지 않습니다.</string>
     <string name="discovery_mode_light">가벼운 분석 · 기본</string>
     <string name="discovery_mode_precise">정밀 모델 분석</string>
     <string name="discovery_mode_hybrid">하이브리드 · 근거를 비교해 선택</string>
     <string name="discovery_model_name">Vosk 한국어 음성 모델</string>
-    <string name="discovery_model_size">선택형 한국어 모델: 다운로드 약 87MB·설치 약 265MB. 모바일 데이터를 포함해 인터넷 연결 시 다운로드합니다. 가사 분석은 충전·유휴 상태에서만 진행합니다.</string>
+    <string name="discovery_model_size" formatted="false">선택형 한국어 모델: 다운로드 약 87MB·설치 약 265MB. 모바일 데이터를 포함해 인터넷 연결 시 다운로드합니다. 가사 분석은 충전 중이거나 배터리 90% 이상이고 기기 부하가 낮을 때 진행합니다.</string>
     <string name="discovery_remove_model">음성 모델 삭제</string>
     <string name="discovery_install_model">한국어 모델 설치</string>
     <string name="discovery_model_ready">모델이 설치되었습니다. 분석은 짧은 구간으로 나눠 이어서 처리합니다.</string>
@@ -60,7 +60,7 @@
     <string name="discovery_review_hint">근거를 확인하고 미리 들은 뒤 적용하세요. 원본과 수락·거절 기록을 보관하며 적용한 제안은 되돌릴 수 있습니다.</string>
     <string name="discovery_pending">검토 대기</string>
     <string name="discovery_history">검토 기록</string>
-    <string name="discovery_review_empty">아직 표시할 제안이 없습니다. 기존 장르·동기 가사와 음향 분석이 필요하며 충전·유휴 상태에서 학습합니다. 확신이 낮으면 제안을 보류합니다.</string>
+    <string name="discovery_review_empty" formatted="false">아직 표시할 제안이 없습니다. 기존 장르·동기 가사와 음향 분석이 필요하며 충전 중이거나 배터리 90% 이상이고 기기 부하가 낮을 때 학습합니다. 확신이 낮으면 제안을 보류합니다.</string>
     <string name="discovery_genre_proposal">장르 제안</string>
     <string name="discovery_timing_proposal">가사 타이밍 제안</string>
     <string name="discovery_proposal_strength">참고 점수 %1$d/100 · 검토 후 적용</string>

@@ -76,8 +76,9 @@ internal class ContextPreferenceIndex(context: Context) :
             readableDatabase.rawQuery("SELECT value FROM state WHERE id=2", null).use {
                 if (it.moveToFirst()) it.getString(0) else null
             }
-        if (indexedGeneration != generation) {
+        if (indexedGeneration != generation || ledger.state("context_compaction_pending") == "1") {
             reset()
+            ledger.state("context_compaction_pending", "0")
             writableDatabase.execSQL(
                 "INSERT OR REPLACE INTO state VALUES (2,?)",
                 arrayOf(generation),

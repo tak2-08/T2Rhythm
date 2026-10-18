@@ -10,6 +10,7 @@ import java.io.File
 import java.util.UUID
 
 class DurableStorageTest {
+    @get:org.junit.Rule val analysisLoad = chromahub.rhythm.app.features.local.data.experience.AnalysisRetryRule()
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
     private fun taste(directory: File): TasteMemory {
         val isolated = object : ContextWrapper(context) {
@@ -30,6 +31,7 @@ class DurableStorageTest {
         try {
             shell("dumpsys battery unplug")
             shell("dumpsys battery set status 3")
+            shell("dumpsys battery set level 50")
             val deadline = android.os.SystemClock.elapsedRealtime() + 5000
             while (AnalysisBudget(context).allowed() && android.os.SystemClock.elapsedRealtime() < deadline) Thread.sleep(50)
             assertFalse(AnalysisBudget(context).allowed())

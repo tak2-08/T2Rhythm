@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="catalog_options_changed">작업 설정이 변경되었습니다. 현재 설정으로 작업을 다시 시작해 주세요.</string>
+    <string name="catalog_all_checked">현재 설정으로 확인을 마쳤습니다. 새 곡이나 정보·설정이 달라진 곡이 생기면 다시 처리합니다.</string>
+    <string name="catalog_candidates">처리할 곡 %1$d개 · 보관함 %2$d개</string>
+    <string name="catalog_recheck_completed">완료한 곡도 다시 확인</string>
+    <string name="download_remove_failed">실패 파일·기록 삭제</string>
+    <string name="download_remove_failed_all">실패·취소 항목의 파일과 기록 모두 삭제</string>
+    <string name="retention_title">기록 보관 및 자동 요약</string>
+    <string name="retention_description">최근 %1$d일은 상세 기록을 보관합니다. 이전 기록은 이어진 청취 구간과 추천 특징값으로 요약하며, 날짜·청취량·완청률·취향 변화와 맥락별 관계를 유지합니다. 정밀 좌표 등 원시 센서 값은 줄입니다. 음악 파일·가사·좋아요는 삭제하지 않습니다.</string>
+    <string name="retention_conditions" formatted="false">충전 중이거나 배터리 90% 이상이고 기기 부하가 낮을 때 조금씩 정리합니다. 월 단위로 확정된 기록 파일은 요약본으로 교체합니다.</string>
+    <string name="retention_saved">기록 파일에서 줄인 용량: %1$s</string>
+</resources>

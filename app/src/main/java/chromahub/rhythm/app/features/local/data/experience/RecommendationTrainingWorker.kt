@@ -44,14 +44,14 @@ class RecommendationTrainingWorker(context: Context, params: WorkerParameters) :
             val manager = WorkManager.getInstance(context)
             val constraints =
                 Constraints.Builder()
-                    .setRequiresCharging(true)
-                    .setRequiresDeviceIdle(true)
+
+
                     .setRequiresBatteryNotLow(true)
                     .setRequiresStorageNotLow(true)
                     .build()
             manager.enqueueUniquePeriodicWork(
                 "recommendation_training_periodic_v6",
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 PeriodicWorkRequestBuilder<RecommendationTrainingWorker>(6, TimeUnit.HOURS)
                     .setConstraints(constraints)
                     .build(),
@@ -64,8 +64,8 @@ class RecommendationTrainingWorker(context: Context, params: WorkerParameters) :
                     OneTimeWorkRequestBuilder<RecommendationTrainingWorker>()
                         .setConstraints(
                             Constraints.Builder()
-                                .setRequiresCharging(true)
-                                .setRequiresDeviceIdle(true)
+
+
                                 .setRequiresBatteryNotLow(true)
                                 .setRequiresStorageNotLow(true)
                                 .build()

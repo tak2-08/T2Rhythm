@@ -19,6 +19,7 @@ import kotlin.math.sin
 
 @RunWith(AndroidJUnit4::class)
 class ListeningPersistenceTest {
+    @get:org.junit.Rule val analysisLoad = chromahub.rhythm.app.features.local.data.experience.AnalysisRetryRule()
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
     private fun row(id: String, duration: Long = 20_000, recorded: Long = 1000) = ListeningRecord(id, id, "segment", id, id,
         "Test", "Test artist", "Test album", "Pop", 100_000, 100_000 + duration, duration, 60_000, 0, duration, 1f, "checkpoint", recordedAt = recorded)

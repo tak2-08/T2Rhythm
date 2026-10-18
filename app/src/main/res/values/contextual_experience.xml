@@ -93,7 +93,7 @@
     <string name="soft_update_done">Compatible experience settings checked. Native features still require an APK update.</string>
     <string name="soft_update_error">Could not check experience updates. Your current settings are preserved.</string>
     <string name="soft_update_current">Current experience: %1$d</string>
-    <string name="personal_insight_background">Detailed examples use up to 1,024 recent segments, actions and play summaries per month (512 on low-memory devices), while charging and idle. Original records and full-history totals and preference indexes are retained.</string>
+    <string name="personal_insight_background" formatted="false">Detailed examples use up to 1,024 recent segments, actions and play summaries per month (512 on low-memory devices), when charging or at least 90% charged, with low device load. Detailed records are retained for 120 days; older summaries preserve full-history totals and preference relationships.</string>
     <string name="licenses_newpipe">Native YouTube video extraction · NewPipe contributors</string>
     <string name="mv_download_progress">Saving video · %1$d%%</string>
     <string name="mv_download_pending">Waiting for Wi-Fi or saving video · details</string>

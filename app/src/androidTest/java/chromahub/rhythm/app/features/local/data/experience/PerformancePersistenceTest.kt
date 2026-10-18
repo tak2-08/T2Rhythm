@@ -24,6 +24,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PerformancePersistenceTest {
+    @get:org.junit.Rule val analysisLoad = chromahub.rhythm.app.features.local.data.experience.AnalysisRetryRule()
     private val instrumentation
         get() = InstrumentationRegistry.getInstrumentation()
 
