@@ -43,3 +43,13 @@
 재생목록의 마지막 저장은 화면 종료를 막지 않는 비동기 작업으로 마칩니다. 새 화면에서 재생목록을 불러오는 작업과 저장 작업은 같은 잠금으로 순서를 지키며, 백업을 만들 때는 저장 완료를 기다립니다.
 
 검증 결과와 화면은 [검증 기록](validation/library-integrity/REPORT.md)에 정리합니다.
+
+## 기존 앱을 유지하는 정식 업데이트
+
+5.5.499.1314 정식 배포본은 기존 배포와 같은 `chromahub.rhythm.app` 패키지와 서명키를 사용합니다. 키 파일과 비밀번호는 저장소·릴리스에 포함하지 않습니다. 로컬의 무시되는 `.config/keystore.properties`로 키를 지정하고 다음 명령으로 빌드합니다. `requireReleaseSigning`은 설정이 없을 때 개발용 키로 대신 서명하는 동작을 막습니다.
+
+```sh
+./gradlew :app:assembleGithubRelease :app:lintGithubRelease -PrequireReleaseSigning=true
+```
+
+게시 전 APK의 패키지, 증가한 버전 코드, 서명 인증서를 기존 배포 APK와 비교합니다. 인증서 SHA-256은 `c55ec7843dd8190f2ce249ddc1562c616647c50c317930076e2e98bf7e304c18`입니다. 안정판 릴리스는 숫자로 시작하는 버전 태그와 `T2Rhythm-5.5.499.1314.apk` 파일을 사용하며 사전 공개로 표시하지 않습니다. 이는 기존 앱의 버전 비교·배포 채널·파일 선택 규칙에 맞습니다.

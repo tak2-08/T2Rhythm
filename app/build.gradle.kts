@@ -32,8 +32,8 @@ android {
         
         val overrideVersionCode = project.findProperty("versionCodeOverride")?.toString()?.toIntOrNull()
         val overrideVersionName = project.findProperty("versionNameOverride")?.toString()
-        versionCode = overrideVersionCode ?: 554991313
-        versionName = overrideVersionName ?: "5.5.499.1313"
+        versionCode = overrideVersionCode ?: 554991314
+        versionName = overrideVersionName ?: "5.5.499.1314"
 
         val overrideReleaseDate = project.findProperty("releaseDateOverride")?.toString()
         buildConfigField("String", "RELEASE_DATE", "\"${overrideReleaseDate ?: "2026-10-18"}\"")
@@ -94,6 +94,9 @@ android {
     }
 
     val signingProperties = getProperties(".config/keystore.properties")
+    check(project.findProperty("requireReleaseSigning")?.toString() != "true" || signingProperties != null) {
+        "Release signing configuration is required; refusing to fall back to a different debug key."
+    }
     val releaseSigning = if (signingProperties != null) {
         signingConfigs.create("release") {
             keyAlias = signingProperties.property("key_alias")
