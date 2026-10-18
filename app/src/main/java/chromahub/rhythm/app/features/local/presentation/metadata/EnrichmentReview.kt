@@ -44,6 +44,7 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, initial
     var message by remember { mutableStateOf<String?>(null) }
     var permissionId by remember { mutableStateOf<String?>(null) }
     var permissionUndo by remember { mutableStateOf(false) }
+    val singleProposal = remember { initialProposalId != null }
     LaunchedEffect(revision, songKey, initialProposalId) {
         proposals = withContext(Dispatchers.IO) { store.list(1000).filter { songKey == null || it.songKey == songKey } }
         if (selected == null && initialProposalId != null) selected = proposals.firstOrNull { it.id == initialProposalId && it.state == "PENDING" }
@@ -245,7 +246,10 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, initial
     selected?.let { proposal ->
         val song = songs.firstOrNull { it.uri.toString() == proposal.songKey } ?: fallbackSong?.takeIf { it.uri.toString() == proposal.songKey }
         if (proposal.kind == "LYRICS" && proposal.state == "PENDING" && song != null && proposal.beforeLyrics != null) {
-            LyricTimingEditor(song, proposal.beforeLyrics, viewModel, proposal = proposal) { selected = null }
+            LyricTimingEditor(song, proposal.beforeLyrics, viewModel, proposal = proposal) {
+                selected = null
+                if (singleProposal) onDismiss()
+            }
         } else {
         val lines = remember(proposal.value) { LocalLyricAlignment.parse(proposal.value) }
         val position = if (song != null && current?.uri == song.uri) (progress * song.duration).toLong() else -1L

@@ -193,7 +193,15 @@ class LyricsEntryAndUpdatesTest {
             assertEquals(original, store.get(proposal.id)!!.beforeLyrics)
             assertNull(AutomaticLyricsStore.get(base).read(track))
             capture("lyrics-ai-review.png")
-        } finally { File(base.filesDir, "music_metadata/personalization/learning/proposals/${proposal.id}.json").delete(); LyricTimingDraftStore(base).delete(track) }
+            compose.onNodeWithTag("timing-reject").assertIsDisplayed().performClick()
+            compose.waitUntil(10_000) { store.get(proposal.id)?.state == "REJECTED" }
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("timing-editor").fetchSemanticsNodes().isEmpty() }
+            assertTrue(LyricTimingFeedback(base).read().none { it.id == proposal.id })
+            assertNull(AutomaticLyricsStore.get(base).read(track))
+        } finally {
+            WorkManager.getInstance(base).cancelUniqueWork(TimingLearningWorker.NAME)
+            File(base.filesDir, "music_metadata/personalization/learning/proposals/${proposal.id}.json").delete(); LyricTimingDraftStore(base).delete(track)
+        }
     }
     @Test fun explicitAnalysisProducesASeparateProposalAtFiftyFivePercentUnplugged() {
         val resolver = base.contentResolver

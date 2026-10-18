@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="timing_editor_title">Time lyrics by listening</string>
+    <string name="timing_proposal_title">Review AI lyrics</string>
     <string name="timing_manual_open">Time lyrics yourself</string>
     <string name="timing_editor_hint">Mark the first sound and last sound of each line. LRC timestamps mean line START. Ends clear the line during gaps. The original changes only when you save.</string>
     <string name="timing_mark_start">Mark start</string>

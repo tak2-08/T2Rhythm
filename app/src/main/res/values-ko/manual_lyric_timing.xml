@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="timing_editor_title">들으며 가사 시간 맞추기</string>
+    <string name="timing_proposal_title">AI 가사 검토</string>
     <string name="timing_manual_open">직접 시간 맞추기</string>
     <string name="timing_editor_hint">각 줄의 첫 소리에 시작, 마지막 소리에 끝을 찍으세요. LRC 시각은 줄의 시작입니다. 줄 끝은 간주에서 가사를 비우는 데 사용합니다. 저장할 때만 원본에 적용합니다.</string>
     <string name="timing_mark_start">시작 찍기</string>

@@ -125,6 +125,22 @@ fun LyricTimingEditor(song: Song, original: LyricsData, viewModel: MusicViewMode
             catch (_: Exception) { message = context.getString(R.string.timing_save_error) }
         }
     }
+    fun reject() {
+        val target = proposal ?: return
+        if (busy) return
+        busy = true
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val rejected = store.decide(target.id, "REJECTED")
+                    TimingRetryQueue(context).reject(rejected); drafts.delete(song)
+                }
+                onDismiss()
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (_: Exception) { message = context.getString(R.string.timing_save_error) }
+            finally { busy = false }
+        }
+    }
     fun save() {
         if (!ready || busy) return
         busy = true; message = null
@@ -155,9 +171,12 @@ fun LyricTimingEditor(song: Song, original: LyricsData, viewModel: MusicViewMode
     Dialog(onDismissRequest = ::close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize().systemBarsPadding()) {
             Column(Modifier.fillMaxSize().testTag("timing-editor")) {
-                TopAppBar(title = { Text(stringResource(R.string.timing_editor_title), maxLines = 1) },
+                TopAppBar(title = { Text(stringResource(if (proposal == null) R.string.timing_editor_title else R.string.timing_proposal_title), maxLines = 1) },
                     navigationIcon = { IconButton(enabled = !busy, onClick = ::close) { Icon(MaterialSymbolIcon("close"), stringResource(R.string.timing_close)) } },
                     actions = {
+                        if (proposal != null) TextButton(enabled = !busy, onClick = ::reject, modifier = Modifier.testTag("timing-reject")) {
+                            Text(stringResource(R.string.discovery_reject))
+                        }
                         IconButton(enabled = ready && !busy, onClick = { export.launch(song.title.take(80) + ".lrc") }) {
                             Icon(MaterialSymbolIcon("file_export"), stringResource(R.string.timing_export))
                         }
@@ -228,18 +247,6 @@ fun LyricTimingEditor(song: Song, original: LyricsData, viewModel: MusicViewMode
                                 TextButton(enabled = !busy, onClick = { change { ManualLyricTiming.shift(rows, -step, song.duration) } }) { Text(stringResource(R.string.timing_all_earlier)) }
                                 TextButton(enabled = !busy, onClick = { change { ManualLyricTiming.shift(rows, step, song.duration) } }) { Text(stringResource(R.string.timing_all_later)) }
                             }
-                            if (proposal != null) TextButton(enabled = !busy, onClick = {
-                                busy = true
-                                scope.launch {
-                                    try { withContext(Dispatchers.IO) {
-                                        val rejected = store.decide(proposal.id, "REJECTED")
-                                        TimingRetryQueue(context).reject(rejected); drafts.delete(song)
-                                    }; onDismiss() }
-                                    catch (cancel: CancellationException) { throw cancel }
-                                    catch (_: Exception) { message = context.getString(R.string.timing_save_error) }
-                                    finally { busy = false }
-                                }
-                            }, modifier = Modifier.testTag("timing-reject")) { Text(stringResource(R.string.timing_reject_relearn)) }
                         }
                     }
                 }
