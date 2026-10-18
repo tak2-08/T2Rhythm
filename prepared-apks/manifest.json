@@ -1,0 +1,17 @@
+{
+  "source_revision": "361670daebdc0b94bfca9f5607bf2de4387fb779",
+  "assets": [
+    {
+      "name": "T2Rhythm-5.5.499.1314-preview.1.apk",
+      "size": 73714697,
+      "sha256": "0ad2bfd7eb8cfb8e858d7875d345b5ac7821427fd74b60e21fd9e1b918f0b5d0",
+      "parts": [
+        "preview-000.part",
+        "preview-001.part",
+        "preview-002.part",
+        "preview-003.part",
+        "preview-004.part"
+      ]
+    }
+  ]
+}
