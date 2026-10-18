@@ -43,14 +43,16 @@ class LyricTimingFeedback(private val context: Context) {
         write(next)
     }
     fun resolve(song: chromahub.rhythm.app.shared.data.model.Song) = resolveAll(listOf(song))
-    fun resolveAll(songs: List<chromahub.rhythm.app.shared.data.model.Song>, checkpoint: () -> Unit = {}) = synchronized(lock) {
-        if (songs.isEmpty()) return@synchronized
+    fun resolveAll(songs: List<chromahub.rhythm.app.shared.data.model.Song>, checkpoint: () -> Unit = {}) {
+        if (songs.isEmpty()) return
         val byKey = songs.associateBy { it.uri.toString() }
-        val next = read().mapNotNull { review ->
+        val snapshot = read()
+        // Recognition can be slow. Never hold the label lock while calibrating or cooling down.
+        val updates = snapshot.associate { review ->
             checkpoint()
-            val song = byKey[review.example.key] ?: return@mapNotNull review
-            val feature = ListeningLedger.get(context).feature(song.uri.toString(), "${song.dateModified}:${song.duration}") ?: return@mapNotNull review
-            if (review.sourceSignature != null && review.sourceSignature != EnrichmentStore.signature(song)) null
+            val song = byKey[review.example.key] ?: return@associate review.id to review
+            val feature = ListeningLedger.get(context).feature(song.uri.toString(), "${song.dateModified}:${song.duration}") ?: return@associate review.id to review
+            review.id to if (review.sourceSignature != null && review.sourceSignature != EnrichmentStore.signature(song)) null
             else if (!review.pending && review.example.pcm != feature.pcmSha256) review
             else {
                 val words = SpeechAlignment.read(context, song.uri.toString())?.takeIf { it.complete && it.signature == EnrichmentStore.signature(song) }
@@ -61,8 +63,15 @@ class LyricTimingFeedback(private val context: Context) {
                     reviewed = review.example.reviewed || (review.errorMs ?: 0.0) > 0,
                     speechOffsetMs = calibration?.first, speechEndOffsetMs = calibration?.second), pending = false, calibrationAttempted = words != null)
             }
-        }.distinctBy { it.example.pcm }
-        write(next)
+        }
+        val originals = snapshot.associateBy { it.id }
+        synchronized(lock) {
+            // A save/undo that happened during analysis takes precedence over this snapshot.
+            val next = read().mapNotNull { current ->
+                if (current == originals[current.id]) updates[current.id] else current
+            }.distinctBy { it.example.pcm }
+            write(next)
+        }
     }
     fun examples() = read().filter { !it.pending && !it.example.pcm.startsWith("pending:") &&
         (it.example.reviewed || (it.errorMs ?: 0.0) > 0) }.map { it.example.copy(reviewed = true) }

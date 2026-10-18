@@ -134,7 +134,13 @@ class ManualLyricTimingFlowTest {
                 spectralBands = List(8) { .1 }, waveform = List(256) { .2 }, alignmentEnvelope = List(100) { .2 })
             ListeningLedger.get(ctx).saveFeature(track.uri.toString(), "${track.dateModified}:${track.duration}", audio)
             try {
-                feedback.resolveAll(listOf(track)) { throw kotlinx.coroutines.CancellationException("stop") }
+                feedback.resolveAll(listOf(track)) {
+                    val completed = java.util.concurrent.atomic.AtomicBoolean(false)
+                    val reader = Thread { feedback.read(); completed.set(true) }
+                    reader.start(); reader.join(1500)
+                    assertTrue("Analysis checkpoints must not block access to manual labels", completed.get())
+                    throw kotlinx.coroutines.CancellationException("stop")
+                }
                 fail("Canceled learning must not commit a partial label update")
             } catch (_: kotlinx.coroutines.CancellationException) { }
             assertTrue(feedback.read().single().pending)
