@@ -46,6 +46,8 @@ class AudioAnalysisWorker(context: Context, params: WorkerParameters) : Coroutin
             }
         }
         chromahub.rhythm.app.features.local.data.discovery.EnrichmentLearningWorker.enqueue(applicationContext)
+        if (chromahub.rhythm.app.features.local.data.discovery.LyricTimingFeedback(applicationContext).read().any { it.pending })
+            chromahub.rhythm.app.features.local.data.discovery.TimingLearningWorker.enqueue(applicationContext)
         Result.success(workDataOf("analyzed" to done))
     }
     companion object {

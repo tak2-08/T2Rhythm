@@ -244,6 +244,9 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, initial
     }
     selected?.let { proposal ->
         val song = songs.firstOrNull { it.uri.toString() == proposal.songKey } ?: fallbackSong?.takeIf { it.uri.toString() == proposal.songKey }
+        if (proposal.kind == "LYRICS" && proposal.state == "PENDING" && song != null && proposal.beforeLyrics != null) {
+            LyricTimingEditor(song, proposal.beforeLyrics, viewModel, proposal = proposal) { selected = null }
+        } else {
         val lines = remember(proposal.value) { LocalLyricAlignment.parse(proposal.value) }
         val position = if (song != null && current?.uri == song.uri) (progress * song.duration).toLong() else -1L
         val activeLine = lines.indexOfLast { it.ms <= position }
@@ -427,5 +430,6 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, initial
                     }
             },
         )
+        }
     }
 }

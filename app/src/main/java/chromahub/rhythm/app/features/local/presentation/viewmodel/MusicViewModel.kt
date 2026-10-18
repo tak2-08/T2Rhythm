@@ -6434,6 +6434,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         ) { addSongToQueue(song) }
     }
 
+    /** Read directly on the UI thread when a user taps; progress flows are deliberately throttled. */
+    fun lyricTimingPosition(song: Song): Long? = mediaController?.takeIf {
+        it.currentMediaItem?.mediaId == song.id && currentSong.value?.uri == song.uri
+    }?.currentPosition?.takeIf { it >= 0 }
+
     fun seekTo(positionMs: Long, autoPlayIfPaused: Boolean = false) {
         Log.d(TAG, "Seek to position: $positionMs ms (autoPlay=$autoPlayIfPaused)")
         _isSeeking.value = true
@@ -8342,6 +8347,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         val previous = displayed ?: withContext(Dispatchers.IO) { repository.peekLocalLyrics(song) }
         if (undo) check(previous?.syncedLyrics == proposal.value)
         else {
+            check(chromahub.rhythm.app.features.local.data.discovery.EnrichmentStore.signature(song) == proposal.sourceSignature)
             check(chromahub.rhythm.app.features.local.data.discovery.EnrichmentStore.sameLyrics(previous, proposal.beforeLyrics))
             check(proposal.beforeLyrics?.wordByWordLyrics.isNullOrBlank())
         }

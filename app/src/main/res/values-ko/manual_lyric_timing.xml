@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="timing_editor_title">들으며 가사 시간 맞추기</string>
+    <string name="timing_manual_open">직접 시간 맞추기</string>
+    <string name="timing_editor_hint">각 줄의 첫 소리에 시작, 마지막 소리에 끝을 찍으세요. LRC 시각은 줄의 시작입니다. 줄 끝은 간주에서 가사를 비우는 데 사용합니다. 저장할 때만 원본에 적용합니다.</string>
+    <string name="timing_mark_start">시작 찍기</string>
+    <string name="timing_mark_end">끝 찍기 → 다음 줄</string>
+    <string name="timing_start">시작</string>
+    <string name="timing_end">끝</string>
+    <string name="timing_loop">줄 반복</string>
+    <string name="timing_order_error">곡 범위 안에서 시작보다 뒤에 끝을 놓고, 다음 줄과 겹치지 않게 맞춰 주세요.</string>
+    <string name="timing_play_first">이 곡을 먼저 재생한 뒤 현재 위치를 찍어 주세요.</string>
+    <string name="timing_export">LRC 파일 내보내기</string>
+    <string name="timing_save_error">저장하지 못했습니다. 원본 가사나 음원이 바뀌었을 수 있습니다. 작업 초안은 보관합니다.</string>
+    <string name="timing_saved">가사를 저장했습니다. 확인한 시간 매핑을 학습에 반영합니다.</string>
+    <string name="timing_line_number">%1$d / %2$d줄</string>
+    <string name="timing_selected_line">%1$d줄 · %2$s</string>
+    <string name="timing_undo">실행 취소</string>
+    <string name="timing_redo_line">이 줄 다시 찍기</string>
+    <string name="timing_all_earlier">전체 앞당기기</string>
+    <string name="timing_all_later">전체 늦추기</string>
+    <string name="timing_reject_relearn">반려하고 다시 학습</string>
+    <string name="timing_exact_hint">분:초.밀리초 형식으로 입력하세요. 예: 01:23.456</string>
+    <string name="timing_save">저장</string>
+    <string name="timing_close">초안을 보관하고 닫기</string>
+    <string name="timing_retry_learning">확인한 가사 자료를 학습한 뒤 다시 제안할 준비를 합니다.</string>
+    <string name="timing_retry_needs_examples">확인된 시간 매핑이 더 필요합니다. 검증을 통과한 새 모델이 생기면 다시 제안하며, 반려한 결과를 그대로 반복하지 않습니다.</string>
+    <string name="timing_retry_queued">새로운 가사 싱크 제안을 준비하고 있습니다.</string>
+    <string name="timing_retry_ready">새 제안이 준비됐습니다. ✨ 버튼을 눌러 검토하세요.</string>
+    <string name="timing_learning_pending">음원 분석을 기다리는 수동 교정 자료: %1$d곡</string>
+    <string name="timing_learning_validated">별도 녹음으로 검증한 시간 매핑 모델을 사용 중입니다.</string>
+    <string name="timing_learning_kept">새 학습 결과가 검증을 통과하지 못해 이전 시간 매핑 모델을 유지했습니다.</string>
+    <string name="timing_learning_provisional">검증할 서로 다른 녹음이 아직 부족합니다. 일반화된 시간 추정은 보수적으로 유지합니다.</string>
+    <string name="timing_learning_cross">녹음별 교차 검증 · 평가하는 곡과 같은 녹음의 복사본은 학습에서 제외합니다.</string>
+    <string name="timing_retry_paused">자동 재제안을 중지했습니다. 다시 분석하려면 ✨ 버튼을 누르세요.</string>
+    <string name="timing_learning_failed">학습을 완료하지 못했습니다. 수동 교정 자료는 보관하며, 알고리즘 관리에서 다시 시도할 수 있습니다.</string>
+</resources>

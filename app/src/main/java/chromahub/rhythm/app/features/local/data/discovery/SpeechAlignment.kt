@@ -62,7 +62,7 @@ object SpeechAlignment {
             checkpoint.words,
             song.duration,
             budget::blockingCheckpoint,
-        )
+        )?.let { TimingSpeechCalibration.apply(it, EnrichmentStore(context).model().timings, song.duration) }
     }
 
     suspend fun schedule(context: Context, song: Song, userInitiated: Boolean = false, replaceBackground: Boolean = false) =
@@ -200,6 +200,8 @@ class SpeechAlignmentWorker(context: Context, params: WorkerParameters) :
                     // Recognition checkpoints are committed before alignment; a time slice never
                     // rolls them back.
                     EnrichmentLearningWorker.enqueue(applicationContext)
+                    if (LyricTimingFeedback(applicationContext).read().any { it.example.key == key && !it.calibrationAttempted })
+                        TimingLearningWorker.enqueue(applicationContext, userInitiated)
                     PersonalArchive.enqueue(applicationContext)
                 }
                 Result.success()

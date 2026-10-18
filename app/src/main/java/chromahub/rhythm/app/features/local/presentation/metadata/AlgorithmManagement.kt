@@ -89,11 +89,18 @@ fun AlgorithmManagement(onDismiss: () -> Unit) {
                     } }
                     item { HorizontalDivider() }
                     item { Text(stringResource(R.string.algorithm_model_counts, model.examples.size, model.timings.size, reviews.size), style = MaterialTheme.typography.titleMedium) }
+                    item { Text(stringResource(R.string.timing_learning_pending, reviews.count { it.pending }), style = MaterialTheme.typography.bodySmall) }
+                    item { Text(stringResource(when {
+                        validation?.method == "insufficient" || validation == null -> R.string.timing_learning_provisional
+                        validation?.promoted != true -> R.string.timing_learning_kept
+                        validation?.method == "recording_cross_validation" -> R.string.timing_learning_cross
+                        else -> R.string.timing_learning_validated
+                    }), style = MaterialTheme.typography.bodySmall) }
                     item { Text(if (trainedAt > 0) context.getString(R.string.discovery_updated, java.text.DateFormat.getDateTimeInstance().format(java.util.Date(trainedAt))) else context.getString(R.string.algorithm_empty)) }
                     item { Text(validation?.meanErrorMs?.let { context.getString(R.string.algorithm_validation, validation!!.songs, it / 1000) } ?: context.getString(R.string.algorithm_validation_pending), style = MaterialTheme.typography.bodySmall) }
                     item { Text(stringResource(R.string.algorithm_limits), style = MaterialTheme.typography.bodySmall) }
                     item { LearningPreferences() }
-                    item { OutlinedButton(onClick = { AudioAnalysisWorker.enqueue(context); EnrichmentLearningWorker.enqueue(context); RecommendationTrainingWorker.enqueue(context) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.algorithm_schedule)) } }
+                    item { OutlinedButton(onClick = { AudioAnalysisWorker.enqueue(context); EnrichmentLearningWorker.enqueue(context); TimingLearningWorker.enqueue(context, userInitiated = true); RecommendationTrainingWorker.enqueue(context) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.algorithm_schedule)) } }
                 } else {
                     item { Text(context.getString(R.string.algorithm_storage, Formatter.formatShortFileSize(context, bytes)), style = MaterialTheme.typography.titleMedium) }
                     item { Text(stringResource(R.string.algorithm_storage_hint), style = MaterialTheme.typography.bodySmall) }

@@ -55,6 +55,12 @@ internal class EnrichmentLearningIndex(context: Context) :
         // Rebuildable cache: keep a fixed representative reservoir, with no duplicate recording votes.
         writableDatabase.execSQL("UPDATE samples SET timing=NULL WHERE song NOT IN (SELECT song FROM samples WHERE timing IS NOT NULL ORDER BY priority LIMIT 256)")
         writableDatabase.execSQL("DELETE FROM samples WHERE song NOT IN (SELECT song FROM samples ORDER BY priority LIMIT 8192)")
+        var timingBytes = 0L
+        val trim = mutableListOf<String>()
+        readableDatabase.rawQuery("SELECT song,LENGTH(CAST(timing AS BLOB)) FROM samples WHERE timing IS NOT NULL ORDER BY priority", null).use { c ->
+            while (c.moveToNext()) { timingBytes += c.getLong(1); if (timingBytes > 8_000_000) trim += c.getString(0) }
+        }
+        trim.forEach { writableDatabase.execSQL("UPDATE samples SET timing=NULL WHERE song=?", arrayOf(it)) }
         val genres = mutableListOf<GenreExample>()
         val timings = mutableListOf<TimingTraining>()
         val counts = mutableMapOf<String, Int>()

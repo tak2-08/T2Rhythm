@@ -108,7 +108,8 @@ class LyricsEntryAndUpdatesTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("lyric-ai-action").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("lyric-ai-action").assertIsDisplayed()
         capture("lyrics-ai-material.png")
-        compose.onNodeWithTag("lyric-ai-action").assertWidthIsAtLeast(240.dp)
+        compose.onNodeWithTag("lyric-manual-action").assertWidthIsAtLeast(200.dp)
+        compose.onNodeWithTag("lyric-ai-action").assertWidthIsAtLeast(48.dp)
         assertTrue(compose.onNodeWithTag("lyric-ai-action").fetchSemanticsNode().boundsInRoot.height <= 80 * ctx.resources.displayMetrics.density)
         compose.onNodeWithText(text).assertIsDisplayed()
     }
@@ -183,16 +184,16 @@ class LyricsEntryAndUpdatesTest {
                 val vm: MusicViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
                 Frame { LyricSuggestionButton(track, original, vm) }
             }
-            compose.waitUntil(10_000) { compose.onAllNodesWithText(ctx.getString(R.string.lyric_ai_review)).fetchSemanticsNodes().isNotEmpty() }
+            compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription(ctx.getString(R.string.lyric_ai_review)).fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("lyric-ai-action").performClick()
-            compose.onNodeWithText(ctx.getString(R.string.discovery_preview_hint)).assertExists()
-            compose.onAllNodes(hasScrollAction()).onLast().performScrollToNode(hasText("+0.2s"))
-            compose.onAllNodesWithText("+0.2s").onFirst().performClick()
-            compose.waitUntil(10_000) { LocalLyricAlignment.parse(store.get(proposal.id)!!.value).first().ms == 30_200L }
+            compose.onNodeWithText(ctx.getString(R.string.timing_editor_hint)).assertExists()
+            compose.onNodeWithTag("timing-later").performScrollTo().performClick()
+            compose.waitUntil(10_000) { LyricTimingDraftStore(base).read(track, original, proposal.id)?.rows?.firstOrNull()?.start == 30_050L }
+            assertEquals(30_000L, LocalLyricAlignment.parse(store.get(proposal.id)!!.value).first().ms)
             assertEquals(original, store.get(proposal.id)!!.beforeLyrics)
             assertNull(AutomaticLyricsStore.get(base).read(track))
             capture("lyrics-ai-review.png")
-        } finally { File(base.filesDir, "music_metadata/personalization/learning/proposals/${proposal.id}.json").delete() }
+        } finally { File(base.filesDir, "music_metadata/personalization/learning/proposals/${proposal.id}.json").delete(); LyricTimingDraftStore(base).delete(track) }
     }
     @Test fun explicitAnalysisProducesASeparateProposalAtFiftyFivePercentUnplugged() {
         val resolver = base.contentResolver

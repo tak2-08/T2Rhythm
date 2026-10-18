@@ -26,13 +26,15 @@ import kotlinx.coroutines.*
 @Composable
 fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicViewModel) {
     val lines = remember(lyrics) { LyricTimingInput.lines(lyrics) }
-    if (song == null || lyrics == null || lines.isEmpty()) return
+    val timed = remember(lyrics) { LocalLyricAlignment.parse(lyrics?.getBestLyrics().orEmpty()) }
+    if (song == null || lyrics == null || lines.isEmpty() && timed.isEmpty()) return
     val original = lyrics
     val local = song.uri.scheme in setOf("content", "file")
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val key = SongArtworkOverrides.key(song)
     val jobs by remember(key) { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(LyricSuggestionWorker.name(key)) }.collectAsState(emptyList())
+    val retryJobs by remember(key) { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(LyricSuggestionWorker.name(song.uri.toString())) }.collectAsState(emptyList())
     val speechJobs by remember(key) { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("speech_alignment:${kr.co.metadata.crawler.CatalogFileStore.hash(song.uri.toString())}") }.collectAsState(emptyList())
     var speechPercent by remember(key) { mutableStateOf<Int?>(null) }
     LaunchedEffect(key, jobs, speechJobs) {
@@ -46,9 +48,12 @@ fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicView
     var proposalId by remember(key, original) { mutableStateOf<String?>(null) }
     var review by remember(key) { mutableStateOf(false) }
     var options by remember(key) { mutableStateOf(false) }
+    var manual by remember(key) { mutableStateOf(false) }
+    var retryState by remember(key) { mutableStateOf<String?>(null) }
     var starting by remember(key) { mutableStateOf(false) }
     var error by remember(key) { mutableStateOf(false) }
     LaunchedEffect(key, revision, original) {
+        retryState = withContext(Dispatchers.IO) { TimingRetryQueue(context).read().firstOrNull { it.songKey == song.uri.toString() }?.status }
         proposalId = withContext(Dispatchers.IO) {
             EnrichmentStore(context).list(1000).firstOrNull {
                 it.songKey == song.uri.toString() && it.kind == "LYRICS" && it.state == "PENDING" &&
@@ -56,19 +61,33 @@ fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicView
             }?.id
         }
     }
-    val latest = jobs.maxByOrNull { job -> job.tags.firstNotNullOfOrNull { it.removePrefix("lyric_request_").toLongOrNull() } ?: 0L }
+    val latest = (jobs + retryJobs).distinctBy { it.id }.maxByOrNull { job -> job.tags.firstNotNullOfOrNull { it.removePrefix("lyric_request_").toLongOrNull() } ?: 0L }
     val active = starting || latest?.state?.isFinished == false
     val failed = !active && proposalId == null && (error || latest?.state == WorkInfo.State.FAILED)
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FilledTonalButton(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("lyric-ai-action"),
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalButton(enabled = local && (if (timed.isEmpty()) lines.size else timed.size) in 1..1000 && song.duration > 0,
+                onClick = { manual = true }, modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("lyric-manual-action")) {
+                Icon(MaterialSymbolIcon("touch_app"), null, Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.timing_manual_open))
+            }
+        if (lines.isNotEmpty()) FilledTonalIconButton(
+            modifier = Modifier.size(48.dp).testTag("lyric-ai-action"),
             onClick = { if (proposalId != null) review = true else options = true },
             enabled = local && (!active || proposalId != null),
         ) {
-            Icon(MaterialSymbolIcon("auto_awesome"), null, Modifier.size(20.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(if (proposalId != null) R.string.lyric_ai_review else if (active) R.string.lyric_ai_queued else R.string.lyric_ai_suggest))
+            Icon(MaterialSymbolIcon("auto_awesome"), stringResource(if (proposalId != null) R.string.lyric_ai_review else if (active) R.string.lyric_ai_queued else R.string.lyric_ai_suggest), Modifier.size(24.dp))
         }
+        }
+        if (!active && retryState != null && lines.isNotEmpty()) Text(stringResource(when (retryState) {
+            "ready" -> R.string.timing_retry_ready
+            "queued" -> R.string.timing_retry_queued
+            "needs_examples" -> R.string.timing_retry_needs_examples
+            "model_missing" -> R.string.lyric_ai_model_required
+            "paused" -> R.string.timing_retry_paused
+            "learning_failed" -> R.string.timing_learning_failed
+            else -> R.string.timing_retry_learning
+        }), style = MaterialTheme.typography.bodySmall)
         if (!local) Text(stringResource(R.string.lyric_ai_local_required), style = MaterialTheme.typography.bodySmall)
         if (active) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -108,4 +127,5 @@ fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicView
         dismissButton = { TextButton(onClick = { options = false }) { Text(stringResource(android.R.string.cancel)) } },
     )
     if (review) EnrichmentReview(viewModel, songKey = song.uri.toString(), initialProposalId = proposalId, fallbackSong = song) { review = false }
+    if (manual) LyricTimingEditor(song, original, viewModel) { manual = false }
 }
