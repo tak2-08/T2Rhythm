@@ -31,7 +31,7 @@ class LyricTimingFeedback(private val context: Context) {
             val feature = ListeningLedger.get(context).feature(proposal.songKey, signature)
             val duration = proposal.sourceSignature.substringAfterLast(':').toLongOrNull() ?: return@synchronized
             val lines = LocalLyricAlignment.parse(proposal.value)
-            if (!LocalLyricAlignment.valid(lines, duration) || lines.size > 400) return@synchronized
+            if (!LocalLyricAlignment.valid(lines, duration) || lines.size > 1000) return@synchronized
             val predicted = LocalLyricAlignment.parse(proposal.predictedValue ?: proposal.value)
             val error = if (proposal.predictedValue != null && predicted.size == lines.size) lines.zip(predicted).map { (a, b) -> kotlin.math.abs(a.ms - b.ms).toDouble() }.average() else null
             val sample = TimingTraining(proposal.songKey, feature?.pcmSha256 ?: "pending:${kr.co.metadata.crawler.CatalogFileStore.hash(proposal.sourceSignature)}",

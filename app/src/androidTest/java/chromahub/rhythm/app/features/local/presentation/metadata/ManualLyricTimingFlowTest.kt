@@ -142,6 +142,11 @@ class ManualLyricTimingFlowTest {
             val copy = store.proposal(other, "LYRICS", proposal.value, 1.0, "manual_timing", 3, LyricsData(text, null))
             assertTrue(store.propose(copy)); store.decide(copy.id, "ACCEPTED")
             assertEquals(1, feedback.examples().size)
+            val longSong = track.copy(id = "long-manual", uri = Uri.fromFile(File(ctx.cacheDir, "long.wav")), duration = 600_000)
+            val longLines = (0 until 500).map { TimedLine(1000L + it * 1000, "수동 가사 $it", 1500L + it * 1000) }
+            val longLabel = store.proposal(longSong, "LYRICS", LocalLyricAlignment.lrc(longLines), 1.0, "manual_timing", 500, LyricsData(longLines.joinToString("\n") { it.text }, null))
+            store.propose(longLabel); store.decide(longLabel.id, "ACCEPTED")
+            assertEquals(500, feedback.read().first { it.id == longLabel.id }.example.lines.size)
         } finally { root.deleteRecursively() }
     }
     @Test fun rejectedOutputCannotTeachItselfOrReappearWithoutANewModel() {

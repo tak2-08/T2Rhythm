@@ -27,8 +27,9 @@ object LearnedLyricTiming {
             val x = positions(sample.lines.map { it.text }) + 1.0
             val y = sample.lines.map { it.ms.toDouble() / sample.durationMs } +
                 ((sample.lines.last().endMs ?: sample.durationMs).toDouble() / sample.durationMs)
+            var right = 1
             target.map { fraction ->
-                val right = x.indexOfFirst { it >= fraction }.coerceAtLeast(1)
+                while (right < x.lastIndex && x[right] < fraction) right++
                 y[right - 1] + (y[right] - y[right - 1]) *
                     ((fraction - x[right - 1]) / (x[right] - x[right - 1]).coerceAtLeast(.00001))
             }
