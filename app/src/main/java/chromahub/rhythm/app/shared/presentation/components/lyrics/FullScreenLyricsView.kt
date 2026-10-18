@@ -14,6 +14,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -154,7 +156,9 @@ fun FullScreenLyricsView(
 
     // Determine if lyrics have timestamps (synced LRC or word-by-word JSON)
     val hasSyncedLyrics = remember(lyrics) {
-        lyrics?.syncedLyrics?.isNotBlank() == true || lyrics?.getWordByWordLyricsOrNull() != null
+        lyrics?.getWordByWordLyricsOrNull() != null ||
+            chromahub.rhythm.app.features.local.data.discovery.LocalLyricAlignment.parse(lyrics?.getBestLyrics().orEmpty()).isNotEmpty() ||
+            (chromahub.rhythm.app.features.local.data.discovery.LyricTimingInput.lines(lyrics).isEmpty() && !lyrics?.syncedLyrics.isNullOrBlank())
     }
 
     // Local manual sync offset in milliseconds (real-time offset tuning!)
@@ -706,10 +710,11 @@ fun FullScreenLyricsView(
                                     showTranslation = showTranslation,
                                     showRomanization = showRomanization
                                 )
+                            } else if (!hasSyncedLyrics) {
+                                FullScreenPlainLyrics(lyrics.getBestLyrics().orEmpty(), playerLyricsTextSize, lyricsTextAlign, textPrimaryColor)
+
                             } else {
-                                val lyricsText = remember(lyrics) {
-                                    lyrics.getBestLyrics() ?: ""
-                                }
+                                val lyricsText = remember(lyrics) { lyrics.getBestLyrics().orEmpty() }
                                 SyncedLyricsView(
                                     lyrics = lyricsText,
                                     currentPlaybackTime = currentTimeMs,
@@ -728,7 +733,7 @@ fun FullScreenLyricsView(
 
                     // Floating Romanization and Translation Stack (on the right)
                     androidx.compose.animation.AnimatedVisibility(
-                        visible = isLoadingLyrics || !autoHideLyricsControls || controlsVisible,
+                        visible = hasSyncedLyrics && (isLoadingLyrics || !autoHideLyricsControls || controlsVisible),
                         enter = fadeIn() + scaleIn(),
                         exit = fadeOut() + scaleOut(),
                         modifier = Modifier
@@ -1028,10 +1033,11 @@ fun FullScreenLyricsView(
                                     showTranslation = showTranslation,
                                     showRomanization = showRomanization
                                 )
+                            } else if (!hasSyncedLyrics) {
+                                FullScreenPlainLyrics(lyrics.getBestLyrics().orEmpty(), playerLyricsTextSize, lyricsTextAlign, textPrimaryColor)
+
                             } else {
-                                val lyricsText = remember(lyrics) {
-                                    lyrics.getBestLyrics() ?: ""
-                                }
+                                val lyricsText = remember(lyrics) { lyrics.getBestLyrics().orEmpty() }
                                 SyncedLyricsView(
                                     lyrics = lyricsText,
                                     currentPlaybackTime = currentTimeMs,
@@ -1050,7 +1056,7 @@ fun FullScreenLyricsView(
 
                     // Floating Romanization and Translation Stack (on the right)
                     androidx.compose.animation.AnimatedVisibility(
-                        visible = isLoadingLyrics || !autoHideLyricsControls || controlsVisible,
+                        visible = hasSyncedLyrics && (isLoadingLyrics || !autoHideLyricsControls || controlsVisible),
                         enter = fadeIn() + scaleIn(),
                         exit = fadeOut() + scaleOut(),
                         modifier = Modifier
@@ -1340,4 +1346,17 @@ private fun Modifier.bouncyClickable(
             enabled = enabled,
             onClick = onClick
         )
+}
+
+@Composable
+private fun FullScreenPlainLyrics(raw: String, size: Float, alignment: TextAlign, color: Color) {
+    // Plain text has no reliable language-role markers. Preserve every original line.
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 32.dp)) {
+        Text(raw, modifier = Modifier.fillMaxWidth(), color = color, textAlign = alignment,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = MaterialTheme.typography.bodyLarge.fontSize * size,
+                lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * 1.6f * size,
+            ))
+        Spacer(Modifier.height(64.dp))
+    }
 }

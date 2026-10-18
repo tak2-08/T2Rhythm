@@ -13,4 +13,5 @@
     <string name="soft_update_app_required">Update the app first to use these recommendation settings.</string>
     <string name="soft_update_checking">Checking…</string>
     <string name="lyric_ai_current_line">Current line</string>
+    <string name="lyric_ai_mode_label">Analysis method</string>
 </resources>

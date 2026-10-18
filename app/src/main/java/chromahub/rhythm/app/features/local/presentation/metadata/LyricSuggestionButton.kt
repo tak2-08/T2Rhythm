@@ -93,7 +93,7 @@ fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicView
             Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.lyric_ai_hint))
                 if (lines.size !in 3..1000 || song.duration !in 15_000..1_200_000) Text(stringResource(R.string.lyric_ai_input_limits), color = MaterialTheme.colorScheme.error)
-                LearningPreferences()
+                LearningPreferences(lyricOnly = true)
             }
         },
         confirmButton = { TextButton(enabled = lines.size in 3..1000 && song.duration in 15_000..1_200_000, onClick = {

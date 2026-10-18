@@ -13,4 +13,5 @@
     <string name="soft_update_app_required">이 추천 설정을 사용하려면 먼저 앱을 업데이트해 주세요.</string>
     <string name="soft_update_checking">확인 중…</string>
     <string name="lyric_ai_current_line">현재 줄</string>
+    <string name="lyric_ai_mode_label">분석 방식</string>
 </resources>

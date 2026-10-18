@@ -61,6 +61,14 @@ class LyricsEntryAndUpdatesTest {
         CompositionLocalProvider(LocalContext provides ctx, LocalConfiguration provides ctx.resources.configuration) { MaterialTheme { content() } }
     }
     private fun capture(name: String) {
+        // Semantics can be placed while the entrance graphics layer is still transparent.
+        // Advance Compose animation time, then allow Android windows to commit their frames.
+        compose.mainClock.advanceTimeBy(2000)
+        compose.waitForIdle()
+        android.os.SystemClock.sleep(2200)
+        compose.mainClock.advanceTimeBy(2000)
+        compose.waitForIdle()
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
         val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         File(base.getExternalFilesDir(null), name).outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
     }
@@ -83,6 +91,7 @@ class LyricsEntryAndUpdatesTest {
         compose.onNodeWithTag("lyric-ai-action").performClick()
         compose.onNodeWithText(ctx.getString(R.string.lyric_ai_start)).assertIsDisplayed()
         compose.onNodeWithText(ctx.getString(R.string.lyric_ai_hint)).assertExists()
+        compose.onNodeWithText(ctx.getString(R.string.discovery_auto_refresh, 6)).assertDoesNotExist()
         capture("lyrics-ai-options.png")
         assertNull(AutomaticLyricsStore.get(base).read(track))
     }
@@ -103,7 +112,7 @@ class LyricsEntryAndUpdatesTest {
         val settings = AppSettings.getInstance(ctx); val old = settings.autoHideLyricsControls.value
         settings.setAutoHideLyricsControls(true)
         try {
-            val track = song(); val original = LyricsData(null, text)
+            val track = song(); val screenText = text + "\nHold on to the night"; val original = LyricsData(null, screenText)
             compose.setContent {
                 val vm: MusicViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
                 Frame { FullScreenLyricsView(track, false, 0, original, false, {}, {}, {}, {}, {}, {}, {}, {}, {},
@@ -112,6 +121,7 @@ class LyricsEntryAndUpdatesTest {
             compose.mainClock.advanceTimeBy(6500)
             compose.waitUntil(8000) { compose.onAllNodesWithContentDescription(ctx.getString(R.string.edit_lyrics)).fetchSemanticsNodes().isEmpty() }
             compose.onNodeWithTag("lyric-ai-action").assertIsDisplayed()
+            compose.onNodeWithText(screenText).assertIsDisplayed()
             capture("lyrics-ai-fullscreen.png")
         } finally { settings.setAutoHideLyricsControls(old) }
     }
