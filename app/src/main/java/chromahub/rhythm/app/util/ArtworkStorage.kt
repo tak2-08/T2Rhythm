@@ -17,6 +17,20 @@ import java.io.File
 
 /** Shared optimized artwork format for catalog, manual edits, and extracted artwork. */
 object ArtworkStorage {
+    /** Manual covers always use immutable content identities, including with automatic archival off. */
+    suspend fun manual(context: Context, source: Uri): Uri = withContext(Dispatchers.IO) {
+        val directory = File(context.filesDir, "music_metadata/images").apply { mkdirs() }
+        val temporary = File(context.cacheDir, "manual-${java.util.UUID.randomUUID()}.webp")
+        try {
+            copy(context, source, temporary)
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            temporary.inputStream().use { input -> val buffer = ByteArray(8192); while (true) { val n = input.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) } }
+            val hash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
+            val target = File(directory, "$hash.webp")
+            synchronized(this@ArtworkStorage) { if (!target.isFile) PersonalArchive.atomicWrite(target, temporary.readBytes()) }
+            Uri.fromFile(target)
+        } finally { temporary.delete() }
+    }
     @Suppress("DEPRECATION")
     fun format(lossless: Boolean = false): Bitmap.CompressFormat = if (Build.VERSION.SDK_INT >= 30)
         if (lossless) Bitmap.CompressFormat.WEBP_LOSSLESS else Bitmap.CompressFormat.WEBP_LOSSY

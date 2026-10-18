@@ -92,7 +92,8 @@ fun FullScreenLyricsView(
     onNavigateToLyricsSettings: () -> Unit,
     modifier: Modifier = Modifier,
     canvasArtwork: CanvasArtwork? = null,
-    canvasLoading: Boolean = false
+    canvasLoading: Boolean = false,
+    lyricSuggestion: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -785,6 +786,7 @@ fun FullScreenLyricsView(
                         Column(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
+                            lyricSuggestion()
                             // Quick Open Lyrics Editor
                             FilledTonalIconButton(
                                 onClick = {
@@ -1103,6 +1105,7 @@ fun FullScreenLyricsView(
                         Column(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
+                            lyricSuggestion()
                             // Quick Open Lyrics Editor
                             FilledTonalIconButton(
                                 onClick = {

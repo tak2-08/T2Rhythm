@@ -206,7 +206,7 @@ class MusicRepository(context: Context) {
             config = PagingConfig(pageSize = 50, enablePlaceholders = true),
             pagingSourceFactory = { songDao.getSongsPagingSource() }
         ).flow.map { pagingData ->
-            pagingData.map { entity -> entity.toSong() }
+            pagingData.map { entity -> catalog.apply(entity.toSong()) }
         }
     }
 
@@ -218,7 +218,7 @@ class MusicRepository(context: Context) {
                 else songDao.getSongsPagingSourceSearch(query) 
             }
         ).flow.map { pagingData ->
-            pagingData.map { entity -> entity.toSong() }
+            pagingData.map { entity -> catalog.apply(entity.toSong()) }
         }
     }
 
@@ -487,6 +487,7 @@ class MusicRepository(context: Context) {
             val losslessArtwork = appSettings.isLosslessArtworkActive.value
 
             // Batch-read artwork overrides to avoid per-song SharedPreferences IPC calls
+            entities.forEach { chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides(context).migrate(it.toSong()) }
             val artworkAll = artworkPrefs.all
             val removedOverrides = mutableMapOf<String, Boolean>()
             val uriOverrides = mutableMapOf<String, Uri?>()
@@ -2592,13 +2593,13 @@ class MusicRepository(context: Context) {
     suspend fun fetchTrackArtwork(songs: List<Song>): List<Song> = withContext(Dispatchers.IO) {
         songs.map { original ->
             val song = catalog.apply(original)
-            if (catalog.artworkRemoved(song) && !catalog.preferences.options.value.replaces(kr.co.metadata.crawler.CatalogField.TRACK_IMAGE)) return@map song.copy(artworkUri = null)
+            if (catalog.artworkRemoved(song)) return@map song.copy(artworkUri = null)
+            catalog.manualArtwork(song)?.let { return@map song.copy(artworkUri = it) }
             var uri = if (catalog.preferences.options.value.replaces(kr.co.metadata.crawler.CatalogField.TRACK_IMAGE)) null else song.artworkUri?.takeIf(catalog::usableArtwork)
             if (uri == null && catalog.preferences.options.value.artwork) uri = catalog.fetchedImage(kr.co.metadata.crawler.EntityKind.TRACK, catalog.songKey(song), song.title, song.artist, song.duration, song.album)
-            if (uri == null) uri = fetchTrackArtworkLegacy(listOf(song)).firstOrNull()?.artworkUri
+            if (uri == null && catalog.preferences.options.value.artworkSource == "LEGACY") uri = fetchTrackArtworkLegacy(listOf(song)).firstOrNull()?.artworkUri
             if (catalog.usableArtwork(uri)) uri = catalog.persistArtwork(kr.co.metadata.crawler.EntityKind.TRACK, catalog.songKey(song), uri)
-            catalog.acceptForcedArtwork(song, uri)
-            song.copy(artworkUri = uri)
+            catalog.apply(song.copy(artworkUri = uri))
         }
     }
 
@@ -5664,7 +5665,7 @@ class MusicRepository(context: Context) {
                 albumId = song.albumId,
                 lossless = lossless
             )
-            song.copy(artworkUri = onDemandUri)
+            catalog.apply(song.copy(artworkUri = onDemandUri))
         }
         cachedSongs = updatedSongs
         onBatchUpdated?.invoke(updatedSongs)
@@ -5697,7 +5698,7 @@ class MusicRepository(context: Context) {
                     } else song.title
                     val response = deezerApiService.searchAlbums(query)
                     val bestMatch = findBestAlbumMatch(response.data, song.album.ifBlank { song.title }, song.artist)
-                    val imgUrl = bestMatch?.coverXl ?: bestMatch?.coverBig ?: bestMatch?.coverMedium ?: response.data.firstOrNull()?.coverXl ?: response.data.firstOrNull()?.coverBig
+                    val imgUrl = bestMatch?.coverXl ?: bestMatch?.coverBig ?: bestMatch?.coverMedium
                     if (!imgUrl.isNullOrEmpty() && imgUrl.startsWith("http")) {
                         fetchedUri = imgUrl.toUri()
                         Log.d(TAG, "Found Deezer artwork for track: ${song.title}, URL: $imgUrl")
@@ -6214,29 +6215,19 @@ class MusicRepository(context: Context) {
      * Clears all song cache data from Room database.
      * Call this when the user explicitly clears cache from settings.
      */
-    fun clearSongCacheData() {
-        try {
-            repositoryScope.launch {
-                try {
-                    roomDb.withTransaction {
-                        songDao.deleteAll()
-                        roomDb.songArtistDao().deleteAll()
-                        roomDb.artistDao().deleteAll()
-                    }
-                    genrePrefs.edit { clear() }
-                    artworkPrefs.edit { clear() }
-                    libraryScanPrefs.edit { clear() }
-                    clearEmbeddedArtworkFileCaches()
-                    clearInMemoryCaches()
-                    Log.d(TAG, "Cleared Room song/artist/link tables and metadata caches")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error clearing Room database", e)
-                }
-            }
-            Log.d(TAG, "Scheduled full song cache clear (Room, metadata, in-memory)")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error clearing song cache data", e)
+    suspend fun clearSongCacheData() = withContext(Dispatchers.IO) {
+        val assets = chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides(context)
+        val videos = chromahub.rhythm.app.features.local.data.video.MusicVideoRepository(context)
+        songDao.getAllSongs().forEach { row -> assets.migrate(row.toSong()); videos.get(row.toSong()) }
+        roomDb.withTransaction {
+            songDao.deleteAll()
+            roomDb.songArtistDao().deleteAll()
+            roomDb.artistDao().deleteAll()
         }
+        genrePrefs.edit { clear() }
+        libraryScanPrefs.edit { clear() }
+        clearEmbeddedArtworkFileCaches()
+        clearInMemoryCaches()
     }
 
     /**

@@ -89,7 +89,7 @@ object DownloadRegistry {
         }
     }
 
-    fun completedAudio(context: Context, sourceId: String): DownloadRecord? =
+    internal fun completedAudioPointer(context: Context, sourceId: String): DownloadRecord? =
         runCatching {
                 val pointer =
                     File(
@@ -102,7 +102,9 @@ object DownloadRegistry {
                 }
             }
             .getOrNull()
-            ?: recent(context, 1000).firstOrNull {
+
+    fun completedAudio(context: Context, sourceId: String): DownloadRecord? =
+        completedAudioPointer(context, sourceId) ?: recent(context, 1000).firstOrNull {
                 it.kind == "AUDIO" && it.sourceId == sourceId && it.state == "SUCCEEDED"
             }
 

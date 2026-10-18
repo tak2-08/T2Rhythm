@@ -71,6 +71,7 @@ import chromahub.rhythm.app.util.ColorExtractor
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -93,7 +94,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.yield
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.room.withTransaction
@@ -148,6 +151,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "MusicViewModel"
+        // A final flush must outlive its ViewModel without blocking the UI that a loader needs.
+        private val playlistPersistenceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val playlistLock = Mutex()
         /**
          * Threshold above which we skip per-item moveMediaItem calls and use
          * a single setMediaItems call instead. moveMediaItem triggers an IPC
@@ -878,7 +884,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val playlists: StateFlow<List<Playlist>> = _playlists.asStateFlow()
     @Volatile
     private var isPlaylistsLoaded = false
-    private val playlistLock = Mutex()
 
     // Use audioDeviceManager for locations instead of the mock data
     val locations = audioDeviceManager.availableDevices
@@ -2324,7 +2329,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         Log.d(TAG, "Performing full MediaStore refresh...")
         try {
             val currentCount = _songs.value.size
-            val cachedSongMap = _songs.value.associateBy { it.id }
+            val cachedSongMap = _songs.value.associateBy { repository.catalog.songKey(it) }
             // Run all heavy IO work off the main thread
             val (freshSongs, freshAlbums, freshArtists) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 repository.refreshMusicData(
@@ -2335,20 +2340,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
             // Merge cached metadata into fresh songs to preserve post-scan processing data
             val mergedSongs = freshSongs.map { fresh ->
-                val cached = cachedSongMap[fresh.id]
+                val cached = cachedSongMap[repository.catalog.songKey(fresh)]
                 if (cached != null) {
-                    val isCachedFileValid = cached.artworkUri?.scheme == "file" &&
-                        cached.artworkUri.path?.let { File(it).exists() } == true
-                    val hasArtworkOverride = runCatching {
-                        getApplication<Application>().getSharedPreferences("artwork_overrides", Context.MODE_PRIVATE)
-                            .getString("uri_${cached.id}", null) != null
-                    }.getOrDefault(false)
-                    val keepCachedArtwork = isCachedFileValid || hasArtworkOverride
-                    val resolvedArtworkUri = if (keepCachedArtwork) {
-                        cached.artworkUri
-                    } else {
-                        fresh.artworkUri ?: cached.artworkUri
-                    }
+                    val resolvedArtworkUri = repository.catalog.apply(fresh).artworkUri
 
                     fresh.copy(
                         genre = fresh.genre ?: cached.genre,
@@ -2505,6 +2499,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * Triggers a refresh of all music data by rescanning the device's MediaStore.
      * This will update the songs, albums, and artists in the ViewModel.
      */
+    suspend fun rebuildLibraryDatabase() {
+        scanJob?.cancelAndJoin()
+        repository.clearSongCacheData()
+        refreshLibrary()
+        scanJob?.join()
+    }
+
     fun refreshLibrary(showMediaScanLoader: Boolean = true) {
         mediaScanNotificationSequence += 1
         val notificationSequence = mediaScanNotificationSequence
@@ -2973,10 +2974,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     
     /**
      * Updates the current song metadata in the UI and library
-     * @param updatedSong The song with updated metadata
+     * @param update The song with updated metadata
      */
-    fun updateCurrentSongMetadata(updatedSong: Song) {
+    fun updateCurrentSongMetadata(update: Song) {
         viewModelScope.launch {
+            val updatedSong = withContext(Dispatchers.IO) { update.copy(artworkUri = repository.catalog.apply(update).artworkUri) }
             // Update the song in the main songs list
             val updatedSongs = _songs.value.map { song ->
                 if (song.id == updatedSong.id) updatedSong else song
@@ -3451,23 +3453,26 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     /**
-     * Ensures current playlists and favorite songs are saved to persistent storage
-     * Useful before creating a backup to ensure all data is included
+     * Flushes a snapshot without blocking lifecycle callbacks. Backup callers join the returned job.
+     * Shared locking also orders the final flush before a replacement ViewModel loads its playlists.
      */
-    fun ensurePlaylistsSaved() {
-        try {
-            if (!isPlaylistsLoaded) {
-                Log.w(TAG, "ensurePlaylistsSaved skipped because playlists are not loaded")
-                return
+    fun ensurePlaylistsSaved(): Job {
+        val loaded = isPlaylistsLoaded
+        val playlists = _playlists.value
+        savePlaylistsJob?.cancel()
+        // Preferences already persist each edit; refresh them now, before a replacement owner edits.
+        if (loaded) saveFavoriteSongs()
+        // Enter the shared mutex before returning; Room dispatches the transaction off the UI.
+        return playlistPersistenceScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            if (!loaded) return@launch
+            try {
+                savePlaylistsToRoom(playlists)
+                Log.d(TAG, "Playlists and favorites explicitly saved to storage")
+            } catch (cancel: kotlinx.coroutines.CancellationException) {
+                throw cancel
+            } catch (e: Exception) {
+                Log.e(TAG, "Error ensuring playlists are saved", e)
             }
-            savePlaylistsJob?.cancel()
-            runBlocking(Dispatchers.IO) {
-                savePlaylistsToRoom(_playlists.value)
-            }
-            saveFavoriteSongs()
-            Log.d(TAG, "Playlists and favorites explicitly saved to storage")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error ensuring playlists are saved", e)
         }
     }
     
@@ -10694,7 +10699,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
         Log.d(TAG, "ViewModel clearing, cleaning up resources")
         
-        // Ensure pending playlist changes and favorites are flushed to Room before scope cancellation
+        // Finish pending writes outside the cancelled ViewModel scope; never block the main thread.
         ensurePlaylistsSaved()
         
         // Unregister broadcast receiver

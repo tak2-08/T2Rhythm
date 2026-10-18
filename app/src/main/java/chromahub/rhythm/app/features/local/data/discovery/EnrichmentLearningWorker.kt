@@ -49,14 +49,14 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                                 if (
                                     feature != null &&
                                         lines.size <= 400 &&
-                                        LocalLyricAlignment.valid(lines, song.duration)
+                                        TimingReferencePolicy.trusted(lines, song.duration, lyrics?.source)
                                 )
                                     TimingTraining(
                                         song.uri.toString(),
                                         feature.pcmSha256,
                                         label.orEmpty(),
                                         song.duration,
-                                        lines,
+                                        lines.map { it.copy(text = it.text.take(400)) },
                                     )
                                 else null
                             index.put(
@@ -80,7 +80,9 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                         enqueue(applicationContext, true)
                         return@withContext Result.success()
                     }
-                    val model = index.model(store.list(1000), budget::blockingCheckpoint)
+                    val candidate = index.model(store.list(1000), budget::blockingCheckpoint,
+                        LyricTimingFeedback(applicationContext).read().map { it.example })
+                    val model = TimingValidation.select(applicationContext, candidate, store.model(), budget::blockingCheckpoint)
                     store.saveModel(model)
                     for ((i, song) in batch.withIndex()) {
                         run inferSong@{

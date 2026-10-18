@@ -61,6 +61,8 @@ fun CatalogSourceSettings() {
 
 @Composable
 fun CatalogLibrarySettingsScreen(onBackClick: () -> Unit) {
+    var algorithms by remember { mutableStateOf(false) }
+    if (algorithms) AlgorithmManagement(onDismiss = { algorithms = false })
     chromahub.rhythm.app.shared.presentation.components.common.CollapsibleHeaderScreen(
         title = stringResource(R.string.catalog_library_title), showBackButton = true, onBackClick = onBackClick
     ) { modifier ->
@@ -69,8 +71,7 @@ fun CatalogLibrarySettingsScreen(onBackClick: () -> Unit) {
             item { LibraryEnrichmentPanel() }
             item { CatalogSourceSettings() }
             item { PersonalArchivePanel() }
-            item { LearningPreferences() }
-            item { PersonalExperiencePanel() }
+            item { OutlinedButton(onClick = { algorithms = true }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.algorithm_title)) } }
         }
     }
 }

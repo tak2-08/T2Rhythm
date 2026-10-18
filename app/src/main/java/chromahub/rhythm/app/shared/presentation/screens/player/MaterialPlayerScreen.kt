@@ -2305,6 +2305,7 @@ fun MaterialPlayerScreen(
                                                             showRomanization = showLyricsRomanization
                                                         )
                                                     } else {
+                                                        chromahub.rhythm.app.features.local.presentation.metadata.LyricSuggestionButton(song, lyrics, musicViewModel)
                                                         // Fall back to line-by-line synced or plain lyrics
                                                         val lyricsText = remember(lyrics) {
                                                             lyrics.getBestLyrics() ?: ""

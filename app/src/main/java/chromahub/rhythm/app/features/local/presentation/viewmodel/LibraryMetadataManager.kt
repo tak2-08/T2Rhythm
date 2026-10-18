@@ -175,14 +175,14 @@ class LibraryMetadataManager(
                 val updatedArtworkUri = when {
                     removeArtwork -> {
                         clearCachedArtwork(appContext, song.id)
-                        persistArtworkOverrideRemoved(appContext, song.id)
+                        persistArtworkOverrideRemoved(appContext, song)
                         MediaUtils.deleteCachedEmbeddedArtwork(appContext.cacheDir, song.uri)
                         null
                     }
                     tempArtworkUri != null -> {
                         try {
                             val cachedUri = saveArtworkToCache(appContext, song, tempArtworkUri) ?: tempArtworkUri
-                            persistArtworkOverrideUri(appContext, song.id, cachedUri)
+                            persistArtworkOverrideUri(appContext, song, cachedUri)
                             MediaUtils.deleteCachedEmbeddedArtwork(appContext.cacheDir, song.uri)
                             cachedUri
                         } catch (e: Exception) {
@@ -289,13 +289,13 @@ class LibraryMetadataManager(
                     artworkUri = when {
                         removeArtwork -> {
                             clearCachedArtwork(appContext, song.id)
-                            persistArtworkOverrideRemoved(appContext, song.id)
+                            persistArtworkOverrideRemoved(appContext, song)
                             null
                         }
                         artworkUri != null -> {
                             try {
                                 val cachedUri = saveArtworkToCache(appContext, song, artworkUri) ?: artworkUri
-                                persistArtworkOverrideUri(appContext, song.id, cachedUri)
+                                persistArtworkOverrideUri(appContext, song, cachedUri)
                                 cachedUri
                             } catch (_: Exception) {
                                 artworkUri
@@ -390,7 +390,7 @@ class LibraryMetadataManager(
                     val updatedArtworkUri = when {
                         pendingRequest.removeArtwork -> {
                             clearCachedArtwork(appContext, pendingRequest.song.id)
-                            persistArtworkOverrideRemoved(appContext, pendingRequest.song.id)
+                            persistArtworkOverrideRemoved(appContext, pendingRequest.song)
                             MediaUtils.deleteCachedEmbeddedArtwork(appContext.cacheDir, pendingRequest.song.uri)
                             null
                         }
@@ -402,7 +402,7 @@ class LibraryMetadataManager(
                                     pendingRequest.song,
                                     pendingArtworkUri
                                 ) ?: pendingArtworkUri
-                                persistArtworkOverrideUri(appContext, pendingRequest.song.id, cachedUri)
+                                persistArtworkOverrideUri(appContext, pendingRequest.song, cachedUri)
                                 MediaUtils.deleteCachedEmbeddedArtwork(appContext.cacheDir, pendingRequest.song.uri)
                                 cachedUri
                             } catch (_: Exception) {
@@ -606,14 +606,14 @@ class LibraryMetadataManager(
                         val updatedArtworkUri = when {
                             removeArtwork -> {
                                 clearCachedArtwork(appContext, song.id)
-                                persistArtworkOverrideRemoved(appContext, song.id)
+                                persistArtworkOverrideRemoved(appContext, song)
                                 MediaUtils.deleteCachedEmbeddedArtwork(appContext.cacheDir, song.uri)
                                 null
                             }
                             tempArtworkUri != null -> {
                                 try {
                                     val cachedUri = saveArtworkToCache(appContext, song, tempArtworkUri) ?: tempArtworkUri
-                                    persistArtworkOverrideUri(appContext, song.id, cachedUri)
+                                    persistArtworkOverrideUri(appContext, song, cachedUri)
                                     MediaUtils.deleteCachedEmbeddedArtwork(appContext.cacheDir, song.uri)
                                     cachedUri
                                 } catch (_: Exception) {
@@ -753,14 +753,14 @@ class LibraryMetadataManager(
                         val updatedArtworkUri = when {
                             removeArtwork -> {
                                 clearCachedArtwork(appContext, song.id)
-                                persistArtworkOverrideRemoved(appContext, song.id)
+                                persistArtworkOverrideRemoved(appContext, song)
                                 MediaUtils.deleteCachedEmbeddedArtwork(appContext.cacheDir, song.uri)
                                 null
                             }
                             artworkUri != null -> {
                                 try {
                                     val cachedUri = saveArtworkToCache(appContext, song, artworkUri) ?: artworkUri
-                                    persistArtworkOverrideUri(appContext, song.id, cachedUri)
+                                    persistArtworkOverrideUri(appContext, song, cachedUri)
                                     MediaUtils.deleteCachedEmbeddedArtwork(appContext.cacheDir, song.uri)
                                     cachedUri
                                 } catch (_: Exception) {
@@ -833,14 +833,9 @@ class LibraryMetadataManager(
 
     private suspend fun saveArtworkToCache(context: Context, song: Song, artworkUri: Uri): Uri? = withContext(Dispatchers.IO) {
         try {
-            val artworkDir = File(context.filesDir, "custom_artwork").apply {
-                if (!exists()) mkdirs()
-            }
-            val artworkFile = File(artworkDir, "artwork_${song.id}.webp")
-            val copied = chromahub.rhythm.app.util.ArtworkStorage.copy(context, artworkUri, artworkFile)
+            val copied = chromahub.rhythm.app.util.ArtworkStorage.manual(context, artworkUri)
             val catalog = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context)
             val archived = catalog.persistArtwork(kr.co.metadata.crawler.EntityKind.TRACK, "manual:${catalog.songKey(song)}", copied) ?: copied
-            if (archived != copied) artworkFile.delete()
             archived
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save artwork to cache", e)
@@ -862,7 +857,7 @@ class LibraryMetadataManager(
                 val appContext = context.applicationContext
                 val cachedUri = saveArtworkToCache(appContext, song, artworkUri)
                 if (cachedUri != null) {
-                    persistArtworkOverrideUri(appContext, song.id, cachedUri)
+                    persistArtworkOverrideUri(appContext, song, cachedUri)
                     MediaUtils.deleteCachedEmbeddedArtwork(appContext.cacheDir, song.uri)
                     val updatedSong = song.copy(artworkUri = cachedUri)
                     chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(appContext).recordManualSong(updatedSong)
@@ -884,29 +879,12 @@ class LibraryMetadataManager(
         }
     }
 
-    private fun persistArtworkOverrideRemoved(context: Context, songId: String) {
-        try {
-            context.getSharedPreferences("artwork_overrides", Context.MODE_PRIVATE)
-                .edit {
-                    putBoolean("removed_$songId", true)
-                    remove("uri_$songId")
-                }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to persist removed artwork override for song $songId", e)
-        }
+    private fun persistArtworkOverrideRemoved(context: Context, song: Song) {
+        chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides(context).save(song, null, true)
     }
 
-    private fun persistArtworkOverrideUri(context: Context, songId: String, artworkUri: Uri?) {
-        if (artworkUri == null) return
-        try {
-            context.getSharedPreferences("artwork_overrides", Context.MODE_PRIVATE)
-                .edit {
-                    putBoolean("removed_$songId", false)
-                    putString("uri_$songId", artworkUri.toString())
-                }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to persist artwork override URI for song $songId", e)
-        }
+    private fun persistArtworkOverrideUri(context: Context, song: Song, artworkUri: Uri?) {
+        if (artworkUri != null) chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides(context).save(song, artworkUri)
     }
 
     fun clearCachedArtwork(context: Context, songId: String) {

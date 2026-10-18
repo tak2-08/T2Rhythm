@@ -30,6 +30,7 @@ fun SearchDiscoveryPanel(
     var keywords by remember { mutableStateOf(emptyList<String>()) }
     var loading by remember { mutableStateOf(true) }
     var charts by remember { mutableStateOf(false) }
+    var downloads by remember { mutableStateOf(false) }
     var review by remember { mutableStateOf(false) }
     LaunchedEffect(songs, favorites) {
         loading = true
@@ -76,6 +77,11 @@ fun SearchDiscoveryPanel(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        FilledTonalButton(onClick = { downloads = true }, modifier = Modifier.fillMaxWidth()) {
+            Icon(MaterialSymbolIcon("download"), null, Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.download_search_title))
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilledTonalButton(
                 onClick = { if (onOpenPopular != null) onOpenPopular() else charts = true },
@@ -97,6 +103,7 @@ fun SearchDiscoveryPanel(
             }
         }
     }
+    if (downloads) DownloadCenter(viewModel = viewModel, initialTab = 0) { downloads = false }
     if (charts) ChartBrowser { charts = false }
     if (review) EnrichmentReview(viewModel) { review = false }
 }

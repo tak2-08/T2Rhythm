@@ -232,6 +232,10 @@ fun SettingsScreen(
     val hapticFeedback = LocalHapticFeedback.current
     val context = LocalContext.current
     val appSettings = AppSettings.getInstance(context)
+    var showAlgorithms by remember { mutableStateOf(false) }
+    var showVideos by remember { mutableStateOf(false) }
+    if (showVideos) chromahub.rhythm.app.features.local.presentation.metadata.VideoLibraryManager(onDismiss = { showVideos = false })
+    if (showAlgorithms) chromahub.rhythm.app.features.local.presentation.metadata.AlgorithmManagement(onDismiss = { showAlgorithms = false })
     var showDownloads by remember { mutableStateOf(false) }
     if (showDownloads) chromahub.rhythm.app.features.local.presentation.metadata.DownloadCenter { showDownloads = false }
 
@@ -411,6 +415,8 @@ fun SettingsScreen(
             SettingGroup(
                 title = context.getString(R.string.settings_section_storage_data),
                 items = buildList {
+                    add(SettingItem(MaterialSymbolIcon("neurology"), context.getString(R.string.algorithm_title), context.getString(R.string.algorithm_hint), palette = SettingsPalettes.Purple, onClick = { showAlgorithms = true }))
+                    add(SettingItem(MaterialSymbolIcon("video_library"), context.getString(R.string.video_library_title), context.getString(R.string.video_library_hint), palette = SettingsPalettes.SkyBlue, onClick = { showVideos = true }))
                     add(SettingItem(MaterialSymbolIcon("download"), context.getString(R.string.discovery_downloads), context.getString(R.string.discovery_downloads_short), palette = SettingsPalettes.SkyBlue, onClick = { showDownloads = true }))
                     // Listening Stats and Rhythm Guard are shared across LOCAL and STREAMING modes
                     add(SettingItem(MaterialSymbolIcon("auto_graph"), context.getString(R.string.settings_rhythm_stats), context.getString(R.string.settings_rhythm_stats_desc), palette = SettingsPalettes.Purple, onClick = { onNavigateTo(SettingsRoutes.RHYTHM_STATS) }))

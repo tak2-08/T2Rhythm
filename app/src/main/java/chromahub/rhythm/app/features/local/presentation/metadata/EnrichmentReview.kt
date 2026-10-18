@@ -24,11 +24,11 @@ import kotlinx.coroutines.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EnrichmentReview(viewModel: MusicViewModel, onDismiss: () -> Unit) {
+fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val store = remember { EnrichmentStore(context) }
-    val songs by viewModel.filteredSongs.collectAsState()
+    val songs by viewModel.songs.collectAsState()
     val current by viewModel.currentSong.collectAsState()
     val revision by EnrichmentStore.revision.collectAsState()
     var proposals by remember { mutableStateOf(emptyList<EnrichmentProposal>()) }
@@ -39,7 +39,7 @@ fun EnrichmentReview(viewModel: MusicViewModel, onDismiss: () -> Unit) {
     var message by remember { mutableStateOf<String?>(null) }
     var permissionId by remember { mutableStateOf<String?>(null) }
     var permissionUndo by remember { mutableStateOf(false) }
-    LaunchedEffect(revision) { proposals = withContext(Dispatchers.IO) { store.list(1000) } }
+    LaunchedEffect(revision) { proposals = withContext(Dispatchers.IO) { store.list(1000).filter { songKey == null || it.songKey == songKey } } }
     fun finish(id: String, undo: Boolean) {
         scope.launch {
             try {
@@ -248,6 +248,7 @@ fun EnrichmentReview(viewModel: MusicViewModel, onDismiss: () -> Unit) {
                         Text(
                             context.getString(
                                 when (proposal.method) {
+                                    "waveform_estimate" -> R.string.lyric_ai_waveform
                                     "speech_anchors" -> R.string.discovery_method_speech
                                     "same_audio_reference" -> R.string.discovery_method_reference
                                     "local_neighbors" -> R.string.discovery_method_genre
@@ -286,12 +287,12 @@ fun EnrichmentReview(viewModel: MusicViewModel, onDismiss: () -> Unit) {
                             LocalLyricAlignment.parse(proposal.beforeLyrics?.syncedLyrics.orEmpty())
                         items(
                             LocalLyricAlignment.parse(proposal.value)
-                                .take(200)
+                                .take(1000)
                                 .withIndex()
                                 .toList(),
                             key = { it.index },
                         ) { (index, line) ->
-                            val seekable = current?.uri?.toString() == proposal.songKey && !busy
+                            val seekable = song != null && !busy
                             fun stamp(ms: Long) =
                                 "%02d:%02d.%03d"
                                     .format(
@@ -300,6 +301,36 @@ fun EnrichmentReview(viewModel: MusicViewModel, onDismiss: () -> Unit) {
                                         ms / 1000 % 60,
                                         ms % 1000,
                                     )
+                            if (proposal.state == "PENDING" && song != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf(-200L to "−0.2s", 200L to "+0.2s").forEach { (delta, label) ->
+                                    TextButton(enabled = !busy, onClick = {
+                                        scope.launch {
+                                            try {
+                                                val changed = withContext(Dispatchers.IO) {
+                                                    val lines = LocalLyricAlignment.parse(proposal.value).toMutableList()
+                                                    lines[index] = line.copy(ms = line.ms + delta)
+                                                    store.adjustTiming(proposal.id, lines, song.duration)
+                                                }
+                                                selected = changed
+                                            } catch (cancel: CancellationException) { throw cancel }
+                                            catch (_: Exception) { message = context.getString(R.string.lyric_ai_order) }
+                                        }
+                                    }) { Text(label) }
+                                }
+                                TextButton(enabled = current?.uri == song.uri && !busy, onClick = {
+                                    scope.launch {
+                                        try {
+                                            val changed = withContext(Dispatchers.IO) {
+                                                val lines = LocalLyricAlignment.parse(proposal.value).toMutableList()
+                                                lines[index] = line.copy(ms = (viewModel.progress.value * song.duration).toLong())
+                                                store.adjustTiming(proposal.id, lines, song.duration)
+                                            }
+                                            selected = changed
+                                        } catch (cancel: CancellationException) { throw cancel }
+                                        catch (_: Exception) { message = context.getString(R.string.lyric_ai_order) }
+                                    }
+                                }) { Text(context.getString(R.string.lyric_ai_mark_now)) }
+                            }
                             ListItem(
                                 headlineContent = {
                                     Text(line.text, style = MaterialTheme.typography.bodyMedium)
@@ -314,7 +345,7 @@ fun EnrichmentReview(viewModel: MusicViewModel, onDismiss: () -> Unit) {
                                 trailingContent = {
                                     IconButton(
                                         enabled = seekable,
-                                        onClick = { viewModel.seekTo(line.ms) },
+                                        onClick = { if (current?.uri != song?.uri && song != null) viewModel.playSong(song) else viewModel.seekTo(line.ms, autoPlayIfPaused = true) },
                                     ) {
                                         Icon(
                                             MaterialSymbolIcon("play_arrow"),
@@ -325,7 +356,7 @@ fun EnrichmentReview(viewModel: MusicViewModel, onDismiss: () -> Unit) {
                                 },
                                 modifier =
                                     Modifier.clickable(enabled = seekable) {
-                                        viewModel.seekTo(line.ms)
+                                        if (current?.uri != song?.uri && song != null) viewModel.playSong(song) else viewModel.seekTo(line.ms, autoPlayIfPaused = true)
                                     },
                             )
                         }

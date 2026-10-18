@@ -51,7 +51,10 @@ internal class EnrichmentLearningIndex(context: Context) :
         )
     }
 
-    fun model(feedback: List<EnrichmentProposal>, checkpoint: () -> Unit = {}): EnrichmentModel {
+    fun model(feedback: List<EnrichmentProposal>, checkpoint: () -> Unit = {}, reviewed: List<TimingTraining> = emptyList()): EnrichmentModel {
+        // Rebuildable cache: keep a fixed representative reservoir, with no duplicate recording votes.
+        writableDatabase.execSQL("UPDATE samples SET timing=NULL WHERE song NOT IN (SELECT song FROM samples WHERE timing IS NOT NULL ORDER BY priority LIMIT 256)")
+        writableDatabase.execSQL("DELETE FROM samples WHERE song NOT IN (SELECT song FROM samples ORDER BY priority LIMIT 8192)")
         val genres = mutableListOf<GenreExample>()
         val timings = mutableListOf<TimingTraining>()
         val counts = mutableMapOf<String, Int>()
@@ -80,11 +83,11 @@ internal class EnrichmentLearningIndex(context: Context) :
                             counts[label] = (counts[label] ?: 0) + 1
                         }
                     }
-                    if (!c.isNull(3) && timings.size < 32)
+                    if (!c.isNull(3) && timings.size < 128)
                         runCatching { gson.fromJson(c.getString(3), TimingTraining::class.java) }
                             .getOrNull()
                             ?.let {
-                                if ((timingCounts[it.genre] ?: 0) < 8) {
+                                if ((timingCounts[it.genre] ?: 0) < 24) {
                                     timings += it
                                     timingCounts[it.genre] = (timingCounts[it.genre] ?: 0) + 1
                                 }
@@ -111,6 +114,6 @@ internal class EnrichmentLearningIndex(context: Context) :
                                 ?.let { genres += GenreExample(p.songKey, p.value, it, false) }
                     }
             }
-        return EnrichmentModel(examples = genres, timings = timings)
+        return EnrichmentModel(examples = genres, timings = (reviewed + timings).distinctBy { it.pcm }.take(192))
     }
 }

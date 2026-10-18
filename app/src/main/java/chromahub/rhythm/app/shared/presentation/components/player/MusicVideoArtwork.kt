@@ -159,7 +159,7 @@ fun MusicVideoStatus(controls: MusicVideoControls) {
 fun MusicVideoSession(song: Song, controls: MusicVideoControls) {
     val context = LocalContext.current; val scope = rememberCoroutineScope()
     val repository = remember { MusicVideoRepository(context) }
-    val key = song.uri.toString()
+    val key = repository.key(song)
     var video by controls.video
     var active by controls.active
     var chooser by controls.managing
@@ -174,7 +174,8 @@ fun MusicVideoSession(song: Song, controls: MusicVideoControls) {
         error = context.getString(R.string.mv_import_error); controls.error.value = error; busy = false
     }
     val currentKey by rememberUpdatedState(key)
-    LaunchedEffect(key) { video = withContext(Dispatchers.IO) { repository.get(key) } }
+    val videoRevision by MusicVideoRepository.revision.collectAsState()
+    LaunchedEffect(key, videoRevision) { video = withContext(Dispatchers.IO) { repository.get(song) } }
     var downloadPercent by remember(key) { mutableIntStateOf(-1) }
     val downloadAttempt = controls.retry.intValue
     LaunchedEffect(key, video?.source, video?.videoId, downloadAttempt) {
@@ -216,10 +217,10 @@ fun MusicVideoSession(song: Song, controls: MusicVideoControls) {
     if (feedback) AlertDialog(onDismissRequest = { feedback = false }, title = { Text(stringResource(R.string.context_feedback)) },
         text = { Column {
             Text(stringResource(R.string.context_feedback_hint))
-            TextButton(onClick = { scope.launch(videoFailureHandler) { withContext(Dispatchers.IO) { chromahub.rhythm.app.features.local.data.experience.PersonalCollections.snooze(context, key, song.title) }; feedback = false } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.personal_snooze)) }
-            TextButton(onClick = { scope.launch(videoFailureHandler) { withContext(Dispatchers.IO) { chromahub.rhythm.app.features.local.data.experience.PersonalCollections.hide(context, key, song.title) }; feedback = false } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.personal_hide)) }
+            TextButton(onClick = { scope.launch(videoFailureHandler) { withContext(Dispatchers.IO) { chromahub.rhythm.app.features.local.data.experience.PersonalCollections.snooze(context, song.uri.toString(), song.title) }; feedback = false } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.personal_snooze)) }
+            TextButton(onClick = { scope.launch(videoFailureHandler) { withContext(Dispatchers.IO) { chromahub.rhythm.app.features.local.data.experience.PersonalCollections.hide(context, song.uri.toString(), song.title) }; feedback = false } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.personal_hide)) }
             listOf(1.0 to R.string.context_feedback_more, 0.0 to R.string.context_feedback_less, null to R.string.context_feedback_reset).forEach { (reward, label) ->
-                TextButton(onClick = { scope.launch(videoFailureHandler) { withContext(Dispatchers.IO) { RecommendationLearning.get(context).feedback(key, reward) }; feedback = false } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(label)) }
+                TextButton(onClick = { scope.launch(videoFailureHandler) { withContext(Dispatchers.IO) { RecommendationLearning.get(context).feedback(song.uri.toString(), reward) }; feedback = false } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(label)) }
             }
         } }, confirmButton = { TextButton(onClick = { feedback = false }) { Text(stringResource(android.R.string.cancel)) } })
     if (chooser) AlertDialog(onDismissRequest = { if (!busy) chooser = false }, title = { Text(stringResource(R.string.mv_watch)) },

@@ -21,10 +21,17 @@ import kotlinx.coroutines.flow.combine
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun DownloadCenter(onDismiss: () -> Unit) {
+fun DownloadCenter(
+    viewModel: chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    initialTab: Int = 2,
+    onDismiss: () -> Unit,
+) {
+    var tab by remember { mutableIntStateOf(initialTab) }
+    val library by viewModel.songs.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var records by remember { mutableStateOf(emptyList<DownloadRecord>()) }
+    var albums by remember { mutableStateOf(emptyList<DownloadAlbumStatus>()) }
     var limit by remember { mutableIntStateOf(100) }
     var error by remember { mutableStateOf(false) }
     var removing by remember { mutableStateOf(false) }
@@ -57,6 +64,7 @@ fun DownloadCenter(onDismiss: () -> Unit) {
                                     merged
                                 }
                         }
+                    albums = withContext(Dispatchers.IO) { DownloadAlbums.list(context) }
                 }
         } catch (cancel: CancellationException) {
             throw cancel
@@ -68,7 +76,13 @@ fun DownloadCenter(onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        LazyColumn(
+        Column {
+            PrimaryTabRow(selectedTabIndex = tab) {
+                listOf(R.string.discovery_songs, R.string.discovery_albums, R.string.discovery_downloads).forEachIndexed { i, title ->
+                    Tab(selected = tab == i, onClick = { tab = i }, text = { Text(context.getString(title), maxLines = 1) })
+                }
+            }
+            if (tab < 2) DownloadSearch(tab == 1, viewModel) else LazyColumn(
             Modifier.fillMaxWidth().heightIn(max = 700.dp).navigationBarsPadding(),
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -130,6 +144,19 @@ fun DownloadCenter(onDismiss: () -> Unit) {
                         Modifier.padding(vertical = 24.dp),
                     )
                 }
+            items(albums, key = { "album:" + it.album.source }) { status ->
+                OutlinedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
+                    Text(status.album.title, style = MaterialTheme.typography.titleMedium)
+                    Text(context.getString(R.string.download_album_progress, status.completed.size, status.album.tracks.size), style = MaterialTheme.typography.bodySmall)
+                    TextButton(enabled = status.completed.isNotEmpty(), onClick = { scope.launch {
+                        try {
+                            val queue = withContext(Dispatchers.IO) { status.completed.mapNotNull { DownloadPlayback.song(context, it, library) }.distinctBy { it.uri } }
+                            if (queue.isEmpty()) error = true else viewModel.playQueue(queue, enableShuffle = false)
+                        } catch (cancel: CancellationException) { throw cancel }
+                        catch (_: Exception) { error = true }
+                    } }) { Text(context.getString(R.string.download_play_album)) }
+                } }
+            }
             items(records, key = { it.id }) { record ->
                 val active = record.state !in setOf("SUCCEEDED", "FAILED", "CANCELLED")
                 Card(
@@ -231,6 +258,33 @@ fun DownloadCenter(onDismiss: () -> Unit) {
                                 )
                             else LinearProgressIndicator(Modifier.fillMaxWidth())
                         }
+                        if (record.kind == "AUDIO" && record.state == "SUCCEEDED") {
+                            TextButton(onClick = {
+                                scope.launch {
+                                    try {
+                                        val song = withContext(Dispatchers.IO) { DownloadPlayback.song(context, record, library) }
+                                        if (song == null) error = true else viewModel.playSong(song)
+                                    } catch (cancel: CancellationException) { throw cancel }
+                                    catch (_: Exception) { error = true }
+                                }
+                            }) {
+                                Icon(MaterialSymbolIcon("play_arrow"), null, Modifier.size(20.dp))
+                                Text(context.getString(R.string.download_listen))
+                            }
+                            if (record.album.isNotBlank()) TextButton(onClick = {
+                                scope.launch {
+                                    try {
+                                        val queue = withContext(Dispatchers.IO) { DownloadRegistry.recent(context, 1000)
+                                            .filter { it.kind == "AUDIO" && it.state == "SUCCEEDED" && it.album == record.album && it.artist == record.artist }
+                                            .sortedBy { it.createdAt }.mapNotNull { DownloadPlayback.song(context, it, library) }
+                                            .distinctBy { it.uri }
+                                        }
+                                        if (queue.isEmpty()) error = true else viewModel.playQueue(queue, enableShuffle = false)
+                                    } catch (cancel: CancellationException) { throw cancel }
+                                    catch (_: Exception) { error = true }
+                                }
+                            }) { Text(context.getString(R.string.download_play_album)) }
+                        }
                         if (!active && record.state != "SUCCEEDED")
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 TextButton(
@@ -304,6 +358,7 @@ fun DownloadCenter(onDismiss: () -> Unit) {
                         Text(context.getString(R.string.discovery_more))
                     }
                 }
+        }
         }
     }
 }

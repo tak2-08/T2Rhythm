@@ -674,8 +674,7 @@ fun CacheManagementSettingsScreen(onBackClick: () -> Unit) {
                                         scope.launch {
                                             isRebuildingRoom = true
                                             try {
-                                                musicViewModel.getMusicRepository().clearSongCacheData()
-                                                musicViewModel.refreshLibrary()
+                                                musicViewModel.rebuildLibraryDatabase()
                                                 roomSongCount = musicViewModel.getMusicRepository().getRoomSongCount()
                                                 Toast.makeText(context, context.getString(R.string.settings_storage_rebuild_success), Toast.LENGTH_SHORT).show()
                                             } catch (e: Exception) {
