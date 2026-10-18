@@ -92,6 +92,12 @@ class AssetIntegrityRegressionTest {
             assertEquals(proposal.value, changed.predictedValue)
             assertEquals(42_000L, LocalLyricAlignment.parse(changed.value)[1].ms)
             try { store.adjustTiming(proposal.id, lines.map { it.copy(ms = 0) }, track.duration); fail("unordered timestamps") } catch (_: IllegalArgumentException) {}
+            store.decide(proposal.id, "REJECTED")
+            val editedOriginal = original.copy(plainLyrics = original.plainLyrics + "\n\n")
+            val fresh = store.proposal(track, "LYRICS", proposal.value, .18, "waveform_estimate", 0, editedOriginal)
+            assertNotEquals(proposal.id, fresh.id)
+            assertTrue("Changed lyrics must bypass the old-input rejection cooldown", store.propose(fresh))
+            assertEquals("PENDING", store.get(fresh.id)!!.state)
         } finally { root.deleteRecursively() }
     }
     @Test fun reportTotalsUseHalfOpenBoundariesAndActualListening() {

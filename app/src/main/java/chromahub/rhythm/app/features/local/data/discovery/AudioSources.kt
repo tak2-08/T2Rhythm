@@ -53,6 +53,7 @@ object AudioSources {
                 page = more.nextPage
             }
             require(!org.schabi.newpipe.extractor.Page.isValid(page)) { "Collection too large; choose a smaller album" }
+            require(tracks.size <= 200) { "Collection too large; choose a smaller album" }
             tracks.filterIsInstance<StreamInfoItem>().filter { it.duration in 15..3600 }
                 .distinctBy { it.url }.take(200).map { AudioSourceCandidate(it.url, it.name, it.uploaderName.orEmpty(), it.duration) }
         }

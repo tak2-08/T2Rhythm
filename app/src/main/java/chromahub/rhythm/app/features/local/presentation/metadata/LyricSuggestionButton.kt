@@ -32,7 +32,10 @@ fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicView
     var review by remember(key) { mutableStateOf(false) }
     var options by remember(key) { mutableStateOf(false) }
     var error by remember(key) { mutableStateOf(false) }
-    LaunchedEffect(key, revision) { available = withContext(Dispatchers.IO) { EnrichmentStore(context).list(1000).any { it.songKey == song.uri.toString() && it.kind == "LYRICS" && it.state == "PENDING" } } }
+    LaunchedEffect(key, revision, original) { available = withContext(Dispatchers.IO) { EnrichmentStore(context).list(1000).any {
+        it.songKey == song.uri.toString() && it.kind == "LYRICS" && it.state == "PENDING" &&
+            it.sourceSignature == EnrichmentStore.signature(song) && EnrichmentStore.sameLyrics(it.beforeLyrics, original)
+    } } }
     val active = jobs.any { !it.state.isFinished }
     Column {
         FilledTonalButton(onClick = { if (available) review = true else options = true }, enabled = !active || available) {

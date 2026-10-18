@@ -45,6 +45,8 @@ class EnrichmentStore(private val context: Context) {
         private val lock = Any()
 
         fun signature(song: Song) = "${song.uri}:${song.dateModified}:${song.duration}"
+        fun sameLyrics(a: LyricsData?, b: LyricsData?) = a?.plainLyrics == b?.plainLyrics &&
+            a?.syncedLyrics == b?.syncedLyrics && a?.wordByWordLyrics == b?.wordByWordLyrics
     }
 
     private val gson = Gson()
@@ -92,15 +94,17 @@ class EnrichmentStore(private val context: Context) {
             val pointer =
                 File(root, "current-${CatalogFileStore.hash(proposal.songKey+proposal.kind)}")
             val old = runCatching { get(pointer.readText()) }.getOrNull()
+            val sameInput = old?.sourceSignature == proposal.sourceSignature &&
+                (proposal.kind != "LYRICS" || sameLyrics(old.beforeLyrics, proposal.beforeLyrics))
             if (
                 old?.state == "REJECTED" &&
-                    old.sourceSignature == proposal.sourceSignature &&
+                    sameInput &&
                     System.currentTimeMillis() - old.decidedAt < 30 * 86400_000L
             )
                 return@synchronized false
             if (
                 old?.state == "PENDING" &&
-                    old.sourceSignature == proposal.sourceSignature &&
+                    sameInput &&
                     old.confidence > proposal.confidence
             )
                 return@synchronized false
@@ -146,7 +150,7 @@ class EnrichmentStore(private val context: Context) {
     ): EnrichmentProposal {
         val signature = signature(song)
         return EnrichmentProposal(
-            CatalogFileStore.hash("$kind|$signature|$value"),
+            CatalogFileStore.hash(if (kind == "LYRICS") "$kind|$signature|$value|${gson.toJson(before)}" else "$kind|$signature|$value"),
             kind,
             song.uri.toString(),
             song.title,
