@@ -21,8 +21,8 @@ import kotlinx.coroutines.*
 
 @Composable
 fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicViewModel) {
-    if (song == null || lyrics?.plainLyrics.isNullOrBlank() || !lyrics?.syncedLyrics.isNullOrBlank() || !lyrics?.wordByWordLyrics.isNullOrBlank() || song.uri.scheme !in setOf("content", "file")) return
-    val original = requireNotNull(lyrics)
+    if (song == null || lyrics == null || lyrics.plainLyrics.isNullOrBlank() || !lyrics.syncedLyrics.isNullOrBlank() || !lyrics.wordByWordLyrics.isNullOrBlank() || song.uri.scheme !in setOf("content", "file")) return
+    val original = lyrics
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val key = SongArtworkOverrides.key(song)

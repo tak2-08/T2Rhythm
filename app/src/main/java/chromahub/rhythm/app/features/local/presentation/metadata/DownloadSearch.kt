@@ -83,7 +83,7 @@ fun DownloadSearch(albumMode: Boolean, viewModel: MusicViewModel) {
         if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
         message?.let { item { Text(it, style = MaterialTheme.typography.bodyMedium) } }
         items(albums, key = { it.url }) { album ->
-            OutlinedCard(onClick = { work { selected = album; songs = AudioSources.albumTracks(album); if (songs.isEmpty()) message = context.getString(R.string.download_search_empty) } }, enabled = !busy) {
+            OutlinedCard(onClick = { work { selected = album; songs = emptyList(); songs = AudioSources.albumTracks(album); if (songs.isEmpty()) message = context.getString(R.string.download_search_empty) } }, enabled = !busy) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) { Text(album.title, style = MaterialTheme.typography.titleMedium); Text(album.artist, style = MaterialTheme.typography.bodySmall) }
             }
         }
