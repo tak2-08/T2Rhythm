@@ -1357,7 +1357,7 @@ fun ExpressivePlayerScreen(
                 }
 
                 val lyricsView = @Composable { modifier: Modifier ->
-                    Column(modifier) {
+                    Column(modifier.padding(top = 56.dp)) {
                     if (!isLoadingLyrics) lyricSuggestion()
                     RhythmPlayerLyricsPanel(
                         lyrics = lyrics,

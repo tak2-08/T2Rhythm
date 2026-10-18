@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.test.*
@@ -107,6 +108,9 @@ class LyricsEntryAndUpdatesTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("lyric-ai-action").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("lyric-ai-action").assertIsDisplayed()
         capture("lyrics-ai-material.png")
+        compose.onNodeWithTag("lyric-ai-action").assertWidthIsAtLeast(240.dp)
+        assertTrue(compose.onNodeWithTag("lyric-ai-action").fetchSemanticsNode().boundsInRoot.height <= 80 * ctx.resources.displayMetrics.density)
+        compose.onNodeWithText(text).assertIsDisplayed()
     }
     @Test fun fullscreenKeepsAiVisibleAfterAutoHideWithPlainTextInTheSyncedField() {
         val settings = AppSettings.getInstance(ctx); val old = settings.autoHideLyricsControls.value

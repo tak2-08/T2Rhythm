@@ -1661,7 +1661,7 @@ fun MaterialPlayerScreen(
                         visible = showAlbumArt,
                         enter = fadeIn() + slideInVertically { it },
                         exit = fadeOut() + slideOutVertically { it },
-                        modifier = Modifier.weight(1f, fill = false)
+                        modifier = Modifier.weight(1f, fill = showLyricsView).fillMaxWidth()
                     ) {
                         // State for artwork swipe gestures
                         var artworkOffsetX by remember { mutableFloatStateOf(0f) }
@@ -1677,9 +1677,9 @@ fun MaterialPlayerScreen(
                         )
                         
                         Box(
-                            modifier = Modifier
-                                .fillMaxHeight(if (isLandscapeTablet) 1.0f else if (isTablet) 0.55f else albumArtFraction) // Responsive size based on screen dimensions
-                                .aspectRatio(1f)
+                            modifier = (if (showLyricsView) Modifier.fillMaxSize() else Modifier
+                                .fillMaxHeight(if (isLandscapeTablet) 1.0f else if (isTablet) 0.55f else albumArtFraction)
+                                .aspectRatio(1f))
                                 .graphicsLayer {
                                     val currentSwipeProgress = (animatedSwipeOffset / screenHeight).coerceIn(0f, 1f)
                                     // Album art scales and shrinks during swipe (mini-player effect)
