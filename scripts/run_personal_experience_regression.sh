@@ -7,7 +7,7 @@ collect_evidence() {
     mkdir -p "$evidence_dir"
     adb logcat -d > "$evidence_dir/logcat.txt" 2>&1 || true
     for screenshot in insights-download-search.png insights-algorithms.png insights-listening-report.png; do
-        local remote_file="/sdcard/Android/data/chromahub.rhythm.app/files/$screenshot"
+        local remote_file="/sdcard/Android/data/chromahub.rhythm.app.debug/files/$screenshot"
         if adb shell test -f "$remote_file"; then
             adb pull "$remote_file" "$evidence_dir/$screenshot" || true
         fi
@@ -30,6 +30,7 @@ for index in "${!classes[@]}"; do
     result=0
     ./gradlew :app:connectedGithubDebugAndroidTest \
         "-Pandroid.testInstrumentationRunnerArguments.class=$class_name" \
+        -Pandroid.testInstrumentationRunnerArguments.timeout_msec=120000 \
         -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
         --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx3g --console=plain || result=$?
     evidence="app/build/outputs/experience-regression/${class_name##*.}"

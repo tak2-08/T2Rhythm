@@ -1936,7 +1936,7 @@ fun EnhancedBackupRestoreContent(
                     try {
                         isCreatingBackup = true
                         HapticUtils.performHapticFeedback(context, hapticFeedback, HapticType.HEAVY)
-                        musicViewModel.ensurePlaylistsSaved()
+                        musicViewModel.ensurePlaylistsSaved().join()
 
                         val backupJson = appSettings.createBackup()
                         val outputStream = context.contentResolver.openOutputStream(uri)

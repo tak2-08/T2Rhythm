@@ -94,7 +94,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.yield
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.room.withTransaction
@@ -149,6 +151,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         private const val TAG = "MusicViewModel"
+        // A final flush must outlive its ViewModel without blocking the UI that a loader needs.
+        private val playlistPersistenceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val playlistLock = Mutex()
         /**
          * Threshold above which we skip per-item moveMediaItem calls and use
          * a single setMediaItems call instead. moveMediaItem triggers an IPC
@@ -879,7 +884,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val playlists: StateFlow<List<Playlist>> = _playlists.asStateFlow()
     @Volatile
     private var isPlaylistsLoaded = false
-    private val playlistLock = Mutex()
 
     // Use audioDeviceManager for locations instead of the mock data
     val locations = audioDeviceManager.availableDevices
@@ -3449,23 +3453,26 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     /**
-     * Ensures current playlists and favorite songs are saved to persistent storage
-     * Useful before creating a backup to ensure all data is included
+     * Flushes a snapshot without blocking lifecycle callbacks. Backup callers join the returned job.
+     * Shared locking also orders the final flush before a replacement ViewModel loads its playlists.
      */
-    fun ensurePlaylistsSaved() {
-        try {
-            if (!isPlaylistsLoaded) {
-                Log.w(TAG, "ensurePlaylistsSaved skipped because playlists are not loaded")
-                return
+    fun ensurePlaylistsSaved(): Job {
+        val loaded = isPlaylistsLoaded
+        val playlists = _playlists.value
+        savePlaylistsJob?.cancel()
+        // Preferences already persist each edit; refresh them now, before a replacement owner edits.
+        if (loaded) saveFavoriteSongs()
+        // Enter the shared mutex before returning; Room dispatches the transaction off the UI.
+        return playlistPersistenceScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            if (!loaded) return@launch
+            try {
+                savePlaylistsToRoom(playlists)
+                Log.d(TAG, "Playlists and favorites explicitly saved to storage")
+            } catch (cancel: kotlinx.coroutines.CancellationException) {
+                throw cancel
+            } catch (e: Exception) {
+                Log.e(TAG, "Error ensuring playlists are saved", e)
             }
-            savePlaylistsJob?.cancel()
-            runBlocking(Dispatchers.IO) {
-                savePlaylistsToRoom(_playlists.value)
-            }
-            saveFavoriteSongs()
-            Log.d(TAG, "Playlists and favorites explicitly saved to storage")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error ensuring playlists are saved", e)
         }
     }
     
@@ -10692,7 +10699,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
         Log.d(TAG, "ViewModel clearing, cleaning up resources")
         
-        // Ensure pending playlist changes and favorites are flushed to Room before scope cancellation
+        // Finish pending writes outside the cancelled ViewModel scope; never block the main thread.
         ensurePlaylistsSaved()
         
         // Unregister broadcast receiver
