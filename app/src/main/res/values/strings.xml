@@ -3049,9 +3049,9 @@
     <string name="video_library_delete_hint">Delete this saved video and all of its song links? The audio tracks stay in your library.</string>
     <string name="lyric_ai_suggest">Suggest lyric timing</string>
     <string name="lyric_ai_review">Review timing proposal</string>
-    <string name="lyric_ai_queued">Timing analysis queued</string>
-    <string name="lyric_ai_conditions" formatted="false">Analysis runs while charging or above 90% battery, at low device load.</string>
-    <string name="lyric_ai_insufficient">No reliable proposal yet. Try speech analysis or retry after audio analysis completes.</string>
+    <string name="lyric_ai_queued">Analyzing lyric timing</string>
+    <string name="lyric_ai_conditions" formatted="false">Waiting for enough battery and a cool device. Analysis resumes automatically.</string>
+    <string name="lyric_ai_insufficient">Could not create a reliable proposal. Check the analysis mode and model, then try again. Your lyrics are unchanged.</string>
     <string name="lyric_ai_hint">Create a separate line timing proposal from this audio. Waveform estimates are rough drafts; speech analysis needs the optional voice model. Listen, adjust each line and accept to apply. Your original lyrics stay untouched until acceptance.</string>
     <string name="lyric_ai_start">Create proposal</string>
     <string name="lyric_ai_order">Keep line times increasing and within the song duration.</string>

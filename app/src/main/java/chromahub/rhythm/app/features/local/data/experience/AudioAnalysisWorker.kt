@@ -55,8 +55,8 @@ class AudioAnalysisWorker(context: Context, params: WorkerParameters) : Coroutin
                     .setConstraints(Constraints.Builder()
                     .setRequiresBatteryNotLow(true).setRequiresStorageNotLow(true).build()).build())
         }
-        suspend fun analyze(context: Context, song: Song): AudioFeatures = withContext(AnalysisBudget.dispatcher) {
-            val budget = AnalysisBudget(context); budget.checkpoint()
+        suspend fun analyze(context: Context, song: Song, userInitiated: Boolean = false): AudioFeatures = withContext(AnalysisBudget.dispatcher) {
+            val budget = AnalysisBudget(context, maxMillis = if (userInitiated) 480_000 else Long.MAX_VALUE, userInitiated = userInitiated); budget.checkpoint()
             val extractor = MediaExtractor(); var codec: MediaCodec? = null
             try {
                 extractor.setDataSource(context, song.uri, null)

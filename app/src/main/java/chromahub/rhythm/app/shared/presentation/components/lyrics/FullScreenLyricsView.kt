@@ -151,7 +151,7 @@ fun FullScreenLyricsView(
     // Global settings for translation and romanization
     val showTranslation by appSettings.showLyricsTranslation.collectAsState()
     val showRomanization by appSettings.showLyricsRomanization.collectAsState()
-    
+
     // Determine if lyrics have timestamps (synced LRC or word-by-word JSON)
     val hasSyncedLyrics = remember(lyrics) {
         lyrics?.syncedLyrics?.isNotBlank() == true || lyrics?.getWordByWordLyricsOrNull() != null
@@ -162,7 +162,7 @@ fun FullScreenLyricsView(
 
     // Infinite transition for organic background morphing
     val infiniteTransition = rememberInfiniteTransition(label = "BackgroundAura")
-    
+
     val pulseScale1 by infiniteTransition.animateFloat(
         initialValue = 0.9f,
         targetValue = 1.15f,
@@ -619,11 +619,9 @@ fun FullScreenLyricsView(
                 }
 
                 // RIGHT SIDE (60% width) - Lyrics scrolling area and settings/editor floating actions
-                Box(
-                    modifier = Modifier
-                        .weight(0.6f)
-                        .fillMaxHeight()
-                ) {
+                Column(Modifier.weight(0.6f).fillMaxHeight()) {
+                    if (!isLoadingLyrics) lyricSuggestion()
+                    Box(Modifier.fillMaxWidth().weight(1f)) {
                     val hasLyrics = lyrics?.hasLyrics() == true && lyrics.isErrorMessage().not()
 
                     when {
@@ -786,7 +784,6 @@ fun FullScreenLyricsView(
                         Column(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            lyricSuggestion()
                             // Quick Open Lyrics Editor
                             FilledTonalIconButton(
                                 onClick = {
@@ -817,6 +814,8 @@ fun FullScreenLyricsView(
                                 )
                             }
                         }
+                    }
+
                     }
                 }
             }
@@ -905,6 +904,8 @@ fun FullScreenLyricsView(
                         )
                     }
                 }
+
+                if (!isLoadingLyrics) lyricSuggestion()
 
                 // B. SCROLLING LYRICS AREA (with floating controls)
                 Box(
@@ -1105,7 +1106,6 @@ fun FullScreenLyricsView(
                         Column(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            lyricSuggestion()
                             // Quick Open Lyrics Editor
                             FilledTonalIconButton(
                                 onClick = {

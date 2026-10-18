@@ -37,7 +37,6 @@ fun PersonalExperiencePanel() {
     var personalOptions by remember { mutableStateOf(PersonalOptions()) }
     var autoplay by remember { mutableStateOf(PersonalCollections.autoplay(context)) }
     LaunchedEffect(revision) { personalOptions = withContext(Dispatchers.IO) { PersonalCollections.options(context) }; autoplay = PersonalCollections.autoplay(context) }
-    var profileVersion by remember { mutableStateOf(ExperienceProfile.read(context).version) }
     LaunchedEffect(month, revision) {
         val result = withContext(Dispatchers.IO) {
             ListeningInsightCache.request(context, month)
@@ -48,12 +47,12 @@ fun PersonalExperiencePanel() {
     val importRules = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             try {
-                val profile = withContext(Dispatchers.IO) {
+                withContext(Dispatchers.IO) {
                     val text = context.contentResolver.openInputStream(uri)?.use { it.readBytesBounded(64_000).toString(Charsets.UTF_8) } ?: error("Cannot read rules")
                     ExperienceProfile.apply(context, text)
                 }
                 ExperienceRulesWorker.configure(context, false); ruleUpdates = false
-                profileVersion = profile.version; message = context.getString(R.string.personal_rules_applied)
+                message = context.getString(R.string.personal_rules_applied)
             } catch (_: Exception) { message = context.getString(R.string.personal_rules_invalid) }
         }
     }
@@ -133,14 +132,12 @@ fun PersonalExperiencePanel() {
             OutlinedButton(onClick = { AudioAnalysisWorker.enqueue(context); message = context.getString(R.string.personal_audio_scheduled) }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.personal_audio_analyze))
             }
-            Text(context.getString(R.string.personal_rules_version, profileVersion), style = MaterialTheme.typography.labelMedium)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(stringResource(R.string.personal_rules_updates), Modifier.weight(1f))
                 Switch(checked = ruleUpdates, onCheckedChange = { ruleUpdates = it; ExperienceRulesWorker.configure(context, it) })
             }
             SoftUpdatePanel()
             TextButton(onClick = { importRules.launch(arrayOf("application/json", "text/plain")) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.personal_rules_import)) }
-            Text(stringResource(R.string.personal_native_updates_hint), style = MaterialTheme.typography.bodySmall)
             message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
         }
     }

@@ -3275,9 +3275,9 @@
     <string name="video_library_delete_hint">저장한 영상 파일과 이 영상을 사용하는 모든 연결을 삭제할까요? 음원 파일은 보관함에 유지됩니다.</string>
     <string name="lyric_ai_suggest">AI 가사 싱크 제안</string>
     <string name="lyric_ai_review">가사 싱크 제안 검토</string>
-    <string name="lyric_ai_queued">가사 분석 대기 중</string>
-    <string name="lyric_ai_conditions" formatted="false">충전 중이거나 배터리 90% 이상이며 기기 부하가 낮을 때 분석합니다.</string>
-    <string name="lyric_ai_insufficient">아직 충분한 근거로 제안하지 못했습니다. 음성 분석을 선택하거나 음원 분석 후 다시 시도해 주세요.</string>
+    <string name="lyric_ai_queued">AI 가사 분석 중</string>
+    <string name="lyric_ai_conditions" formatted="false">충전 중이거나 배터리 20% 이상이고 기기 온도·메모리가 안정되면 분석을 시작합니다.</string>
+    <string name="lyric_ai_insufficient">충분한 근거로 제안하지 못했습니다. 분석 모드와 음성 모델을 확인하고 다시 시도해 주세요. 원본 가사는 유지됩니다.</string>
     <string name="lyric_ai_hint">현재 음원을 분석해 별도의 줄별 싱크 제안을 만듭니다. 파형 추정은 대략적인 초안이며, 음성 분석에는 선택 설치 모델이 필요합니다. 직접 듣고 각 줄을 조정한 뒤 수락하면 적용합니다. 수락 전에는 원본 가사를 바꾸지 않습니다.</string>
     <string name="lyric_ai_start">제안 만들기</string>
     <string name="lyric_ai_order">각 줄의 시간이 앞줄보다 뒤에 오고 음원 길이를 벗어나지 않게 조정해 주세요.</string>

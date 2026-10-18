@@ -2290,6 +2290,9 @@ fun MaterialPlayerScreen(
                                                         }
                                                     }
                                                     
+                                                    Column(Modifier.fillMaxSize()) {
+                                                        chromahub.rhythm.app.features.local.presentation.metadata.LyricSuggestionButton(song, lyrics, musicViewModel)
+                                                        Box(Modifier.fillMaxWidth().weight(1f)) {
                                                     if (wordByWordLyrics != null) {
                                                         // Use WordByWordLyricsView for Rhythm word-by-word lyrics
                                                         WordByWordLyricsView(
@@ -2305,7 +2308,6 @@ fun MaterialPlayerScreen(
                                                             showRomanization = showLyricsRomanization
                                                         )
                                                     } else {
-                                                        chromahub.rhythm.app.features.local.presentation.metadata.LyricSuggestionButton(song, lyrics, musicViewModel)
                                                         // Fall back to line-by-line synced or plain lyrics
                                                         val lyricsText = remember(lyrics) {
                                                             lyrics.getBestLyrics() ?: ""
@@ -2398,6 +2400,8 @@ fun MaterialPlayerScreen(
                                                                         .padding(horizontal = 8.dp)
                                                                 )
                                                             }
+                                                        }
+                                                    }
                                                         }
                                                     }
                                                 }

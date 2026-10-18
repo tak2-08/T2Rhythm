@@ -456,6 +456,7 @@ fun PlayerScreen(
             onArtworkInspect = inspectSong,
             pendingTasteReview = pendingTasteReview,
             onReviewInfo = { showTasteExplanation = true },
+            lyricSuggestion = { chromahub.rhythm.app.features.local.presentation.metadata.LyricSuggestionButton(song, lyrics, musicViewModel) },
             onToggleShuffle = onToggleShuffle,
             onToggleRepeat = onToggleRepeat,
             onToggleLyrics = { showLyricsView = !showLyricsView },

@@ -9,6 +9,10 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
+import com.google.gson.JsonParser
+
+enum class ExperienceRulesStatus { UPDATED, CURRENT, APP_UPDATE_REQUIRED }
+data class ExperienceRulesCheck(val status: ExperienceRulesStatus, val version: Int)
 
 /** Optional data-only updates from this fork. No code, APK or personal history is transferred. */
 class ExperienceRulesWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
@@ -22,15 +26,18 @@ class ExperienceRulesWorker(context: Context, params: WorkerParameters) : Corout
     }
     companion object {
         /** Only a bounded declarative document from the fork's fixed HTTPS origin is executable here. */
-        suspend fun checkNow(context: Context): Boolean = withContext(Dispatchers.IO) {
+        suspend fun checkNow(context: Context): ExperienceRulesCheck = withContext(Dispatchers.IO) {
             val client = chromahub.rhythm.app.network.NetworkClient.genericHttpClient.newBuilder().callTimeout(15, TimeUnit.SECONDS).build()
             client.newCall(Request.Builder().url("https://raw.githubusercontent.com/tak2-08/T2Rhythm/main/experience/default.json").build()).execute().use { response ->
                 check(response.isSuccessful)
                 val json = response.body.byteStream().use { it.readBytesBounded(64_000).toString(Charsets.UTF_8) }
+                val current = ExperienceProfile.read(context).version
+                val minimum = JsonParser.parseString(json).asJsonObject.get("minimumAppVersionCode")?.asLong ?: 0L
+                if (minimum > chromahub.rhythm.app.BuildConfig.VERSION_CODE) return@withContext ExperienceRulesCheck(ExperienceRulesStatus.APP_UPDATE_REQUIRED, current)
                 val profile = ExperienceProfile.decode(json)
-                val updated = profile.version > ExperienceProfile.read(context).version
+                val updated = profile.version > current
                 if (updated) ExperienceProfile.apply(context, json)
-                updated
+                ExperienceRulesCheck(if (updated) ExperienceRulesStatus.UPDATED else ExperienceRulesStatus.CURRENT, if (updated) profile.version else current)
             }
         }
         fun enabled(context: Context) = context.getSharedPreferences("personal_experience", Context.MODE_PRIVATE).getBoolean("rulesUpdates", false)

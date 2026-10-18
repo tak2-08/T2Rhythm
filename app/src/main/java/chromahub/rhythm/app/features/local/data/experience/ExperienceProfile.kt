@@ -21,6 +21,7 @@ data class ExperienceProfile(
     val exploration: Double = .15,
 ) {
     companion object {
+        val revision = kotlinx.coroutines.flow.MutableStateFlow(0L)
         fun decode(json: String): ExperienceProfile {
             require(json.length <= 64_000)
             val root = JsonParser.parseString(json).asJsonObject
@@ -95,6 +96,7 @@ data class ExperienceProfile(
                     .setHomeSectionOrder(profile.homeSections)
             PersonalArchive.enqueue(context)
             ListeningLedger.get(context).invalidate()
+            revision.value++
             return profile
         }
     }

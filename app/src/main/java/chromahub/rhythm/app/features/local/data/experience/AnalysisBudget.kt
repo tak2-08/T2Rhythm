@@ -20,16 +20,20 @@ internal class AnalysisBudget(
     private val context: Context,
     private val active: () -> Boolean = { true },
     private val maxMillis: Long = Long.MAX_VALUE,
+    private val userInitiated: Boolean = false,
 ) {
     private val startedAt = SystemClock.elapsedRealtime()
     private var sliceStarted = SystemClock.elapsedRealtime()
     private var checkedAt = -1000L
 
-    fun allowed(): Boolean = DeviceAnalysisLoad.conditions(context).allowsWork()
+    fun allowed(): Boolean = accepts(DeviceAnalysisLoad.conditions(context))
+
+    private fun accepts(conditions: AnalysisConditions) =
+        if (userInitiated) conditions.allowsUserRequest() else conditions.allowsWork()
 
     private fun requireAllowed() {
         val conditions = DeviceAnalysisLoad.conditions(context)
-        if (!conditions.allowsWork()) throw AnalysisDeferred(conditions)
+        if (!accepts(conditions)) throw AnalysisDeferred(conditions)
     }
 
     suspend fun checkpoint() {
@@ -42,9 +46,9 @@ internal class AnalysisBudget(
         }
         if (now - sliceStarted >= 16) {
             val before = SystemClock.elapsedRealtime()
-            delay(144)
+            delay(if (userInitiated) 16 else 144)
             sliceStarted = SystemClock.elapsedRealtime()
-            if (sliceStarted - before > 700) {
+            if (!userInitiated && sliceStarted - before > 700) {
                 DeviceAnalysisLoad.pressure()
                 throw AnalysisDeferred()
             }
@@ -61,9 +65,9 @@ internal class AnalysisBudget(
         }
         if (now - sliceStarted >= 16) {
             val before = SystemClock.elapsedRealtime()
-            Thread.sleep(144)
+            Thread.sleep(if (userInitiated) 16 else 144)
             sliceStarted = SystemClock.elapsedRealtime()
-            if (sliceStarted - before > 700) {
+            if (!userInitiated && sliceStarted - before > 700) {
                 DeviceAnalysisLoad.pressure()
                 throw AnalysisDeferred()
             }

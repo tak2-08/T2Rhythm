@@ -44,10 +44,10 @@
     <string name="discovery_mobile">이 다운로드에 모바일 데이터 허용</string>
     <string name="discovery_queued">백그라운드 다운로드에 추가했습니다.</string>
     <string name="discovery_learning_settings">온디바이스 학습 설정</string>
-    <string name="discovery_learning_hint" formatted="false">학습·음성 분석은 충전 중이거나 배터리 90% 이상이고 기기 부하가 낮을 때 실행합니다. 모델이 없거나 근거가 부족하면 가벼운 방식으로 돌아갑니다. 제안은 태그를 자동으로 덮어쓰지 않습니다.</string>
-    <string name="discovery_mode_light">가벼운 분석 · 기본</string>
-    <string name="discovery_mode_precise">정밀 모델 분석</string>
-    <string name="discovery_mode_hybrid">하이브리드 · 근거를 비교해 선택</string>
+    <string name="discovery_learning_hint" formatted="false">자동 학습은 충전 중이거나 배터리 90% 이상이고 기기 부하가 낮을 때 실행합니다. 직접 요청한 가사 분석은 배터리 20% 이상·절전 모드 해제 상태에서도 시작합니다. 발열·메모리가 안정돼야 하며, 음성 분석에는 설치한 모델이 필요합니다.</string>
+    <string name="discovery_mode_light">파형 분석 · 빠른 초안</string>
+    <string name="discovery_mode_precise">음성 분석 · 모델 필요</string>
+    <string name="discovery_mode_hybrid">음성 우선 · 파형 보완</string>
     <string name="discovery_model_name">Vosk 한국어 음성 모델</string>
     <string name="discovery_model_size" formatted="false">선택형 한국어 모델: 다운로드 약 87MB·설치 약 265MB. 모바일 데이터를 포함해 인터넷 연결 시 다운로드합니다. 가사 분석은 충전 중이거나 배터리 90% 이상이고 기기 부하가 낮을 때 진행합니다.</string>
     <string name="discovery_remove_model">음성 모델 삭제</string>
@@ -68,7 +68,7 @@
     <string name="discovery_method_reference">음원 지문과 가사 내용이 일치하는 동기 가사를 참고했습니다.</string>
     <string name="discovery_method_genre">장르가 등록된 로컬 음원의 음향 특성과 비교했습니다. 미검토 추측을 학습 정답으로 사용하지 않습니다.</string>
     <string name="discovery_method_estimate">기존 동기 가사·문장 길이·음향 윤곽으로 예상했습니다. 보컬을 직접 인식한 결과가 아니므로 반드시 들어 보고 적용하세요.</string>
-    <string name="discovery_preview_hint">이 곡을 재생한 뒤 줄을 누르면 제안한 시간으로 이동합니다. 기존 큐는 유지합니다.</string>
+    <string name="discovery_preview_hint">줄을 누르면 제안한 시간부터 재생하고 현재 줄을 강조합니다. 수락 전에는 원본 가사를 바꾸지 않습니다.</string>
     <string name="discovery_play_review">검토할 곡 재생</string>
     <string name="discovery_accept">수락하고 저장</string>
     <string name="discovery_reject">거절</string>

@@ -89,10 +89,10 @@
     <string name="mobility_cycling">자전거</string>
     <string name="mobility_vehicle">자동차·기차</string>
     <string name="mobility_airborne">비행</string>
-    <string name="soft_update_check">경험 설정 업데이트 확인</string>
-    <string name="soft_update_done">호환되는 경험 설정을 확인했습니다. 네이티브 기능 변경은 APK 업데이트가 필요합니다.</string>
-    <string name="soft_update_error">경험 설정을 확인하지 못했습니다. 현재 설정은 보존됩니다.</string>
-    <string name="soft_update_current">현재 경험 설정: %1$d</string>
+    <string name="soft_update_check">추천 설정 확인</string>
+    <string name="soft_update_done">새 추천 설정을 적용했습니다.</string>
+    <string name="soft_update_error">연결하지 못했습니다. 기존 추천 설정은 유지됩니다. 다시 시도해 주세요.</string>
+    <string name="soft_update_current">적용된 추천 규칙 · v%1$d</string>
     <string name="personal_insight_background" formatted="false">세부 예시는 충전 중이거나 배터리 90% 이상이고 기기 부하가 낮을 때 월별 최근 청취 구간·동작·재생 요약을 각각 최대 1,024건(저메모리 기기 512건) 분석합니다. 상세 기록은 120일 보관하고, 이후 요약본에도 전체 통계 합계와 누적 취향 관계를 보존합니다.</string>
     <string name="licenses_newpipe">네이티브 YouTube 영상 추출 · NewPipe 기여자</string>
     <string name="mv_download_progress">영상 저장 중 · %1$d%%</string>
