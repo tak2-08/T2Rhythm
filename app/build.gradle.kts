@@ -138,6 +138,14 @@ android {
             //isDebuggable = true
             signingConfig = releaseSigning
         }
+        // Preview installs alongside existing releases when their signing key is unavailable.
+        create("preview") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".preview"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
+
         // Required by the macrobenchmark module for baseline profile generation.
         // Mirrors release (fully minified + signed) so the profile reflects production.
         create("benchmark") {

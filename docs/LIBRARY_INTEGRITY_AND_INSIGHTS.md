@@ -43,3 +43,15 @@
 재생목록의 마지막 저장은 화면 종료를 막지 않는 비동기 작업으로 마칩니다. 새 화면에서 재생목록을 불러오는 작업과 저장 작업은 같은 잠금으로 순서를 지키며, 백업을 만들 때는 저장 완료를 기다립니다.
 
 검증 결과와 화면은 [검증 기록](validation/library-integrity/REPORT.md)에 정리합니다.
+
+## 설치용 미리보기 APK
+
+`githubPreview`는 릴리스와 같은 축소·최적화 설정을 쓰고 `chromahub.rhythm.app.preview`라는 별도 앱으로 설치합니다. 실행 아이콘 이름은 **T2Rhythm Preview**입니다. 현재 환경의 서명이 기존 배포 APK와 달라, 기존 앱을 삭제하거나 데이터를 지우지 않고 새 기능을 확인할 수 있도록 분리했습니다. 기존 앱의 청취 기록·설정은 자동으로 이전되지 않으며 기기의 음원 파일은 보관함 접근을 허용한 뒤 스캔합니다.
+
+```sh
+./gradlew :app:assembleGithubPreview \
+  -PversionCodeOverride=554991314 \
+  -PversionNameOverride=5.5.499.1314-preview.1
+```
+
+정식 앱을 덮어 설치하는 업데이트 APK는 기존 배포본과 같은 서명 키로 만들어야 합니다. 미리보기 APK는 Releases의 해당 미리보기 버전에 체크섬과 함께 제공합니다.
