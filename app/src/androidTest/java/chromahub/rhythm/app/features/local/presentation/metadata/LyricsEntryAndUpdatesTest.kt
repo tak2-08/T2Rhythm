@@ -186,7 +186,10 @@ class LyricsEntryAndUpdatesTest {
             }
             compose.waitUntil(10_000) { compose.onAllNodesWithContentDescription(ctx.getString(R.string.lyric_ai_review)).fetchSemanticsNodes().isNotEmpty() }
             compose.onNodeWithTag("lyric-ai-action").performClick()
-            compose.onNodeWithText(ctx.getString(R.string.timing_editor_hint)).assertExists()
+            compose.onNodeWithContentDescription(ctx.getString(R.string.usability_timing_tools)).performClick()
+            compose.onNodeWithText(ctx.getString(R.string.usability_timing_help)).performClick()
+            compose.onNodeWithText(ctx.getString(R.string.timing_editor_hint)).assertIsDisplayed()
+            compose.onNodeWithText(ctx.getString(android.R.string.ok)).performClick()
             compose.onNodeWithTag("timing-later").performScrollTo().performClick()
             compose.waitUntil(10_000) { LyricTimingDraftStore(base).read(track, original, proposal.id)?.rows?.firstOrNull()?.start == 30_050L }
             assertEquals(30_000L, LocalLyricAlignment.parse(store.get(proposal.id)!!.value).first().ms)

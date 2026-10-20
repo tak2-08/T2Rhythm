@@ -97,12 +97,21 @@ class EnrichmentStore(private val context: Context) {
             .mapNotNull { get(it.nameWithoutExtension) }
             .sortedByDescending { it.createdAt }
 
+    /** Read the indexed current proposal without decoding every song's history. */
+    fun current(songKey: String, kind: String): EnrichmentProposal? = synchronized(lock) {
+        runCatching {
+            val pointer = File(root, "current-${CatalogFileStore.hash(songKey + kind)}")
+            require(pointer.length() in 1..64)
+            get(pointer.readText())?.takeIf { it.songKey == songKey && it.kind == kind }
+        }.getOrNull()
+    }
+
     fun propose(proposal: EnrichmentProposal, updateHints: Boolean = true): Boolean =
         synchronized(lock) {
             if (get(proposal.id) != null) return@synchronized false
             val pointer =
                 File(root, "current-${CatalogFileStore.hash(proposal.songKey+proposal.kind)}")
-            val old = runCatching { get(pointer.readText()) }.getOrNull()
+            val old = current(proposal.songKey, proposal.kind)
             val sameInput = old?.sourceSignature == proposal.sourceSignature &&
                 (proposal.kind != "LYRICS" || sameLyrics(old.beforeLyrics, proposal.beforeLyrics))
             if (proposal.kind != "LYRICS" &&

@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -26,7 +27,9 @@ fun DownloadCenter(
     initialTab: Int = 2,
     onDismiss: () -> Unit,
 ) {
-    var tab by remember { mutableIntStateOf(initialTab) }
+    var tab by rememberSaveable { mutableIntStateOf(initialTab.coerceIn(0, 2)) }
+    val songSearch = rememberSaveable(saver = DownloadSearchState.Saver) { DownloadSearchState() }
+    val albumSearch = rememberSaveable(saver = DownloadSearchState.Saver) { DownloadSearchState() }
     val library by viewModel.songs.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -78,11 +81,11 @@ fun DownloadCenter(
     ) {
         Column {
             PrimaryTabRow(selectedTabIndex = tab) {
-                listOf(R.string.discovery_songs, R.string.discovery_albums, R.string.discovery_downloads).forEachIndexed { i, title ->
-                    Tab(selected = tab == i, onClick = { tab = i }, text = { Text(context.getString(title), maxLines = 1) })
+                listOf(R.string.discovery_songs, R.string.discovery_albums, R.string.usability_download_queue).forEachIndexed { i, title ->
+                    Tab(selected = tab == i, onClick = { tab = i }, text = { Text(context.getString(title), maxLines = 2) })
                 }
             }
-            if (tab < 2) DownloadSearch(tab == 1, viewModel) else LazyColumn(
+            if (tab < 2) DownloadSearch(tab == 1, viewModel, if (tab == 1) albumSearch else songSearch, scope) else LazyColumn(
             Modifier.fillMaxWidth().heightIn(max = 700.dp).navigationBarsPadding(),
             contentPadding = PaddingValues(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

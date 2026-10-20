@@ -25,8 +25,9 @@ classes=(
     chromahub.rhythm.app.features.local.data.discovery.MetadataEditRaceTest
     chromahub.rhythm.app.features.local.presentation.metadata.LyricsEntryAndUpdatesTest
     chromahub.rhythm.app.features.local.presentation.metadata.ManualLyricTimingFlowTest
+    chromahub.rhythm.app.features.local.presentation.metadata.UsabilityBehaviorTest
 )
-expected_counts=(4 1 4 1 1 8 7)
+expected_counts=(4 1 4 1 1 8 7 7)
 for index in "${!classes[@]}"; do
     class_name="${classes[$index]}"
     result=0

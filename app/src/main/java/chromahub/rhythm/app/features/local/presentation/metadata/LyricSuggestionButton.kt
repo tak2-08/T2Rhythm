@@ -2,6 +2,7 @@
 package chromahub.rhythm.app.features.local.presentation.metadata
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -55,8 +56,8 @@ fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicView
     LaunchedEffect(key, revision, original) {
         retryState = withContext(Dispatchers.IO) { TimingRetryQueue(context).read().firstOrNull { it.songKey == song.uri.toString() }?.status }
         proposalId = withContext(Dispatchers.IO) {
-            EnrichmentStore(context).list(1000).firstOrNull {
-                it.songKey == song.uri.toString() && it.kind == "LYRICS" && it.state == "PENDING" &&
+            EnrichmentStore(context).current(song.uri.toString(), "LYRICS")?.takeIf {
+                it.state == "PENDING" &&
                     it.sourceSignature == EnrichmentStore.signature(song) && EnrichmentStore.sameLyrics(it.beforeLyrics, original)
             }?.id
         }
@@ -64,7 +65,10 @@ fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicView
     val latest = (jobs + retryJobs).distinctBy { it.id }.maxByOrNull { job -> job.tags.firstNotNullOfOrNull { it.removePrefix("lyric_request_").toLongOrNull() } ?: 0L }
     val active = starting || latest?.state?.isFinished == false
     val failed = !active && proposalId == null && (error || latest?.state == WorkInfo.State.FAILED)
-    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Surface(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer, contentColor = MaterialTheme.colorScheme.onSurface,
+        shape = RoundedCornerShape(20.dp)) {
+    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilledTonalButton(enabled = local && (if (timed.isEmpty()) lines.size else timed.size) in 1..1000 && song.duration > 0,
                 onClick = { manual = true }, modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("lyric-manual-action")) {
@@ -104,6 +108,7 @@ fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicView
             TextButton(onClick = { scope.launch { LyricSuggestionWorker.cancel(context, song) } }) { Text(stringResource(android.R.string.cancel)) }
         }
         if (failed) Text(stringResource(if (latest?.outputData?.getString("reason") == "model_missing") R.string.lyric_ai_model_required else R.string.lyric_ai_insufficient), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+    }
     }
     if (options) AlertDialog(
         onDismissRequest = { options = false },

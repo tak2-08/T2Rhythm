@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="usability_timing_tools">Lyric tools and help</string>
+    <string name="usability_timing_help">How to time lyrics</string>
+    <string name="usability_timing_short_hint">Mark the first sound as start and the last sound as end.</string>
+    <string name="usability_timing_end_last">Mark end</string>
+    <string name="usability_timing_earlier">Move selected %1$s time earlier by %2$d milliseconds</string>
+    <string name="usability_timing_later">Move selected %1$s time later by %2$d milliseconds</string>
+    <string name="usability_seek_position">Playback position</string>
+    <string name="usability_download_queue">Downloads</string>
+    <string name="usability_load_failed">Could not load this information. Try again.</string>
+    <string name="usability_recommendation_details">Recommendation score details</string>
+    <string name="usability_learning_waiting">Analysis and learning requested. Waiting for suitable battery and storage conditions.</string>
+    <string name="usability_learning_running">Learning from verified lyrics… Your saved lyrics stay unchanged.</string>
+    <string name="usability_learning_never">No completed learning session yet.</string>
+    <string name="usability_clear_title">Clear title</string>
+    <string name="usability_search_cancelled">Search canceled. You can search again.</string>
+    <string name="usability_back_to_albums">Back to album results</string>
+</resources>

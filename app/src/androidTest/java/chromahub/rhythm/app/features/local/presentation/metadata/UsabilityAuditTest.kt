@@ -48,17 +48,33 @@ class UsabilityAuditTest {
         compose.runOnUiThread {
             Locale.setDefault(Locale.KOREAN)
             listOf(base.resources, compose.activity.resources).forEach { resources ->
-                resources.updateConfiguration(Configuration(resources.configuration).apply { setLocale(Locale.KOREAN) }, resources.displayMetrics)
+                resources.updateConfiguration(Configuration(resources.configuration).apply { setLocale(Locale.KOREAN); fontScale = 1f }, resources.displayMetrics)
             }
         }
     }
-    private fun content(fontScale: Float = 1f, block: @Composable () -> Unit) = compose.setContent {
-        val density = LocalDensity.current
-        MaterialTheme {
-            CompositionLocalProvider(LocalContext provides compose.activity,
-                LocalConfiguration provides compose.activity.resources.configuration,
-                LocalDensity provides Density(density.density, fontScale)) { block() }
+    @Suppress("DEPRECATION")
+    private fun content(fontScale: Float = 1f, block: @Composable () -> Unit) {
+        // Dialogs create a new Android owner, so LocalDensity alone does not scale their text.
+        compose.runOnUiThread {
+            listOf(base.resources, compose.activity.resources).forEach { resources ->
+                resources.updateConfiguration(Configuration(resources.configuration).apply {
+                    setLocale(Locale.KOREAN); this.fontScale = fontScale
+                }, resources.displayMetrics)
+            }
         }
+        compose.setContent {
+            val density = LocalDensity.current
+            MaterialTheme {
+                CompositionLocalProvider(LocalContext provides compose.activity,
+                    LocalConfiguration provides compose.activity.resources.configuration,
+                    LocalDensity provides Density(density.density, fontScale)) { block() }
+            }
+        }
+    }
+    private fun assertFontScale(text: String) {
+        val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        compose.onNodeWithText(text, useUnmergedTree = true).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        org.junit.Assert.assertTrue("Capture must use the requested large font in the actual window", layouts.single().layoutInput.density.fontScale >= 1.59f)
     }
     private fun capture(name: String) {
         compose.mainClock.advanceTimeBy(1000)
@@ -73,6 +89,10 @@ class UsabilityAuditTest {
         content(1.6f) { val vm: MusicViewModel = viewModel()
             LyricTimingEditor(track, lyrics, vm, playbackOverride = TimingPlayback({ 1234 }, { false }, {}, {}, {})) {} }
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("timing-mark-start").fetchSemanticsNodes().isNotEmpty() }
+        assertFontScale(base.getString(R.string.timing_mark_start))
+        compose.onNodeWithTag("timing-mark-start").assertIsDisplayed()
+        compose.onNodeWithTag("timing-mark-end").assertIsDisplayed()
+        org.junit.Assert.assertTrue(compose.onNodeWithTag("timing-lines").fetchSemanticsNode().boundsInRoot.height > 72 * compose.activity.resources.displayMetrics.density)
         capture("audit-01-timing-large-text.png")
     }
     @Test fun manualTimingInLandscape() {
@@ -83,11 +103,13 @@ class UsabilityAuditTest {
             LyricTimingEditor(track, lyrics, vm, playbackOverride = TimingPlayback({ 1234 }, { false }, {}, {}, {})) {} }
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("timing-mark-start").fetchSemanticsNodes().isNotEmpty() }
         capture("audit-02-timing-landscape.png")
+        org.junit.Assert.assertTrue("Landscape must keep the lyric list visible", compose.onNodeWithTag("timing-lines").fetchSemanticsNode().boundsInRoot.height > 72 * compose.activity.resources.displayMetrics.density)
     }
     @Test fun downloadSearchWithLargeTextAndKeyboard() {
         content(1.6f) { DownloadCenter(initialTab = 0) {} }
         compose.onNodeWithText(base.getString(R.string.download_song_name)).performClick()
         compose.onNode(hasSetTextAction() and hasText(base.getString(R.string.download_song_name))).performTextInput("노래 제목")
+        assertFontScale(base.getString(R.string.download_song_name))
         capture("audit-03-download-search-large-text.png")
     }
     @Test fun findingAlgorithmManagementThroughSettingsSearch() {
@@ -104,6 +126,7 @@ class UsabilityAuditTest {
             content(1.6f) { val vm: MusicViewModel = viewModel()
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { ListeningReportPanel(vm) } }
             compose.waitUntil(30_000) { compose.onAllNodesWithText(base.getString(R.string.report_number_one, "오래 기억하고 싶은 노래")).fetchSemanticsNodes().isNotEmpty() }
+            assertFontScale(base.getString(R.string.report_title))
             capture("audit-05-listening-report-large-text.png")
         } finally { ledger.writableDatabase.delete("records", "id=?", arrayOf(id)) }
     }

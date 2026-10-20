@@ -99,6 +99,15 @@ data class SearchableSettingItem(
  */
 fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
     return buildList {
+        add(SearchableSettingItem("algorithm_management", context.getString(R.string.algorithm_title), context.getString(R.string.algorithm_hint),
+            listOf("algorithm", "learning", "training", "patterns", "lyrics", "AI", "volume", "location", "알고리즘", "학습", "가사", "매핑", "볼륨", "위치", "추천"),
+            MaterialSymbolIcon("neurology"), SettingsRoutes.ALGORITHM_MANAGEMENT, context.getString(R.string.settings_section_storage_data)))
+        add(SearchableSettingItem("download_center", context.getString(R.string.discovery_downloads), context.getString(R.string.download_search_hint),
+            listOf("download", "song", "album", "artist", "search", "queue", "다운로드", "음원", "앨범", "아티스트", "노래 검색", "저장", "대기열"),
+            MaterialSymbolIcon("download"), SettingsRoutes.DOWNLOAD_CENTER, context.getString(R.string.settings_section_storage_data)))
+        add(SearchableSettingItem("video_library", context.getString(R.string.video_library_title), context.getString(R.string.video_library_hint),
+            listOf("video", "music video", "MV", "reconnect", "orphan", "뮤직비디오", "영상", "비디오", "재연결", "연결 끊김"),
+            MaterialSymbolIcon("video_library"), SettingsRoutes.VIDEO_LIBRARY, context.getString(R.string.settings_section_storage_data)))
         add(SearchableSettingItem("personal_music_archive", context.getString(R.string.catalog_library_title), context.getString(R.string.catalog_library_hint),
             listOf("archive", "metadata", "bulk", "permanent", "backup", "lyrics", "bugs", "melon", "genie", "waveform", "fingerprint", "on-device", "listening", "duration", "tolerance", "보관함", "메타데이터", "일괄", "영구", "백업", "가사", "벅스", "멜론", "지니", "파형", "지문", "청취", "곡길이", "오차"),
             MaterialSymbolIcon("library_music"), SettingsRoutes.CATALOG_LIBRARY, context.getString(R.string.catalog_library_title)))
