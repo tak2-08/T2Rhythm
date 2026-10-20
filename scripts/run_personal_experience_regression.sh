@@ -6,7 +6,7 @@ collect_evidence() {
     local evidence_dir="app/build/outputs/experience-screenshots"
     mkdir -p "$evidence_dir"
     adb logcat -d > "$evidence_dir/logcat.txt" 2>&1 || true
-    for screenshot in insights-download-search.png insights-algorithms.png insights-listening-report.png lyrics-ai-entry.png lyrics-ai-options.png lyrics-ai-material.png lyrics-ai-fullscreen.png lyrics-ai-review.png recommendation-settings.png app-updates-clean.png manual-lyrics-editor.png manual-lyrics-save-failed.png; do
+    for screenshot in insights-download-search.png insights-algorithms.png insights-listening-report.png lyrics-ai-entry.png lyrics-ai-options.png lyrics-ai-material.png lyrics-ai-fullscreen.png lyrics-ai-review.png recommendation-settings.png app-updates-clean.png manual-lyrics-editor.png manual-lyrics-save-failed.png genre-multiple-selection.png genre-manual-teaching.png genre-service-with-training-hidden.png; do
         local remote_file="/sdcard/Android/data/chromahub.rhythm.app.debug/files/$screenshot"
         if adb shell test -f "$remote_file"; then
             adb pull "$remote_file" "$evidence_dir/$screenshot" || true
@@ -26,8 +26,9 @@ classes=(
     chromahub.rhythm.app.features.local.presentation.metadata.LyricsEntryAndUpdatesTest
     chromahub.rhythm.app.features.local.presentation.metadata.ManualLyricTimingFlowTest
     chromahub.rhythm.app.features.local.presentation.metadata.UsabilityBehaviorTest
+    chromahub.rhythm.app.features.local.presentation.metadata.GenreControlsTest
 )
-expected_counts=(4 1 4 1 1 8 7 7)
+expected_counts=(4 1 4 1 1 8 7 7 8)
 for index in "${!classes[@]}"; do
     class_name="${classes[$index]}"
     result=0

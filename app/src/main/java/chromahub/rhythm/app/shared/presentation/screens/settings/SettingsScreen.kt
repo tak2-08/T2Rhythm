@@ -106,6 +106,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.SheetValue
 import androidx.compose.runtime.Composable
@@ -161,6 +162,8 @@ import chromahub.rhythm.app.shared.presentation.components.SettingsPalettes
 // Define routes for navigation
 object SettingsRoutes {
     const val ALGORITHM_MANAGEMENT = "algorithm_management"
+    const val ALGORITHM_TRAINING = "algorithm_training"
+    const val LEARNING_UI = "learning_ui"
     const val DOWNLOAD_CENTER = "download_center"
     const val VIDEO_LIBRARY = "video_library"
     const val CATALOG_LIBRARY = "catalog_library_settings"
@@ -235,6 +238,15 @@ fun SettingsScreen(
     val hapticFeedback = LocalHapticFeedback.current
     val context = LocalContext.current
     val appSettings = AppSettings.getInstance(context)
+    val learningUi by appSettings.learningUiEnabled.collectAsState()
+    var showTraining by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showLearningOptions by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(learningUi) { if (!learningUi) showTraining = false }
+    if (showTraining && learningUi) chromahub.rhythm.app.features.local.presentation.metadata.AlgorithmManagement(training = true, onDismiss = { showTraining = false })
+    if (showLearningOptions) AlertDialog(onDismissRequest = { showLearningOptions = false },
+        title = { Text(stringResource(R.string.learning_ui_title)) },
+        text = { Column { Text(stringResource(R.string.learning_ui_hint)); Switch(learningUi, onCheckedChange = appSettings::setLearningUiEnabled) } },
+        confirmButton = { TextButton(onClick = { showLearningOptions = false }) { Text(stringResource(android.R.string.ok)) } })
     var showAlgorithms by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var showVideos by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     if (showVideos) chromahub.rhythm.app.features.local.presentation.metadata.VideoLibraryManager(onDismiss = { showVideos = false })
@@ -262,7 +274,7 @@ fun SettingsScreen(
     var searchQuery by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     val searchFocus = androidx.compose.ui.platform.LocalFocusManager.current
     val searchKeyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    val searchIndex = remember(context) { buildSettingsSearchIndex(context) }
+    val searchIndex = remember(context, learningUi) { buildSettingsSearchIndex(context).filter { learningUi || it.route != SettingsRoutes.ALGORITHM_TRAINING } }
     val searchResults = remember(searchQuery, searchIndex) { 
         searchSettings(searchQuery, searchIndex) 
     }
@@ -421,6 +433,8 @@ fun SettingsScreen(
                 title = context.getString(R.string.settings_section_storage_data),
                 items = buildList {
                     add(SettingItem(MaterialSymbolIcon("neurology"), context.getString(R.string.algorithm_title), context.getString(R.string.algorithm_hint), palette = SettingsPalettes.Purple, onClick = { showAlgorithms = true }))
+                    add(SettingItem(MaterialSymbolIcon("visibility"), context.getString(R.string.learning_ui_title), context.getString(R.string.learning_ui_hint), toggleState = learningUi, onToggleChange = appSettings::setLearningUiEnabled))
+                    if (learningUi) add(SettingItem(MaterialSymbolIcon("model_training"), context.getString(R.string.algorithm_training_title), context.getString(R.string.algorithm_training_hint), palette = SettingsPalettes.Purple, onClick = { showTraining = true }))
                     add(SettingItem(MaterialSymbolIcon("video_library"), context.getString(R.string.video_library_title), context.getString(R.string.video_library_hint), palette = SettingsPalettes.SkyBlue, onClick = { showVideos = true }))
                     add(SettingItem(MaterialSymbolIcon("download"), context.getString(R.string.discovery_downloads), context.getString(R.string.discovery_downloads_short), palette = SettingsPalettes.SkyBlue, onClick = { showDownloads = true }))
                     // Listening Stats and Rhythm Guard are shared across LOCAL and STREAMING modes
@@ -483,6 +497,8 @@ fun SettingsScreen(
                     searchFocus.clearFocus()
                     searchKeyboard?.hide()
                     when (result.route) {
+                        SettingsRoutes.ALGORITHM_TRAINING -> if (learningUi) showTraining = true
+                        SettingsRoutes.LEARNING_UI -> showLearningOptions = true
                         SettingsRoutes.ALGORITHM_MANAGEMENT -> showAlgorithms = true
                         SettingsRoutes.DOWNLOAD_CENTER -> showDownloads = true
                         SettingsRoutes.VIDEO_LIBRARY -> showVideos = true

@@ -16,6 +16,24 @@ package chromahub.rhythm.app.util
 object GenreUtils {
     private val genreSplitRegex = Regex("[,;\\n\\r]+")
 
+    /** Missing tags are never classes, including legacy placeholders already in a model. */
+    fun isKnownGenre(value: String?): Boolean {
+        val label = value?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
+        return label.any { it.isLetterOrDigit() } && label !in setOf(
+            "unknown", "<unknown>", "(unknown)", "null", "none", "n/a", "na", "undefined",
+            "unspecified", "not set", "알 수 없음", "알수없음", "미지정", "장르 없음", "없음",
+        )
+    }
+
+    fun normalizedGenres(rawGenre: String?): Set<String> =
+        splitGenres(rawGenre).map { it.lowercase(java.util.Locale.ROOT) }.toSet()
+
+    /** An empty selection means all; otherwise match any of the selected genres. */
+    fun matchesAny(rawGenre: String?, selected: Set<String>): Boolean {
+        val targets = selected.flatMap { normalizedGenres(it) }.toSet()
+        return targets.isEmpty() || normalizedGenres(rawGenre).any { it in targets }
+    }
+
     fun splitGenres(rawGenre: String?): List<String> {
         if (rawGenre.isNullOrBlank()) return emptyList()
 
@@ -27,9 +45,9 @@ object GenreUtils {
         normalized
             .split(genreSplitRegex)
             .map { it.trim() }
-            .filter { it.isNotBlank() && !it.equals("unknown", ignoreCase = true) && it != "-" }
+            .filter(::isKnownGenre)
             .forEach { genre ->
-                val key = genre.lowercase()
+                val key = genre.lowercase(java.util.Locale.ROOT)
                 if (seen.add(key)) {
                     genres.add(genre)
                 }

@@ -22,6 +22,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun EntityLikeButton(kind: TasteKind, entityKey: String, label: String) {
     val context = LocalContext.current
+    val learningUi by chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).learningUiEnabled.collectAsState()
     val memory = remember { TasteMemory.get(context) }
     val revision by memory.changes.collectAsState()
     var state by remember(kind, entityKey) { mutableStateOf<TasteState?>(null) }
@@ -34,7 +35,7 @@ fun EntityLikeButton(kind: TasteKind, entityKey: String, label: String) {
     LaunchedEffect(kind, entityKey) { state = withContext(Dispatchers.IO) { memory.inspect(kind, entityKey, label) } }
     LaunchedEffect(kind, entityKey, revision) { state = withContext(Dispatchers.IO) { memory.state(kind, entityKey) } }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (memory.reviewsEnabled && state?.pending == true) TextButton(onClick = { explanation = true }) {
+        if (learningUi && memory.reviewsEnabled && state?.pending == true) TextButton(onClick = { explanation = true }) {
             Text(stringResource(R.string.taste_review_short), style = MaterialTheme.typography.labelSmall)
         }
         IconButton(enabled = !busy, onClick = {
@@ -49,7 +50,7 @@ fun EntityLikeButton(kind: TasteKind, entityKey: String, label: String) {
     if (writeFailed) AlertDialog(onDismissRequest = { writeFailed = false },
         text = { Text(stringResource(R.string.adaptive_operation_failed)) },
         confirmButton = { TextButton(onClick = { writeFailed = false }) { Text(stringResource(android.R.string.ok)) } })
-    if (explanation) AlertDialog(onDismissRequest = { explanation = false },
+    if (explanation && learningUi) AlertDialog(onDismissRequest = { explanation = false },
         title = { Text(stringResource(R.string.taste_review_title)) },
         text = { Text(stringResource(R.string.taste_review_explanation)) },
         confirmButton = { TextButton(onClick = { explanation = false }) { Text(stringResource(android.R.string.ok)) } },

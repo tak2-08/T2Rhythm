@@ -19,7 +19,7 @@ object LocalGenreClassifier {
     fun predict(key: String, vector: List<Double>, examples: List<GenreExample>): GenreGuess? {
         if (vector.isEmpty() || vector.any { !it.isFinite() }) return null
         val compatible =
-            examples.filter {
+            GenreTrainingPolicy.merge(examples, emptyList()).filter {
                 it.key != key && it.vector.size == vector.size && it.vector.all(Double::isFinite)
             }
         if (

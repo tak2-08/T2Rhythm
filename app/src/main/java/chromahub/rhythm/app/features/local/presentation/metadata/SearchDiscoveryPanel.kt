@@ -27,6 +27,7 @@ fun SearchDiscoveryPanel(
     onKeyword: (String) -> Unit,
 ) {
     val context = LocalContext.current
+    val learningUi by chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).learningUiEnabled.collectAsState()
     var keywords by remember { mutableStateOf(emptyList<String>()) }
     var loading by remember { mutableStateOf(true) }
     var charts by remember { mutableStateOf(false) }
@@ -92,7 +93,7 @@ fun SearchDiscoveryPanel(
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.discovery_charts), maxLines = 1)
             }
-            OutlinedButton(
+            if (learningUi) OutlinedButton(
                 onClick = { review = true },
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
@@ -105,5 +106,5 @@ fun SearchDiscoveryPanel(
     }
     if (downloads) DownloadCenter(viewModel = viewModel, initialTab = 0) { downloads = false }
     if (charts) ChartBrowser { charts = false }
-    if (review) EnrichmentReview(viewModel) { review = false }
+    if (review && learningUi) EnrichmentReview(viewModel) { review = false }
 }

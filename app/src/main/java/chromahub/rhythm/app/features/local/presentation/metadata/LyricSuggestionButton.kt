@@ -26,6 +26,8 @@ import kotlinx.coroutines.*
 
 @Composable
 fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicViewModel) {
+    val learningUi by chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(LocalContext.current).learningUiEnabled.collectAsState()
+    if (!learningUi) return
     val lines = remember(lyrics) { LyricTimingInput.lines(lyrics) }
     val timed = remember(lyrics) { LocalLyricAlignment.parse(lyrics?.getBestLyrics().orEmpty()) }
     if (song == null || lyrics == null || lines.isEmpty() && timed.isEmpty()) return

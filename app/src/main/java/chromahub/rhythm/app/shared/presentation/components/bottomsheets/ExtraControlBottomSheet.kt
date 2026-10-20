@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -140,6 +141,7 @@ fun ExtraControlBottomSheet(
     isCompactWidth: Boolean = false
 ) {
     val context = LocalContext.current
+    val learningUi by chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).learningUiEnabled.collectAsState()
     val scope = rememberCoroutineScope()
 
     fun dismissAndDo(action: () -> Unit) {
@@ -158,7 +160,7 @@ fun ExtraControlBottomSheet(
     val actions = buildList {
         onSmartShuffle?.let { action -> add(ControlAction(MaterialSymbolIcon("shuffle"), context.getString(R.string.personal_smart_shuffle), context.getString(R.string.personal_smart_shuffle_hint), secondary, onSecondary) { dismissAndDo(action) }) }
         onMusicVideo?.let { action -> add(ControlAction(MaterialSymbolIcon("smart_display"), context.getString(R.string.mv_manage), null, secondary, onSecondary) { dismissAndDo(action) }) }
-        onRecommendationFeedback?.let { action -> add(ControlAction(MaterialSymbolIcon("tune"), context.getString(R.string.context_feedback), null, secondary, onSecondary) { dismissAndDo(action) }) }
+        onRecommendationFeedback?.takeIf { learningUi }?.let { action -> add(ControlAction(MaterialSymbolIcon("tune"), context.getString(R.string.context_feedback), null, secondary, onSecondary) { dismissAndDo(action) }) }
 
         onEditControls?.let { editControls ->
             add(ControlAction(

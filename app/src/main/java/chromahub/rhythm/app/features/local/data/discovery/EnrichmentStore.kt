@@ -60,12 +60,17 @@ class EnrichmentStore(private val context: Context) {
         runCatching {
                 val f = File(context.cacheDir, "enrichment-model.json")
                 require(f.length() in 1..8_000_000)
-                gson.fromJson(f.readText(), EnrichmentModel::class.java)
+                withReviewedGenres(gson.fromJson(f.readText(), EnrichmentModel::class.java))
             }
             .getOrNull() ?: EnrichmentModel()
 
+    private fun withReviewedGenres(model: EnrichmentModel): EnrichmentModel {
+        val (keys, reviewed) = GenreCorrections(context).modelExamples()
+        return model.copy(examples = GenreTrainingPolicy.merge(model.examples.filterNot { it.key in keys }, reviewed))
+    }
+
     fun saveModel(model: EnrichmentModel) {
-        var bounded = model
+        var bounded = withReviewedGenres(model)
         var bytes = gson.toJson(bounded).toByteArray()
         while (bytes.size > 7_500_000 && bounded.examples.isNotEmpty()) {
             bounded = bounded.copy(examples = bounded.examples.take(bounded.examples.size / 2))

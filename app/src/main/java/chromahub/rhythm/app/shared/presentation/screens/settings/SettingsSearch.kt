@@ -99,6 +99,10 @@ data class SearchableSettingItem(
  */
 fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
     return buildList {
+        add(SearchableSettingItem("algorithm_training", context.getString(R.string.algorithm_training_title), context.getString(R.string.algorithm_training_hint),
+            listOf("training", "teach", "genre", "학습", "장르", "교정", "가르치기"), MaterialSymbolIcon("model_training"), SettingsRoutes.ALGORITHM_TRAINING, context.getString(R.string.settings_section_storage_data)))
+        add(SearchableSettingItem("learning_ui", context.getString(R.string.learning_ui_title), context.getString(R.string.learning_ui_hint),
+            listOf("training", "learning", "hide", "show", "학습", "UI", "숨기기", "표시"), MaterialSymbolIcon("visibility"), SettingsRoutes.LEARNING_UI, context.getString(R.string.settings_section_storage_data)))
         add(SearchableSettingItem("algorithm_management", context.getString(R.string.algorithm_title), context.getString(R.string.algorithm_hint),
             listOf("algorithm", "learning", "training", "patterns", "lyrics", "AI", "volume", "location", "알고리즘", "학습", "가사", "매핑", "볼륨", "위치", "추천"),
             MaterialSymbolIcon("neurology"), SettingsRoutes.ALGORITHM_MANAGEMENT, context.getString(R.string.settings_section_storage_data)))

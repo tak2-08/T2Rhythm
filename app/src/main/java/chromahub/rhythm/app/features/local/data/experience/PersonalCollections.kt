@@ -37,23 +37,26 @@ object PersonalCollections {
     fun generate(context: Context, songs: List<Song>, favorites: List<String>, currentId: String?, mode: PersonalCollection,
                  count: Int = 30, genre: String? = null, seed: Long = System.currentTimeMillis() / 86_400_000L): List<Song> {
         val now = System.currentTimeMillis(); val ledger = ListeningLedger.get(context)
+        val selectedGenres = chromahub.rhythm.app.util.GenreUtils.splitGenres(genre).toSet()
+        val labeledSongs = chromahub.rhythm.app.features.local.data.discovery.GenreCorrections(context).apply(songs)
         val options = options(context); val history = ledger.affinities().associateBy { it.songKey }
-        val eligible = songs.filterNot { excluded(options, it.uri.toString(), now) }.filter { song -> when(mode) {
-            PersonalCollection.FAVORITES -> song.id in favorites && (genre == null || AdaptiveRecommendation.normalizeGenre(song.genre) == AdaptiveRecommendation.normalizeGenre(genre))
+        val eligible = labeledSongs.filterNot { excluded(options, it.uri.toString(), now) }
+            .filter { chromahub.rhythm.app.util.GenreUtils.matchesAny(it.genre, selectedGenres) }.filter { song -> when(mode) {
+            PersonalCollection.FAVORITES -> song.id in favorites
             PersonalCollection.REDISCOVERY -> history[song.uri.toString()]?.lastAt?.let { now - it >= 14 * 86_400_000L } == true
-            PersonalCollection.DAILY_MIX -> genre == null || AdaptiveRecommendation.normalizeGenre(song.genre) == AdaptiveRecommendation.normalizeGenre(genre)
+            PersonalCollection.DAILY_MIX -> true
             else -> true
         } }
         val ranked = PersonalTasteRepository.recommend(context, eligible, favorites, if (mode == PersonalCollection.FAVORITES) null else currentId, minOf(if (mode == PersonalCollection.SIMILAR) 128 else 500, eligible.size), seed)
         val selected = when (mode) {
             PersonalCollection.DAYLIST -> ranked
             PersonalCollection.DAILY_MIX -> {
-                val group = genre ?: ranked.groupingBy { AdaptiveRecommendation.normalizeGenre(it.genre) }.eachCount()
+                val group = if (selectedGenres.isNotEmpty()) null else ranked.groupingBy { AdaptiveRecommendation.normalizeGenre(it.genre) }.eachCount()
                     .filterKeys { it.isNotBlank() }.maxByOrNull { it.value }?.key
                 ranked.filter { group == null || AdaptiveRecommendation.normalizeGenre(it.genre) == AdaptiveRecommendation.normalizeGenre(group) }
             }
             PersonalCollection.REDISCOVERY -> ranked.filter { history[it.uri.toString()]?.lastAt?.let { last -> now - last >= 14 * 86_400_000L } == true }
-            PersonalCollection.FAVORITES -> ranked.filter { it.id in favorites && (genre == null || AdaptiveRecommendation.normalizeGenre(it.genre) == AdaptiveRecommendation.normalizeGenre(genre)) }
+            PersonalCollection.FAVORITES -> ranked.filter { it.id in favorites }
             PersonalCollection.FEWER_REPEATS -> ranked.sortedWith(compareBy<Song> { (history[it.uri.toString()]?.lastAt ?: 0L) > now - 24 * 3600_000L }
                 .thenBy { history[it.uri.toString()]?.lastAt ?: 0L })
             PersonalCollection.SIMILAR -> {

@@ -20,7 +20,8 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                 applicationContext.getSharedPreferences("enrichment_progress", Context.MODE_PRIVATE)
             try {
                 val repository = LocalMusicModule.provideMusicRepository(applicationContext)
-                val songs = repository.loadSongs().sortedBy { it.uri.toString() }
+                val corrections = GenreCorrections(applicationContext)
+                val songs = corrections.apply(repository.loadSongs()).sortedBy { it.uri.toString() }
                 val ledger = ListeningLedger.get(applicationContext)
                 val store = EnrichmentStore(applicationContext)
                 val databaseMissing =
@@ -41,10 +42,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                             val lyrics = repository.peekLocalLyrics(song)
                             val lines = LocalLyricAlignment.parse(lyrics?.syncedLyrics.orEmpty())
                             val label =
-                                song.genre?.trim()?.lowercase(java.util.Locale.ROOT)?.takeIf {
-                                    it.isNotEmpty() &&
-                                        it.lowercase() !in setOf("unknown", "<unknown>", "알 수 없음")
-                                }
+                                chromahub.rhythm.app.util.GenreUtils.splitGenres(song.genre).joinToString(", ").ifEmpty { null }
                             val timing =
                                 if (
                                     feature != null &&
@@ -82,7 +80,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                         return@withContext Result.success()
                     }
                     val candidate = index.model(store.list(1000), budget::blockingCheckpoint,
-                        LyricTimingFeedback(applicationContext).examples())
+                        LyricTimingFeedback(applicationContext).examples(), corrections.examples(songs), corrections.read().map { it.songKey }.toSet())
                     val model = TimingValidation.select(applicationContext, candidate, store.model(), budget::blockingCheckpoint)
                     store.saveModel(model)
                     TimingRetryQueue(applicationContext).schedule(model)
@@ -94,9 +92,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                                 ledger.feature(key, "${song.dateModified}:${song.duration}")
                                     ?: return@inferSong
                             if (
-                                song.genre.isNullOrBlank() ||
-                                    song.genre.lowercase() in
-                                        setOf("unknown", "<unknown>", "알 수 없음")
+                                chromahub.rhythm.app.util.GenreUtils.splitGenres(song.genre).isEmpty()
                             ) {
                                 LocalGenreClassifier.predict(
                                         key,

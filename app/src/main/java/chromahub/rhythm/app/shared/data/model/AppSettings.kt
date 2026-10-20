@@ -1929,6 +1929,14 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
     val crashLogHistory: StateFlow<List<CrashLogEntry>> = _crashLogHistory.asStateFlow()
     
     // Haptic Feedback Settings
+    private val _learningUiEnabled = MutableStateFlow(prefs.getBoolean("learning_ui_enabled", true))
+    val learningUiEnabled: StateFlow<Boolean> = _learningUiEnabled.asStateFlow()
+
+    fun setLearningUiEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("learning_ui_enabled", enabled).apply()
+        _learningUiEnabled.value = enabled
+    }
+
     private val _hapticFeedbackEnabled = MutableStateFlow(prefs.getBoolean(KEY_HAPTIC_FEEDBACK_ENABLED, true))
     val hapticFeedbackEnabled: StateFlow<Boolean> = _hapticFeedbackEnabled.asStateFlow()
     
@@ -5683,6 +5691,7 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
         } catch (e: Exception) { emptyList() }
         
         // Other settings
+        _learningUiEnabled.value = prefs.getBoolean("learning_ui_enabled", true)
         _hapticFeedbackEnabled.value = prefs.getBoolean(KEY_HAPTIC_FEEDBACK_ENABLED, true)
         _useCustomNotification.value = prefs.getBoolean(KEY_USE_CUSTOM_NOTIFICATION, false)
         _rhythmGuardAlertNotificationsEnabled.value = prefs.getBoolean(KEY_RHYTHM_GUARD_ALERT_NOTIFICATIONS_ENABLED, true)

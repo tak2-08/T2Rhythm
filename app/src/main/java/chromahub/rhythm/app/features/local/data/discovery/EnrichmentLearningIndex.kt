@@ -43,7 +43,7 @@ internal class EnrichmentLearningIndex(context: Context) :
                 put("song", key)
                 put("signature", signature)
                 put("priority", kr.co.metadata.crawler.CatalogFileStore.hash(key))
-                put("genre", genre)
+                put("genre", chromahub.rhythm.app.util.GenreUtils.splitGenres(genre).joinToString(", ").ifEmpty { null })
                 put("vector", vector?.let(gson::toJson))
                 put("timing", timing?.let(gson::toJson))
             },
@@ -51,7 +51,18 @@ internal class EnrichmentLearningIndex(context: Context) :
         )
     }
 
-    fun model(feedback: List<EnrichmentProposal>, checkpoint: () -> Unit = {}, reviewed: List<TimingTraining> = emptyList()): EnrichmentModel {
+    fun updateGenre(song: chromahub.rhythm.app.shared.data.model.Song, genre: String?, vector: List<Double>?) {
+        val values = ContentValues().apply {
+            put("genre", chromahub.rhythm.app.util.GenreUtils.splitGenres(genre).joinToString(", ").ifEmpty { null })
+            put("signature", EnrichmentStore.signature(song))
+            put("vector", vector?.let(gson::toJson))
+        }
+        if (writableDatabase.update("samples", values, "song=?", arrayOf(song.uri.toString())) == 0)
+            put(song.uri.toString(), genre, vector, null, EnrichmentStore.signature(song))
+    }
+
+    fun model(feedback: List<EnrichmentProposal>, checkpoint: () -> Unit = {}, reviewed: List<TimingTraining> = emptyList(),
+              genreReviews: List<GenreExample> = emptyList(), correctedKeys: Set<String> = genreReviews.map { it.key }.toSet()): EnrichmentModel {
         // Rebuildable cache: keep a fixed representative reservoir, with no duplicate recording votes.
         writableDatabase.execSQL("UPDATE samples SET timing=NULL WHERE song NOT IN (SELECT song FROM samples WHERE timing IS NOT NULL ORDER BY priority LIMIT 256)")
         writableDatabase.execSQL("DELETE FROM samples WHERE song NOT IN (SELECT song FROM samples ORDER BY priority LIMIT 8192)")
@@ -72,7 +83,7 @@ internal class EnrichmentLearningIndex(context: Context) :
                     checkpoint()
                     val label = c.getString(1)
                     if (
-                        !label.isNullOrBlank() &&
+                        chromahub.rhythm.app.util.GenreUtils.isKnownGenre(label) &&
                             !c.isNull(2) &&
                             genres.size < 4096 &&
                             (counts[label] ?: 0) < 64
@@ -120,6 +131,7 @@ internal class EnrichmentLearningIndex(context: Context) :
                                 ?.let { genres += GenreExample(p.songKey, p.value, it, false) }
                     }
             }
-        return EnrichmentModel(examples = genres, timings = (reviewed + timings).distinctBy { it.pcm }.take(192))
+        return EnrichmentModel(examples = GenreTrainingPolicy.merge(genres.filterNot { it.key in correctedKeys }, genreReviews),
+            timings = (reviewed + timings).distinctBy { it.pcm }.take(192))
     }
 }

@@ -3102,4 +3102,26 @@
     <string name="algorithm_recommendation_counts">Recommendation learning: %1$d outcomes · %2$d positive · %3$d negative</string>
     <string name="algorithm_recommendation_error">Mean prediction error %1$.3f · neutral baseline %2$.3f. Lower is better; this is not a percentage accuracy.</string>
     <string name="algorithm_weight_hint">Current place, volume and time weights affect recommendation scores. These values describe the model, not causes of your choices.</string>
+
+    <!-- Multi-genre recommendations and optional training tools -->
+    <string name="genre_choose_multiple">Choose genres</string>
+    <string name="genre_choose_hint">Include songs matching any selected genre. Clear the selection for all genres.</string>
+    <string name="genre_find">Find a genre</string>
+    <string name="genre_apply">Apply</string>
+    <string name="algorithm_training_title">Algorithm training</string>
+    <string name="algorithm_training_hint">Teach genres, review suggestions, and manage training</string>
+    <string name="learning_ui_title">Show training tools</string>
+    <string name="learning_ui_hint">Show genre teaching, recommendation ratings and lyric training tools. Hiding them keeps recommendations, playback and learned data.</string>
+    <string name="genre_training_title">Teach genres</string>
+    <string name="genre_training_hint">Choose a song and tell the app its genres. Your corrections take priority in recommendations and audio training; original file tags stay unchanged.</string>
+    <string name="genre_training_count">Your corrections: %1$d / 512 songs</string>
+    <string name="genre_song_search">Song or artist</string>
+    <string name="genre_missing_only">Without a genre</string>
+    <string name="genre_missing">No genre</string>
+    <string name="genre_edit_hint">Enter up to 8 genres separated by commas. Re-teaching replaces this song\'s previous example. At most 512 songs are kept, with balanced samples per genre. Audio analysis can finish later in the background.</string>
+    <string name="genre_correct_label">Correct genres</string>
+    <string name="genre_teach">Save and teach</string>
+    <string name="genre_forget">Remove my correction</string>
+    <string name="genre_removed">Correction removed. The original genre is used again.</string>
+    <string name="genre_saved">Genres saved. Audio analysis and training are scheduled.</string>
 </resources>

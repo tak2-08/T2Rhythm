@@ -28,9 +28,11 @@ private data class AlgorithmSnapshot(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun AlgorithmManagement(onDismiss: () -> Unit) {
+fun AlgorithmManagement(training: Boolean = false, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    var tab by remember { mutableIntStateOf(0) }
+    val learningUi by chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).learningUiEnabled.collectAsState()
+    if (training && !learningUi) { LaunchedEffect(Unit) { onDismiss() }; return }
+    var tab by remember(training) { mutableIntStateOf(0) }
     var dimension by remember { mutableStateOf("volume") }
     var snapshot by remember { mutableStateOf(AlgorithmSnapshot()) }
     val (patterns, model, recommendation, validation, reviews, trainedAt, bytes) = snapshot
@@ -66,9 +68,9 @@ fun AlgorithmManagement(onDismiss: () -> Unit) {
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column {
-            Text(stringResource(R.string.algorithm_title), Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(if (training) R.string.algorithm_training_title else R.string.algorithm_title), Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.headlineSmall)
             PrimaryTabRow(selectedTabIndex = tab) {
-                listOf(R.string.algorithm_patterns, R.string.algorithm_learning, R.string.algorithm_data).forEachIndexed { i, title ->
+                (if (training) listOf(R.string.genre_training_title, R.string.algorithm_learning) else listOf(R.string.algorithm_patterns, R.string.algorithm_data)).forEachIndexed { i, title ->
                     Tab(tab == i, onClick = { tab = i }, text = { Text(stringResource(title)) })
                 }
             }
@@ -78,7 +80,9 @@ fun AlgorithmManagement(onDismiss: () -> Unit) {
                     Text(stringResource(R.string.usability_load_failed), color = MaterialTheme.colorScheme.error)
                     TextButton(onClick = { retry++ }) { Text(stringResource(R.string.mv_retry)) }
                 }
-                if (tab == 0) {
+                if (training && tab == 0) {
+                    item { GenreTrainingPanel() }
+                } else if (!training && tab == 0) {
                     item { Text(stringResource(R.string.algorithm_observations), style = MaterialTheme.typography.bodySmall) }
                     item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("volume" to R.string.algorithm_volume_label, "place" to R.string.algorithm_place_label,
@@ -105,7 +109,7 @@ fun AlgorithmManagement(onDismiss: () -> Unit) {
                             }
                         } }
                     } }
-                } else if (tab == 1) {
+                } else if (training && tab == 1) {
                     item {
                         OutlinedButton(enabled = !running && !requested, onClick = {
                             try {
@@ -140,6 +144,7 @@ fun AlgorithmManagement(onDismiss: () -> Unit) {
                     item { Text(validation?.meanErrorMs?.let { context.getString(R.string.algorithm_validation, validation!!.songs, it / 1000) } ?: context.getString(R.string.algorithm_validation_pending), style = MaterialTheme.typography.bodySmall) }
                     item { Text(stringResource(R.string.algorithm_limits), style = MaterialTheme.typography.bodySmall) }
                     item { LearningPreferences() }
+                    item { RecommendationFeedbackSettings() }
                 } else {
                     item { Text(context.getString(R.string.algorithm_storage, Formatter.formatShortFileSize(context, bytes)), style = MaterialTheme.typography.titleMedium) }
                     item { Text(stringResource(R.string.algorithm_storage_hint), style = MaterialTheme.typography.bodySmall) }

@@ -24,6 +24,7 @@ internal class ContextPreferenceIndex(context: Context) :
         val groups = linkedMapOf<Pair<String, String>, MutableList<Pair<String, Double>>>()
         readableDatabase.rawQuery("SELECT dimension,bucket,item,value FROM totals WHERE dimension IN ('place','volume','output','hour','motion') AND value>=1 ORDER BY dimension,bucket,value DESC LIMIT 2000", null).use { c ->
             while (c.moveToNext()) {
+                if (!chromahub.rhythm.app.util.GenreUtils.isKnownGenre(c.getString(2))) continue
                 val values = groups.getOrPut(c.getString(0) to c.getString(1)) { mutableListOf() }
                 if (values.size < 3) values += c.getString(2) to c.getDouble(3)
             }
@@ -296,9 +297,10 @@ internal class ContextPreferenceIndex(context: Context) :
                     arrayOf(dimension, bucket),
                 )
                 .use { c ->
-                    while (c.moveToNext()) result[c.getString(0)] =
-                        if (ratios) ((c.getDouble(1) + 1) / (c.getDouble(2) + 2)).coerceIn(0.0, 1.0)
-                        else c.getDouble(1)
+                    while (c.moveToNext()) {
+                        if (ratios || chromahub.rhythm.app.util.GenreUtils.isKnownGenre(c.getString(0))) result[c.getString(0)] =
+                            if (ratios) ((c.getDouble(1) + 1) / (c.getDouble(2) + 2)).coerceIn(0.0, 1.0) else c.getDouble(1)
+                    }
                 }
             if (ratios) return result
             val max = (result.values.maxOrNull() ?: 0.0) + 3
@@ -314,6 +316,7 @@ internal class ContextPreferenceIndex(context: Context) :
             )
             .use { c ->
                 while (c.moveToNext()) {
+                    if (!chromahub.rhythm.app.util.GenreUtils.isKnownGenre(c.getString(1))) continue
                     val age = (today - c.getString(0).toLong()).coerceAtLeast(0)
                     recent[c.getString(1)] =
                         (recent[c.getString(1)] ?: 0.0) +

@@ -30,10 +30,7 @@ fun PersonalExperiencePanel() {
     var insight by remember { mutableStateOf<ListeningInsights?>(null) }
     var chooseMonth by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    var tasteReviews by remember { mutableStateOf(TasteMemory.get(context).reviewsEnabled) }
     var ruleUpdates by remember { mutableStateOf(ExperienceRulesWorker.enabled(context)) }
-    var collectionRatings by remember { mutableStateOf(emptyMap<String, Double>()) }
-    LaunchedEffect(revision) { collectionRatings = withContext(Dispatchers.IO) { RecommendationLearning.get(context).model().collections } }
     var personalOptions by remember { mutableStateOf(PersonalOptions()) }
     var autoplay by remember { mutableStateOf(PersonalCollections.autoplay(context)) }
     LaunchedEffect(revision) { personalOptions = withContext(Dispatchers.IO) { PersonalCollections.options(context) }; autoplay = PersonalCollections.autoplay(context) }
@@ -106,6 +103,38 @@ fun PersonalExperiencePanel() {
                     }
                 }
             }
+            HistoryRetentionPanel()
+            MobilityContextSettings()
+            ListeningContextPanel()
+            HorizontalDivider()
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(stringResource(R.string.personal_rules_updates), Modifier.weight(1f))
+                Switch(checked = ruleUpdates, onCheckedChange = { ruleUpdates = it; ExperienceRulesWorker.configure(context, it) })
+            }
+            SoftUpdatePanel()
+            TextButton(onClick = { importRules.launch(arrayOf("application/json", "text/plain")) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.personal_rules_import)) }
+            message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        }
+    }
+    if (chooseMonth) AlertDialog(onDismissRequest = { chooseMonth = false }, title = { Text(stringResource(R.string.personal_month_choose)) },
+        text = { androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 320.dp)) {
+            items(months.size) { i -> TextButton(onClick = { month = months[i].month; chooseMonth = false }, modifier = Modifier.fillMaxWidth()) {
+                Text(months[i].month + " · " + months[i].plays)
+            } }
+        } }, confirmButton = { TextButton(onClick = { chooseMonth = false }) { Text(stringResource(android.R.string.cancel)) } })
+}
+
+@Composable
+fun RecommendationFeedbackSettings() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val learningUi by chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).learningUiEnabled.collectAsState()
+    if (!learningUi) return
+    val revision by ListeningLedger.get(context).changes.collectAsState()
+    var tasteReviews by remember { mutableStateOf(TasteMemory.get(context).reviewsEnabled) }
+    var collectionRatings by remember { mutableStateOf(emptyMap<String, Double>()) }
+    LaunchedEffect(revision) { collectionRatings = withContext(Dispatchers.IO) { RecommendationLearning.get(context).model().collections } }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (collectionRatings.isNotEmpty()) {
                 Text(stringResource(R.string.personal_mix_feedbacks), style = MaterialTheme.typography.titleSmall)
                 collectionRatings.forEach { (id, reward) ->
@@ -124,27 +153,5 @@ fun PersonalExperiencePanel() {
                 Switch(tasteReviews, onCheckedChange = { value -> tasteReviews = value; scope.launch(Dispatchers.IO) { TasteMemory.get(context).reviewsEnabled(value) } })
             }
             Text(stringResource(R.string.taste_reviews_description), style = MaterialTheme.typography.bodySmall)
-            HistoryRetentionPanel()
-            MobilityContextSettings()
-            ListeningContextPanel()
-            HorizontalDivider()
-            Text(stringResource(R.string.personal_audio_hint), style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(onClick = { AudioAnalysisWorker.enqueue(context); message = context.getString(R.string.personal_audio_scheduled) }, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.personal_audio_analyze))
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(stringResource(R.string.personal_rules_updates), Modifier.weight(1f))
-                Switch(checked = ruleUpdates, onCheckedChange = { ruleUpdates = it; ExperienceRulesWorker.configure(context, it) })
-            }
-            SoftUpdatePanel()
-            TextButton(onClick = { importRules.launch(arrayOf("application/json", "text/plain")) }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.personal_rules_import)) }
-            message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-        }
     }
-    if (chooseMonth) AlertDialog(onDismissRequest = { chooseMonth = false }, title = { Text(stringResource(R.string.personal_month_choose)) },
-        text = { androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 320.dp)) {
-            items(months.size) { i -> TextButton(onClick = { month = months[i].month; chooseMonth = false }, modifier = Modifier.fillMaxWidth()) {
-                Text(months[i].month + " · " + months[i].plays)
-            } }
-        } }, confirmButton = { TextButton(onClick = { chooseMonth = false }) { Text(stringResource(android.R.string.cancel)) } })
 }
