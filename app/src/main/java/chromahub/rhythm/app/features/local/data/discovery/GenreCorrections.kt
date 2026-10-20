@@ -35,7 +35,15 @@ class GenreCorrections(private val context: Context) {
     }
     fun remove(key: String) = synchronized(lock) { write(read().filterNot { it.songKey == key }) }
     private fun write(values: List<GenreCorrection>) {
-        PersonalArchive.atomicWrite(file, gson.toJson(values.take(512)).toByteArray())
+        var bounded = values.take(512)
+        var bytes = gson.toJson(bounded).toByteArray()
+        // Match the reader limit even for unusually long UTF-8 titles or genre labels.
+        while (bytes.size > 2_000_000 && bounded.size > 1) {
+            bounded = bounded.take((bounded.size * 3 / 4).coerceAtLeast(1))
+            bytes = gson.toJson(bounded).toByteArray()
+        }
+        require(bytes.size <= 2_000_000)
+        PersonalArchive.atomicWrite(file, bytes)
         revision.value++
         ListeningLedger.get(context).invalidate()
         PersonalArchive.enqueue(context)
