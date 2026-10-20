@@ -26,9 +26,9 @@ object GenreUtils {
     }
 
     fun normalizedGenres(rawGenre: String?): Set<String> =
-        splitGenres(rawGenre).map { it.lowercase(java.util.Locale.ROOT) }.toSet()
+        splitGenres(rawGenre).toSet()
 
-    /** Use real library labels, preserving their spelling but combining case variants. */
+    /** Use real library labels, using one uppercase spelling for all case variants. */
     fun availableGenres(tags: Iterable<String?>): List<String> {
         val seen = mutableSetOf<String>()
         return tags.flatMap(::splitGenres).filter { it.length <= 80 &&
@@ -51,7 +51,7 @@ object GenreUtils {
 
         normalized
             .split(genreSplitRegex)
-            .map { it.trim() }
+            .map { it.trim().uppercase(java.util.Locale.ROOT) }
             .filter(::isKnownGenre)
             .forEach { genre ->
                 val key = genre.lowercase(java.util.Locale.ROOT)
@@ -70,11 +70,11 @@ object GenreUtils {
     }
 
     fun matchesGenreQuery(rawGenre: String?, query: String): Boolean {
-        val normalizedQuery = query.trim().lowercase()
+        val normalizedQuery = query.trim().lowercase(java.util.Locale.ROOT)
         if (normalizedQuery.isEmpty()) return false
 
         return splitGenres(rawGenre).any { genre ->
-            val normalizedGenre = genre.lowercase()
+            val normalizedGenre = genre.lowercase(java.util.Locale.ROOT)
             normalizedGenre == normalizedQuery ||
                 normalizedGenre.startsWith(normalizedQuery) ||
                 normalizedGenre.contains(normalizedQuery)

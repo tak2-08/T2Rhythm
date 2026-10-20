@@ -171,6 +171,7 @@ fun LibrarySettingsScreen(onBackClick: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     val libraryCombineDiscs by appSettings.libraryCombineDiscs.collectAsState()
+    val useFolderNameAsAlbum by appSettings.useFolderNameAsAlbum.collectAsState()
     val showLibraryBottomBarAlways by appSettings.showLibraryBottomBarAlways.collectAsState()
     val preferSongArtwork by appSettings.preferSongArtwork.collectAsState()
     val losslessArtwork by appSettings.losslessArtwork.collectAsState()
@@ -199,6 +200,9 @@ fun LibrarySettingsScreen(onBackClick: () -> Unit) {
             SettingGroup(
                 title = context.getString(R.string.settings_library_group_organization),
                 items = listOf(
+                    SettingItem(MaterialSymbolIcon("folder"), context.getString(R.string.folder_album_title),
+                        context.getString(R.string.folder_album_hint), toggleState = useFolderNameAsAlbum,
+                        onToggleChange = { appSettings.setUseFolderNameAsAlbum(it) }),
                     SettingItem(
                         MaterialSymbolIcon("reorder"),
                         context.getString(R.string.settings_library_tab_order),

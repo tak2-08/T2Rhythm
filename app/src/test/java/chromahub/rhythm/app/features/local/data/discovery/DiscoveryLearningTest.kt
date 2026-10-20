@@ -13,7 +13,7 @@ class DiscoveryLearningTest {
     @Test
     fun genrePredictionUsesKnownTagsAndAbstainsWithoutIndependentSupport() {
         assertEquals(
-            "pop",
+            "POP",
             LocalGenreClassifier.predict("new", listOf(1.0, 0.0), examples())!!.genre,
         )
         assertNull(LocalGenreClassifier.predict("pop1", listOf(1.0, 0.0), examples()))
@@ -28,7 +28,7 @@ class DiscoveryLearningTest {
             (1..64).map { GenreExample("large$it", "large", listOf(.92, .392)) } +
                 (1..3).map { GenreExample("small$it", "small", listOf(1.0, 0.0)) }
         assertEquals(
-            "small",
+            "SMALL",
             LocalGenreClassifier.predict("new", listOf(1.0, 0.0), anchors)!!.genre,
         )
     }
@@ -38,11 +38,11 @@ class DiscoveryLearningTest {
         val anchors =
             (1..3).map { GenreExample("a$it", "a", listOf(1.0, 0.0)) } +
                 (1..3).map { GenreExample("b$it", "b", listOf(.97, .243)) }
-        assertEquals("a", LocalGenreClassifier.predict("new", listOf(1.0, 0.0), anchors)!!.genre)
+        assertEquals("A", LocalGenreClassifier.predict("new", listOf(1.0, 0.0), anchors)!!.genre)
         val corrected =
             anchors + (1..3).map { GenreExample("rejected$it", "a", listOf(1.0, 0.0), false) }
         assertNotEquals(
-            "a",
+            "A",
             LocalGenreClassifier.predict("new", listOf(1.0, 0.0), corrected)?.genre,
         )
     }

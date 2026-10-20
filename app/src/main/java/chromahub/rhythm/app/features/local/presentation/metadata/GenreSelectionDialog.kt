@@ -16,7 +16,7 @@ import chromahub.rhythm.app.util.GenreUtils
 @Composable
 fun GenreSelectionDialog(available: List<String>, selected: Set<String>, onDismiss: () -> Unit,
                          onApply: (Set<String>) -> Unit) {
-    var draft by remember { mutableStateOf(selected) }
+    var draft by remember { mutableStateOf(GenreUtils.availableGenres(selected).toSet()) }
     var query by remember { mutableStateOf("") }
     val options = remember(available, selected) { (available + selected).flatMap(GenreUtils::splitGenres)
         .distinctBy { it.lowercase(java.util.Locale.ROOT) }.sortedBy { it.lowercase(java.util.Locale.ROOT) } }

@@ -24,9 +24,9 @@ class AdaptiveRecommendationTest {
         fun row(key: String, genre: String, context: ListeningSituation, played: Long) = ListeningRecord(key, key, "segment", key, key, key, "A", "B", genre,
             now - 300_000, now - 300_000 + played, played, 60_000, 0, played, 1f, "pause", timezone = "UTC", situation = context)
         val result = AdaptiveRecommendation.contextPreference(listOf(row("a", "POP", scene, 60_000), row("b", "Rock", scene.copy(place = "Office", routeType = "speaker"), 5000)), scene, now)
-        assertTrue(result.placeGenres.getValue("pop") > 0)
-        assertFalse(result.placeGenres.containsKey("rock"))
-        assertTrue(result.outputGenres.getValue("pop") < .3)
+        assertTrue(result.placeGenres.getValue("POP") > 0)
+        assertFalse(result.placeGenres.containsKey("ROCK"))
+        assertTrue(result.outputGenres.getValue("POP") < .3)
         assertTrue(result.completionRates.getValue("a") > result.completionRates.getValue("b"))
     }
     @Test fun `different headphones retain separate learned output contexts`() {

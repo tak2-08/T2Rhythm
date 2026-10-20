@@ -8,6 +8,12 @@ import org.junit.Test
 import java.io.File
 
 class DurableExperienceTest {
+    @Test fun legacyContextCaseAliasesMergeWithoutIncreasingTheirWeight() {
+        val context = RecommendationContext(placeGenres = mapOf("Pop" to .6, "pop" to .8, "POP" to 1.0, "-" to 1.0)).canonicalGenres()
+        assertEquals(setOf("POP"), context.placeGenres.keys)
+        assertEquals(.8, context.placeGenres.getValue("POP"), .00001)
+    }
+
     @Test fun normalizedTransitionGenresStillContributeAfterMaterialization() {
         val result = PersonalRecommendation.rank(listOf(RecommendationCandidate("song", "Artist", "Pop", 0)), emptyList(),
             ExperienceProfile(), context = RecommendationContext(genreTransitions = mapOf("pop" to 1.0))).single()

@@ -58,6 +58,8 @@ class MediaScanEngine(
         }
     }
 
+    private val albumNames = AlbumNameResolver(context)
+
     private val _scanProgress = MutableStateFlow(ScanProgress(0, 0, ScanPhase.Idle))
     val scanProgress: StateFlow<ScanProgress> = _scanProgress.asStateFlow()
 
@@ -223,7 +225,8 @@ class MediaScanEngine(
                             )
                         }
                         val contentUri = Uri.withAppendedPath(collection, id).toString()
-                        scannedSongs.add(existing.copy(id = id, uri = contentUri, artworkUri = existingArt))
+                        scannedSongs.add(existing.copy(id = id, uri = contentUri, artworkUri = existingArt,
+                            album = albumNames.resolve(existing.album, existing.path, Uri.parse(contentUri), dateModified)))
                         seenIds.add(id)
                     } else {
                         val rawTitle = cursor.getString(colTitle) ?: "Unknown Title"
@@ -338,6 +341,8 @@ class MediaScanEngine(
                             defaultArtworkUri
                         }
 
+                        album = albumNames.resolve(album, path, Uri.withAppendedPath(collection, id), dateModified)
+
                         val dateAdded = dateAddedResolver.resolveDateAdded(
                             songId = id,
                             filePath = path,
@@ -409,6 +414,7 @@ class MediaScanEngine(
             }
 
             appSettings.setLastScanTimestamp(System.currentTimeMillis())
+            chromahub.rhythm.app.features.local.data.metadata.EntityPageMaterializationWorker.enqueue(context)
             try {
                 context.getSharedPreferences("library_scan_metadata", Context.MODE_PRIVATE)
                     .edit { putInt("last_scan_mediastore_count", rawMediaStoreCount) }

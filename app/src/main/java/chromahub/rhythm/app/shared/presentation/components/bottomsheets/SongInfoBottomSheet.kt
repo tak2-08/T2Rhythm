@@ -1229,7 +1229,7 @@ private fun SongInfoCard(
 
         val genreValue = if (!song.genre.isNullOrEmpty()) song.genre else extendedInfo?.genre
         if (!genreValue.isNullOrEmpty()) {
-            add(MetadataItem(context.getString(R.string.metadata_genre), genreValue.trim(), RhythmIcons.Category))
+            add(MetadataItem(context.getString(R.string.metadata_genre), chromahub.rhythm.app.util.GenreUtils.splitGenres(genreValue).joinToString(", "), RhythmIcons.Category))
         }
 
         if (!song.album.isNullOrEmpty()) {
@@ -2091,7 +2091,7 @@ private fun EditSongSheet(
 
                                         OutlinedTextField(
                                             value = genre,
-                                            onValueChange = { genre = it },
+                                            onValueChange = { genre = it.uppercase(java.util.Locale.ROOT) },
                                             label = { Text(stringResource(R.string.bottomsheet_genre), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                             leadingIcon = {
                                                 Icon(
@@ -2567,7 +2567,7 @@ private fun EditSongSheet(
 
                     OutlinedTextField(
                         value = genre,
-                        onValueChange = { genre = it },
+                        onValueChange = { genre = it.uppercase(java.util.Locale.ROOT) },
                         label = { Text(stringResource(R.string.bottomsheet_genre), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         leadingIcon = {
                             Icon(

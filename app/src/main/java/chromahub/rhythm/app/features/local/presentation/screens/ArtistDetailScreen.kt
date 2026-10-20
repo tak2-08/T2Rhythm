@@ -283,13 +283,19 @@ fun ArtistDetailScreen(
     val isShuffleActive by viewModel.isShuffleEnabled.collectAsState()
 
     val catalogRevision by chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).changes.collectAsState()
+    val entityPages = remember { chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context) }
+    val pageRevision by chromahub.rhythm.app.features.local.data.metadata.EntityPageStore.revision.collectAsState()
+    val entityPageKey = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).artistKey(artistName)
+    var storedPage by remember(entityPageKey) { mutableStateOf<chromahub.rhythm.app.features.local.data.metadata.EntityPage?>(null) }
+    LaunchedEffect(entityPageKey, pageRevision) { storedPage = withContext(Dispatchers.IO) { entityPages.read(kr.co.metadata.crawler.EntityKind.ARTIST, entityPageKey) } }
+
     // Artist description from Wikipedia if enabled
     var artistDescription by remember(artistName) { mutableStateOf<String?>(null) }
     var isDescriptionLoading by remember(artistName) { mutableStateOf(false) }
 
-    LaunchedEffect(artistName, catalogRevision) {
-        chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(context)
-            .loadArtistDescription(artistName, fetch = false)?.let { artistDescription = it }
+    LaunchedEffect(artistName, catalogRevision, pageRevision) {
+        artistDescription = chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(context)
+            .loadArtistDescription(artistName, fetch = false)
     }
 
     LaunchedEffect(artistName, wikipediaApiActive) {
@@ -321,7 +327,7 @@ fun ArtistDetailScreen(
 
     val totalDuration = remember(rawArtistSongs) { rawArtistSongs.sumOf { it.duration } }
     val artistArtworkSource by appSettings.artistArtworkSource.collectAsState()
-    val displayArtworkUri = if (artistArtworkSource == ArtistArtworkSource.DISABLED) null else (currentArtworkUri ?: rawArtistSongs.firstNotNullOfOrNull { it.artworkUri })
+    val displayArtworkUri = if (artistArtworkSource == ArtistArtworkSource.DISABLED) null else if (storedPage?.imageEdited == true) entityPages.image(storedPage) else (entityPages.image(storedPage) ?: currentArtworkUri ?: rawArtistSongs.firstNotNullOfOrNull { it.artworkUri })
     val backgroundColor = MaterialTheme.colorScheme.background
     val artistArtShape = rememberExpressiveShapeFor(
         target = ExpressiveShapeTarget.ARTIST_ART,
@@ -617,6 +623,7 @@ fun ArtistDetailScreen(
                                 }
                             }
 
+                            item { chromahub.rhythm.app.features.local.presentation.metadata.EntityPageActions(kr.co.metadata.crawler.EntityKind.ARTIST, entityPageKey, artistName, artist = "", description = artistDescription, artwork = displayArtworkUri, modifier = Modifier.padding(horizontal = 16.dp)) }
                             if (artistDescription != null) {
                                 item {
                                     Spacer(modifier = Modifier.height(16.dp))
@@ -1025,6 +1032,7 @@ fun ArtistDetailScreen(
                             }
 
                             // About Artist Section
+                            item { chromahub.rhythm.app.features.local.presentation.metadata.EntityPageActions(kr.co.metadata.crawler.EntityKind.ARTIST, entityPageKey, artistName, artist = "", description = artistDescription, artwork = displayArtworkUri, modifier = Modifier.padding(horizontal = 16.dp)) }
                             if (artistDescription != null) {
                                 item {
                                     Spacer(modifier = Modifier.height(12.dp))

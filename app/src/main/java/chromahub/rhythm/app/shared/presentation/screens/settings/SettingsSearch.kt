@@ -821,6 +821,16 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             settingKey = "libraryTabOrder"
         ))
         add(SearchableSettingItem(
+            id = "folder_album_names",
+            title = context.getString(R.string.folder_album_title),
+            description = context.getString(R.string.folder_album_hint),
+            keywords = listOf("folder", "album", "폴더", "앨범명", "누락"),
+            icon = MaterialSymbolIcon("folder"),
+            route = SettingsRoutes.LIBRARY_SETTINGS,
+            parentScreen = context.getString(R.string.settings_library_settings),
+            settingKey = "useFolderNameAsAlbum"
+        ))
+        add(SearchableSettingItem(
             id = "library_combine_discs",
             title = context.getString(R.string.settings_library_combine_discs),
             description = context.getString(R.string.settings_library_combine_discs_desc),

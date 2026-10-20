@@ -31,6 +31,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +47,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -683,8 +686,10 @@ fun LyricsEditorBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .fillMaxHeight(0.96f)
                 .padding(bottom = 24.dp)
         ) {
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             LyricsEditorHeader(
                 songTitle = songTitle,
                 hasLyrics = editedLyrics.isNotBlank(),
@@ -692,6 +697,12 @@ fun LyricsEditorBottomSheet(
             )
 
             Spacer(modifier = Modifier.height(16.dp))
+            Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
+                manualTiming(when (selectedFormat) {
+                    LyricFormat.WORD_BY_WORD -> LyricsData(null, null, wordByWordLyrics = editedLyrics)
+                    else -> LyricsData(editedLyrics, null)
+                })
+            }
 
             if (song != null) {
                 val songId = song.id
@@ -1089,17 +1100,11 @@ fun LyricsEditorBottomSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
                     .padding(horizontal = 24.dp)
             ) {
                 OutlinedButton(onClick = { showCatalogLookup = true }, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.catalog_find_lyrics))
                 }
-                Spacer(Modifier.height(8.dp))
-                manualTiming(when (selectedFormat) {
-                    LyricFormat.WORD_BY_WORD -> LyricsData(null, null, wordByWordLyrics = editedLyrics)
-                    else -> LyricsData(editedLyrics, null)
-                })
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = editedLyrics,
@@ -1107,7 +1112,7 @@ fun LyricsEditorBottomSheet(
                     modifier = Modifier
                         .testTag("lyrics-edit-text")
                         .fillMaxWidth()
-                        .fillMaxHeight(),
+                        .heightIn(min = 240.dp, max = 480.dp),
                     placeholder = {
                         Text(
                             text = when (selectedFormat) {
@@ -1128,6 +1133,7 @@ fun LyricsEditorBottomSheet(
                     ),
                     shape = RoundedCornerShape(16.dp)
                 )
+            }
             }
 
             // Sticky Footer with action buttons

@@ -98,8 +98,8 @@ fun GenreTrainingPanel(loadSongs: (suspend () -> List<Song>)? = null,
         LazyColumn(Modifier.fillMaxWidth().heightIn(max = 240.dp)) {
             items(visible, key = { it.uri.toString() }) { song ->
                 ListItem(headlineContent = { Text(song.title, maxLines = 2) },
-                    supportingContent = { Text(song.artist + " · " + (corrections[song.uri.toString()]?.genre
-                        ?: song.genre?.takeIf(chromahub.rhythm.app.util.GenreUtils::isKnownGenre) ?: stringResource(R.string.genre_missing))) },
+                    supportingContent = { Text(song.artist + " · " + GenreUtils.splitGenres(corrections[song.uri.toString()]?.genre
+                        ?: song.genre).joinToString(", ").ifEmpty { stringResource(R.string.genre_missing) }) },
                     modifier = Modifier.clickable(enabled = !busy) {
                         message = null; selected = song; genre = corrections[song.uri.toString()]?.genre
                             ?: chromahub.rhythm.app.util.GenreUtils.splitGenres(song.genre).joinToString(", ")

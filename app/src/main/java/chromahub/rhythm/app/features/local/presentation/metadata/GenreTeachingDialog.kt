@@ -27,7 +27,7 @@ internal fun GenreTeachingDialog(title: String, value: String, onValueChange: (S
     AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text(title) }, text = {
         Column(Modifier.heightIn(max = 460.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.genre_edit_hint), style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(value, onValueChange = { onValueChange(it.take(1024)) }, enabled = !busy,
+            OutlinedTextField(value, onValueChange = { onValueChange(it.take(1024).uppercase(java.util.Locale.ROOT)) }, enabled = !busy,
                 isError = selected.size > 8 || selected.any { it.length > 80 },
                 label = { Text(stringResource(R.string.genre_correct_label)) }, modifier = Modifier.fillMaxWidth(),
                 maxLines = 3, supportingText = { Text(stringResource(R.string.genre_selected_count, selected.size)) })

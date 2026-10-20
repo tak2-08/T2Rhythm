@@ -2606,6 +2606,9 @@ class MusicRepository(context: Context) {
     suspend fun loadArtistDescription(name: String, fetch: Boolean = true): String? = withContext(Dispatchers.IO) {
         val kind = kr.co.metadata.crawler.EntityKind.ARTIST
         val key = catalog.artistKey(name)
+        val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context)
+        val page = pages.read(kind, key)
+        if (page?.edited == true) return@withContext page.description.takeIf(String::isNotBlank)
         val fields = setOf(kr.co.metadata.crawler.CatalogField.ARTIST_DESCRIPTION, kr.co.metadata.crawler.CatalogField.ARTIST_DEBUT_DATE, kr.co.metadata.crawler.CatalogField.ARTIST_GENRES)
         val record = if (fetch && catalog.preferences.options.value.profiles) catalog.collect(kind, key, name, null, fields) else catalog.read(kind, key)
         var description = record?.document?.get(kr.co.metadata.crawler.CatalogField.ARTIST_DESCRIPTION)
@@ -2613,29 +2616,39 @@ class MusicRepository(context: Context) {
             description = WikipediaProvider.getAlbumDescription(name, null)
             description?.let { catalog.cacheDescription(kind, key, it) }
         }
-        listOfNotNull(description,
+        val result = listOfNotNull(description,
             record?.document?.get(kr.co.metadata.crawler.CatalogField.ARTIST_DEBUT_DATE)?.let { context.getString(R.string.catalog_debut_date) + ": " + it },
-            record?.document?.get(kr.co.metadata.crawler.CatalogField.ARTIST_GENRES)?.let { context.getString(R.string.bottomsheet_genre) + ": " + it })
+            record?.document?.get(kr.co.metadata.crawler.CatalogField.ARTIST_GENRES)?.let { context.getString(R.string.bottomsheet_genre) + ": " + chromahub.rhythm.app.util.GenreUtils.splitGenres(it).joinToString(", ") })
             .joinToString("\n\n").takeIf(String::isNotBlank)
+        if (result != null) pages.capture(kind, key, name, "", result).description.takeIf(String::isNotBlank)
+        else page?.description?.takeIf(String::isNotBlank)
     }
 
     suspend fun loadAlbumDescription(name: String, artist: String?, fetch: Boolean = true): String? = withContext(Dispatchers.IO) {
         val kind = kr.co.metadata.crawler.EntityKind.ALBUM
         val key = catalog.albumKey(name, artist.orEmpty())
-        catalog.read(kind, key)?.document?.get(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION)?.let { return@withContext it }
-        if (!fetch) return@withContext null
-        if (catalog.preferences.options.value.profiles) catalog.collect(kind, key, name, artist, setOf(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION))?.document?.get(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION)?.let { return@withContext it }
-        if (!catalog.descriptionLookupAllowed(kind, key)) return@withContext null
+        val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context)
+        val page = pages.read(kind, key)
+        if (page?.edited == true) return@withContext page.description.takeIf(String::isNotBlank)
+        fun stored(text: String?) = text?.let { pages.capture(kind, key, name, artist.orEmpty(), it).description }
+            ?: page?.description?.takeIf(String::isNotBlank)
+        catalog.read(kind, key)?.document?.get(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION)?.let { return@withContext stored(it) }
+        if (!fetch) return@withContext stored(null)
+        if (catalog.preferences.options.value.profiles) catalog.collect(kind, key, name, artist, setOf(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION))?.document?.get(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION)?.let { return@withContext stored(it) }
+        if (!catalog.descriptionLookupAllowed(kind, key)) return@withContext stored(null)
         var description: String? = null
         if (appSettings.integrationsEnabled.value && appSettings.appleCanvasEnabled.value && artist != null) {
             description = chromahub.rhythm.app.network.AppleMusicCanvasProvider.getAlbumDescription(name, artist)
         }
         if (description.isNullOrBlank() && NetworkClient.isWikipediaApiEnabled()) description = WikipediaProvider.getAlbumDescription(name, artist)
         description?.let { catalog.cacheDescription(kind, key, it) }
-        description
+        stored(description)
     }
 
-    fun storedSongs(songs: List<Song>): List<Song> = songs.map { catalog.apply(it) }
+    fun storedSongs(songs: List<Song>): List<Song> {
+        val names = chromahub.rhythm.app.core.domain.scan.AlbumNameResolver(context)
+        return songs.map { catalog.apply(names.apply(it)) }
+    }
     fun peekLocalLyrics(song: Song): LyricsData? = autoLyrics.read(song)?.takeUnless { it.isErrorMessage() }
         ?: findLocalLyrics(song.artist, song.title, song.id, song.uri)?.takeIf { it.hasLyrics() && !it.isErrorMessage() }
         ?: getEmbeddedLyrics(song.uri)?.takeIf { it.hasLyrics() && !it.isErrorMessage() }

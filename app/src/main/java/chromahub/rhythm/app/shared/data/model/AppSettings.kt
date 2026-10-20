@@ -963,6 +963,12 @@ class AppSettings private constructor(context: Context) {
 
     private val _libraryCombineDiscs = MutableStateFlow(prefs.getBoolean(KEY_LIBRARY_COMBINE_DISCS, false))
     val libraryCombineDiscs: StateFlow<Boolean> = _libraryCombineDiscs.asStateFlow()
+    private val _useFolderNameAsAlbum = MutableStateFlow(prefs.getBoolean("use_folder_name_as_album", false))
+    val useFolderNameAsAlbum: StateFlow<Boolean> = _useFolderNameAsAlbum.asStateFlow()
+    fun setUseFolderNameAsAlbum(enabled: Boolean) {
+        prefs.edit { putBoolean("use_folder_name_as_album", enabled) }
+        _useFolderNameAsAlbum.value = enabled
+    }
     
     // Player Chip Order (Add to Playlist and Edit chips are not reorderable - they stay fixed)
     private val defaultChipOrder = listOf("FAVORITE", "SPEED", "EQUALIZER", "SLEEP_TIMER", "LYRICS", "ALBUM", "ARTIST", "SHARE")
@@ -5521,6 +5527,7 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
         _artistCollaborationMode.value = prefs.getBoolean(KEY_ARTIST_COLLABORATION_MODE, false)
         _songsSortOrder.value = prefs.getString(KEY_SONGS_SORT_ORDER, "TITLE_ASC") ?: "TITLE_ASC"
         _libraryCombineDiscs.value = prefs.getBoolean(KEY_LIBRARY_COMBINE_DISCS, false)
+        _useFolderNameAsAlbum.value = prefs.getBoolean("use_folder_name_as_album", false)
         _preferSongArtwork.value = if (prefs.contains(KEY_PREFER_SONG_ARTWORK)) {
             prefs.getBoolean(KEY_PREFER_SONG_ARTWORK, true)
         } else {

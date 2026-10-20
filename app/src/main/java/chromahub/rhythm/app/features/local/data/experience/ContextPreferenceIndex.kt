@@ -14,7 +14,7 @@ internal class ContextPreferenceIndex(context: Context) :
         context,
         java.io.File(context.cacheDir, "context-preferences-v1.db").absolutePath,
         null,
-        4,
+        5,
     ) {
     private val gson = Gson()
 
@@ -26,7 +26,7 @@ internal class ContextPreferenceIndex(context: Context) :
             while (c.moveToNext()) {
                 if (!chromahub.rhythm.app.util.GenreUtils.isKnownGenre(c.getString(2))) continue
                 val values = groups.getOrPut(c.getString(0) to c.getString(1)) { mutableListOf() }
-                if (values.size < 3) values += c.getString(2) to c.getDouble(3)
+                if (values.size < 3) values += chromahub.rhythm.app.util.GenreUtils.splitGenres(c.getString(2)).joinToString(", ") to c.getDouble(3)
             }
         }
         return groups.entries.take(100).map { Pattern(it.key.first, it.key.second, it.value) }

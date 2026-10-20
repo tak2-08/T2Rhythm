@@ -41,7 +41,7 @@ fun CatalogLookupDialog(
     val repository = remember { CatalogImportRepository(context.applicationContext) }
     var query by remember { mutableStateOf(initialQuery) }
     var kind by remember { mutableStateOf(EntityKind.TRACK) }
-    var provider by remember { mutableStateOf(Provider.BUGS_MOBILE) }
+    var provider by remember { mutableStateOf<Provider?>(null) }
     var hits by remember { mutableStateOf(emptyList<SearchHit>()) }
     var document by remember { mutableStateOf<CatalogDocument?>(null) }
     var selected by remember { mutableStateOf(emptySet<CatalogField>()) }
@@ -56,7 +56,9 @@ fun CatalogLookupDialog(
     )
 
     fun preview(result: CatalogDocument?) {
-        document = result
+        document = result?.copy(values = result.values.map { value ->
+            if (value.field.name.endsWith("GENRES")) value.copy(value = chromahub.rhythm.app.util.GenreUtils.splitGenres(value.value).joinToString(", ")) else value
+        })
         selected = result?.values?.filter { selectable(it.field) }?.map { it.field }?.toSet().orEmpty()
         if (result == null || result.values.isEmpty()) message = context.getString(R.string.catalog_no_metadata)
         else if (lyricsOnly && result[CatalogField.TRACK_LYRICS].isNullOrBlank()) {
@@ -107,10 +109,11 @@ fun CatalogLookupDialog(
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(Provider.BUGS_MOBILE, Provider.GENIE, Provider.MELON).forEach { option ->
+                    listOf(null, Provider.BUGS_MOBILE, Provider.MELON, Provider.GENIE).forEach { option ->
                         FilterChip(selected = provider == option, enabled = !busy,
                             onClick = { provider = option; document = null; hits = emptyList(); message = null },
                             label = { Text(when (option) {
+                                null -> stringResource(R.string.catalog_all_sources)
                                 Provider.BUGS_MOBILE -> "Bugs"
                                 Provider.GENIE -> "Genie"
                                 else -> "Melon"

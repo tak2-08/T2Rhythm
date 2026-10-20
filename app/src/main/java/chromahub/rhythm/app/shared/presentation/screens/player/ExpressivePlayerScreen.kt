@@ -1488,6 +1488,9 @@ fun ExpressivePlayerScreen(
                                                 gradientEdgeColor = when { showDarkBg -> Color.Black; else -> outerBoxBgColor },
                                                 modifier = Modifier.fillMaxWidth().clickable { HapticUtils.performHapticFeedback(context, haptic, HapticType.MEDIUM); onShowArtist() }, respectGlobalSetting = true,
                                                 textAlign = if (playerMergeControlsToBottom) TextAlign.Center else TextAlign.Start)
+                                            chromahub.rhythm.app.shared.presentation.components.player.PlayerTrackMetadata(targetSong,
+                                                foreground = onSurfaceVariantColor, centered = playerMergeControlsToBottom,
+                                                compact = isCompactHeight, onClick = onSongInfoClick)
                                         }
                                     }
                                 }

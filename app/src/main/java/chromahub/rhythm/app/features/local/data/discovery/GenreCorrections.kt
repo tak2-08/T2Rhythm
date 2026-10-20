@@ -27,8 +27,11 @@ class GenreCorrections(private val context: Context) {
             require(file.length() in 1..2_000_000)
             stream.readBytes()
         }
-        gson.fromJson(bytes.toString(Charsets.UTF_8), Array<GenreCorrection>::class.java).orEmpty()
-            .filter { GenreUtils.isKnownGenre(it.genre) }.distinctBy { it.songKey }.take(512)
+        val original = gson.fromJson(bytes.toString(Charsets.UTF_8), Array<GenreCorrection>::class.java).orEmpty().toList()
+        val rows = original.map { it.copy(genre = GenreUtils.splitGenres(it.genre).joinToString(", ")) }
+            .filter { it.genre.isNotBlank() }.distinctBy { it.songKey }.take(512)
+        if (rows != original) write(rows)
+        rows
     }
     fun put(song: Song, genre: String) = synchronized(lock) {
         val labels = GenreUtils.splitGenres(genre)

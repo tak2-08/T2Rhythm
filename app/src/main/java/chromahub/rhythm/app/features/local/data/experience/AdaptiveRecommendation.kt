@@ -68,7 +68,7 @@ object AdaptiveRecommendation {
     }
 
     fun normalizeGenre(genre: String?) = chromahub.rhythm.app.util.GenreUtils.splitGenres(genre)
-        .joinToString(", ").lowercase(java.util.Locale.ROOT)
+        .joinToString(", ")
 
     /** Confidence smoothing prevents one accidental skip or sparse place from dominating. */
     fun contextPreference(

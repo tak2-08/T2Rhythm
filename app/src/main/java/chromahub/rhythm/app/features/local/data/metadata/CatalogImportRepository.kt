@@ -25,7 +25,8 @@ class CatalogImportRepository(context: Context) {
         BugsMobileProvider(http), BugsPcProvider(http), GenieProvider(http), MelonProvider(http),
     ))
 
-    suspend fun search(provider: Provider, kind: EntityKind, query: String) = search.search(provider, kind, query)
+    suspend fun search(provider: Provider?, kind: EntityKind, query: String) =
+        if (provider == null) search.searchAll(kind, query, 10) else search.searchVariants(provider, kind, query)
 
     suspend fun load(hit: SearchHit): CatalogDocument? = withContext(Dispatchers.IO) {
         val ids = if (hit.provider in setOf(Provider.BUGS_MOBILE, Provider.BUGS_PC)) {
@@ -44,7 +45,7 @@ class CatalogImportRepository(context: Context) {
         val uri = URI(url)
         require(uri.scheme == "https" && uri.host != null && uri.userInfo == null)
         val result = context.imageLoader.execute(ImageRequest.Builder(context)
-            .data(url).size(1200).allowHardware(false).build()) as? SuccessResult
+            .data(url.substringBefore("/melon/resize/")).size(1600).allowHardware(false).build()) as? SuccessResult
             ?: error("Artwork could not be downloaded")
         val file = File(context.cacheDir, "catalog-artwork-${UUID.randomUUID()}.webp")
         file.outputStream().use {

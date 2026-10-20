@@ -66,7 +66,8 @@ class EnrichmentStore(private val context: Context) {
 
     private fun withReviewedGenres(model: EnrichmentModel): EnrichmentModel {
         val (keys, reviewed) = GenreCorrections(context).modelExamples()
-        return model.copy(examples = GenreTrainingPolicy.merge(model.examples.filterNot { it.key in keys }, reviewed))
+        return model.copy(examples = GenreTrainingPolicy.merge(model.examples.filterNot { it.key in keys }, reviewed),
+            timings = model.timings.map { it.copy(genre = chromahub.rhythm.app.util.GenreUtils.splitGenres(it.genre).joinToString(", ")) })
     }
 
     fun saveModel(model: EnrichmentModel) {

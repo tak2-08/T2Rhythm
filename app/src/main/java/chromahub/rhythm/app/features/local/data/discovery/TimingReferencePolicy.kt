@@ -20,7 +20,7 @@ object TimingReferencePolicy {
         return examples.filter { it.pcm.isNotBlank() && !it.pcm.startsWith("pending:") && LocalLyricAlignment.valid(it.lines, it.durationMs) }
             .sortedByDescending { it.reviewed }
             .distinctBy { it.pcm }.filter { sample ->
-                val genre = sample.genre.lowercase(java.util.Locale.ROOT)
+                val genre = chromahub.rhythm.app.util.GenreUtils.splitGenres(sample.genre).joinToString(", ")
                 val n = counts[genre] ?: 0
                 val size = LocalLyricAlignment.lrc(sample.lines).toByteArray().size + sample.genre.toByteArray().size + 2048
                 if (n >= 8 || bytes + size > 2_000_000) false else { counts[genre] = n + 1; bytes += size; true }

@@ -303,6 +303,12 @@ fun AlbumDetailScreen(
     }
 
     val catalogRevision by chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).changes.collectAsState()
+    val entityPages = remember { chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context) }
+    val pageRevision by chromahub.rhythm.app.features.local.data.metadata.EntityPageStore.revision.collectAsState()
+    val entityPageKey = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).albumKey(albumName, (album?.artist ?: allDisplaySongs.firstOrNull()?.artist).orEmpty())
+    var storedPage by remember(entityPageKey) { mutableStateOf<chromahub.rhythm.app.features.local.data.metadata.EntityPage?>(null) }
+    LaunchedEffect(entityPageKey, pageRevision) { storedPage = withContext(Dispatchers.IO) { entityPages.read(kr.co.metadata.crawler.EntityKind.ALBUM, entityPageKey) } }
+
     val integrationsEnabled by appSettings.integrationsEnabled.collectAsState()
     val wikipediaApiEnabled by appSettings.wikipediaApiEnabled.collectAsState()
     val wikipediaApiActive = wikipediaApiEnabled && integrationsEnabled
@@ -311,10 +317,10 @@ fun AlbumDetailScreen(
     var description by remember(albumId) { mutableStateOf<String?>(null) }
     var isDescriptionLoading by remember(albumId) { mutableStateOf(false) }
 
-    LaunchedEffect(albumName, album?.artist, catalogRevision) {
+    LaunchedEffect(albumName, album?.artist, catalogRevision, pageRevision) {
         val artist = album?.artist ?: allDisplaySongs.firstOrNull()?.artist
-        chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(context)
-            .loadAlbumDescription(albumName, artist, fetch = false)?.let { description = it }
+        description = chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(context)
+            .loadAlbumDescription(albumName, artist, fetch = false)
     }
 
     LaunchedEffect(albumId, albumName, album?.artist, allDisplaySongs, wikipediaApiActive, appleCanvasActive) {
@@ -383,7 +389,7 @@ fun AlbumDetailScreen(
     val displayArtist = aggregatedArtists.joinToString(", ").ifEmpty {
         album?.artist ?: allDisplaySongs.firstOrNull()?.artist ?: "Unknown Artist"
     }
-    val displayArtworkUri = album?.artworkUri ?: allDisplaySongs.firstNotNullOfOrNull { it.artworkUri }
+    val displayArtworkUri = if (storedPage?.imageEdited == true) entityPages.image(storedPage) else entityPages.image(storedPage) ?: album?.artworkUri ?: allDisplaySongs.firstNotNullOfOrNull { it.artworkUri }
     val hasCanvas = appleCanvasActive && canvasArtwork != null
     val backgroundColor = MaterialTheme.colorScheme.background
     val isLoading = isContentLoadingOverride ?: (album == null && allDisplaySongs.isEmpty())
@@ -639,6 +645,7 @@ fun AlbumDetailScreen(
                                     .fillMaxSize()
                                     .padding(top = 32.dp, bottom = 32.dp)
                             ) {
+                                chromahub.rhythm.app.features.local.presentation.metadata.EntityPageActions(kr.co.metadata.crawler.EntityKind.ALBUM, entityPageKey, albumName, artist = (album?.artist ?: allDisplaySongs.firstOrNull()?.artist).orEmpty(), description = description, artwork = displayArtworkUri, modifier = Modifier.padding(horizontal = 16.dp))
                                 if (description != null) {
                                     AboutAlbumSection(
                                         description = description!!,
@@ -1128,6 +1135,7 @@ fun AlbumDetailScreen(
                             }
 
                             // About Album Section
+                                item { chromahub.rhythm.app.features.local.presentation.metadata.EntityPageActions(kr.co.metadata.crawler.EntityKind.ALBUM, entityPageKey, albumName, artist = (album?.artist ?: allDisplaySongs.firstOrNull()?.artist).orEmpty(), description = description, artwork = displayArtworkUri, modifier = Modifier.padding(horizontal = 16.dp)) }
                             if (description != null) {
                                 item {
                                     Spacer(modifier = Modifier.height(12.dp))

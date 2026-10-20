@@ -62,6 +62,11 @@ fun String?.yearOrNull(): Int? {
 
 /** Merge only missing/weak values. The winning Evidence object retains its provenance. */
 object MetadataMerger {
+    private fun image(a: Evidence<String>, b: Evidence<String>): Evidence<String> = when {
+        a.provider == Provider.MELON -> a
+        b.provider == Provider.MELON -> b
+        else -> choose(a, b)
+    }
     private fun <T> choose(a: Evidence<T>, b: Evidence<T>): Evidence<T> = when {
         a.confidence > b.confidence -> a
         b.confidence > a.confidence -> b
@@ -73,7 +78,7 @@ object MetadataMerger {
         id = items.firstNotNullOfOrNull { it.id },
         name = items.mapNotNull { it.name }.reduceOrNull(::choose),
         description = items.mapNotNull { it.description }.reduceOrNull(::choose),
-        profileImageUrl = items.mapNotNull { it.profileImageUrl }.reduceOrNull(::choose),
+        profileImageUrl = items.mapNotNull { it.profileImageUrl }.reduceOrNull(::image),
         debutDate = items.mapNotNull { it.debutDate }.reduceOrNull(::choose),
         genres = items.mapNotNull { it.genres }.reduceOrNull(::choose),
         sourceUrl = items.firstNotNullOfOrNull { it.sourceUrl },
@@ -83,7 +88,7 @@ object MetadataMerger {
         id = items.firstNotNullOfOrNull { it.id },
         title = items.mapNotNull { it.title }.reduceOrNull(::choose),
         artists = items.mapNotNull { it.artists }.reduceOrNull(::choose),
-        imageUrl = items.mapNotNull { it.imageUrl }.reduceOrNull(::choose),
+        imageUrl = items.mapNotNull { it.imageUrl }.reduceOrNull(::image),
         releaseDate = items.mapNotNull { it.releaseDate }.reduceOrNull(::choose),
         genres = items.mapNotNull { it.genres }.reduceOrNull(::choose),
         sourceUrl = items.firstNotNullOfOrNull { it.sourceUrl },
@@ -95,7 +100,7 @@ object MetadataMerger {
         title = items.mapNotNull { it.title }.reduceOrNull(::choose),
         artists = items.mapNotNull { it.artists }.reduceOrNull(::choose),
         lyrics = items.mapNotNull { it.lyrics }.reduceOrNull(::choose),
-        imageUrl = items.mapNotNull { it.imageUrl }.reduceOrNull(::choose),
+        imageUrl = items.mapNotNull { it.imageUrl }.reduceOrNull(::image),
         releaseDate = items.mapNotNull { it.releaseDate }.reduceOrNull(::choose),
         genres = items.mapNotNull { it.genres }.reduceOrNull(::choose),
         albumTitle = items.mapNotNull { it.albumTitle }.reduceOrNull(::choose),

@@ -68,43 +68,43 @@ class GenreControlsTest {
         }
     }
     @Test fun multiGenreMixContainsBothGenresAndRetainsItsFilter() {
-        val songs = listOf(song("pop", "Pop"), song("rock", "Rock"), song("jazz", "Jazz"), song("missing", "-"))
-        val queue = PersonalCollections.generate(base, songs, songs.map { it.id }, null, PersonalCollection.DAILY_MIX, genre = "Pop, Rock", seed = 27)
-        assertEquals(setOf("Pop", "Rock"), queue.map { it.genre }.toSet())
-        val snapshot = RecommendationShelf.create(base, PersonalCollection.DAILY_MIX, "Pop, Rock", queue.map { it.uri.toString() }, 27)!!
-        assertEquals(setOf("pop", "rock"), GenreUtils.normalizedGenres(RecommendationShelf.current(base)!!.genre))
+        val songs = listOf(song("pop", "POP"), song("rock", "ROCK"), song("jazz", "JAZZ"), song("missing", "-"))
+        val queue = PersonalCollections.generate(base, songs, songs.map { it.id }, null, PersonalCollection.DAILY_MIX, genre = "POP, ROCK", seed = 27)
+        assertEquals(setOf("POP", "ROCK"), queue.map { it.genre }.toSet())
+        val snapshot = RecommendationShelf.create(base, PersonalCollection.DAILY_MIX, "POP, ROCK", queue.map { it.uri.toString() }, 27)!!
+        assertEquals(setOf("POP", "ROCK"), GenreUtils.normalizedGenres(RecommendationShelf.current(base)!!.genre))
         val refreshed = PersonalCollections.generate(base, songs, emptyList(), null, snapshot.mode, genre = snapshot.genre, seed = 28)
         assertEquals(queue.map { it.id }.toSet(), refreshed.map { it.id }.toSet())
     }
     @Test fun correctionOverridesRecommendationsAndCanBeRemovedWithoutEditingOriginalTag() {
         val source = song("manual", "-")
         val store = GenreCorrections(base)
-        store.put(source, "Jazz")
-        val result = PersonalCollections.generate(base, listOf(source), emptyList(), null, PersonalCollection.DAYLIST, genre = "Jazz")
+        store.put(source, "JAZZ")
+        val result = PersonalCollections.generate(base, listOf(source), emptyList(), null, PersonalCollection.DAYLIST, genre = "JAZZ")
         assertEquals(listOf(source.id), result.map { it.id })
         assertEquals("-", source.genre)
-        store.put(source, "Rock")
+        store.put(source, "ROCK")
         assertEquals(1, store.read().count { it.songKey == source.uri.toString() })
-        assertEquals("Rock", GenreCorrections(base).apply(listOf(source)).single().genre)
+        assertEquals("ROCK", GenreCorrections(base).apply(listOf(source)).single().genre)
         store.remove(source.uri.toString()); store.refreshModel(listOf(source), source)
         assertEquals("-", store.apply(listOf(source)).single().genre)
     }
     @Test fun analyzedUserCorrectionsReplaceOldLabelsInTheRealModel() {
-        val source = song("audio", "Pop")
+        val source = song("audio", "POP")
         val signature = "${source.dateModified}:${source.duration}"
         val feature = AudioFeatures(songKey = source.uri.toString(), pcmSha256 = prefix, sampleRate = 16000, channels = 1,
             decodedDurationMs = source.duration, rmsDb = -12.0, peakDb = -3.0, zeroCrossingRate = .2,
             spectralBands = List(8) { .125 }, waveform = List(32) { .3 }, sourceSignature = signature)
         ListeningLedger.get(base).saveFeature(source.uri.toString(), signature, feature)
         val store = GenreCorrections(base)
-        store.put(source, "Jazz"); store.refreshModel(listOf(source), source)
+        store.put(source, "JAZZ"); store.refreshModel(listOf(source), source)
         var examples = EnrichmentStore(base).model().examples.filter { it.key == source.uri.toString() }
-        assertEquals(listOf("jazz"), examples.map { it.genre })
-        store.put(source, "Rock"); store.refreshModel(listOf(source), source)
+        assertEquals(listOf("JAZZ"), examples.map { it.genre })
+        store.put(source, "ROCK"); store.refreshModel(listOf(source), source)
         examples = EnrichmentStore(base).model().examples.filter { it.key == source.uri.toString() }
-        assertEquals(listOf("rock"), examples.map { it.genre })
+        assertEquals(listOf("ROCK"), examples.map { it.genre })
         EnrichmentStore(base).saveModel(EnrichmentModel(examples = listOf(GenreExample(source.uri.toString(), "pop", listOf(1.0, 0.0)))))
-        assertEquals(listOf("rock"), EnrichmentStore(base).model().examples.filter { it.key == source.uri.toString() }.map { it.genre })
+        assertEquals(listOf("ROCK"), EnrichmentStore(base).model().examples.filter { it.key == source.uri.toString() }.map { it.genre })
     }
     @Test fun legacyPlaceholderSamplesAreFilteredFromIndexAndCachedModel() {
         EnrichmentLearningIndex(base).use { index ->
@@ -119,15 +119,15 @@ class GenreControlsTest {
     @Test fun pickerChecksMultipleGenresAndOnlyAppliesOnConfirmation() {
         var applied: Set<String>? = null
         compose.setContent { MaterialTheme {
-            GenreSelectionDialog(listOf("Pop", "Rock", "Jazz", "-"), emptySet(), onDismiss = {}, onApply = { applied = it })
+            GenreSelectionDialog(listOf("POP", "ROCK", "JAZZ", "-"), emptySet(), onDismiss = {}, onApply = { applied = it })
         } }
         compose.onNodeWithText("-").assertDoesNotExist()
-        compose.onNodeWithText("Pop").performClick()
-        compose.onNodeWithText("Rock").performClick()
+        compose.onNodeWithText("POP").performClick()
+        compose.onNodeWithText("ROCK").performClick()
         assertNull(applied)
         capture("genre-multiple-selection.png")
         compose.onNodeWithText(base.getString(R.string.genre_apply)).performClick()
-        assertEquals(setOf("Pop", "Rock"), applied)
+        assertEquals(setOf("POP", "ROCK"), applied)
     }
     @Test fun teachingScreenFindsSongAndSavesUserGenre() {
         val source = song("화면", "-")
@@ -136,43 +136,43 @@ class GenreControlsTest {
         } }
         compose.waitUntil(15_000) { compose.onAllNodesWithText(source.title).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText(source.title).performClick()
-        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextInput("Jazz, Soul")
+        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextInput("JAZZ, SOUL")
         Espresso.closeSoftKeyboard()
         capture("genre-manual-teaching.png")
         compose.onNodeWithText(base.getString(R.string.genre_teach)).performClick()
-        compose.waitUntil(15_000) { GenreCorrections(base).read().any { it.songKey == source.uri.toString() && it.genre == "Jazz, Soul" } }
+        compose.waitUntil(15_000) { GenreCorrections(base).read().any { it.songKey == source.uri.toString() && it.genre == "JAZZ, SOUL" } }
         compose.waitUntil(15_000) { compose.onAllNodesWithText(base.getString(R.string.genre_saved)).fetchSemanticsNodes().isNotEmpty() }
         assertEquals("-", source.genre)
     }
     @Test fun teachingCombinesManualInputAndLibraryChoicesAndCancelDoesNotSave() {
         val source = song("목록", "-")
-        val catalog = listOf(source, song("pop", "Pop; Rock"), song("case", "pop; —; unknown"))
+        val catalog = listOf(source, song("pop", "POP; ROCK"), song("case", "pop; —; unknown"))
         compose.setContent { CompositionLocalProvider(LocalContext provides compose.activity) { MaterialTheme {
             GenreTrainingPanel(loadSongs = { catalog }, scheduleTraining = {})
         } } }
         compose.waitUntil(15_000) { compose.onAllNodesWithText(source.title).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText(source.title).performClick()
-        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextInput("Soul")
+        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextInput("SOUL")
         Espresso.closeSoftKeyboard()
-        compose.onNodeWithText("Pop", substring = false).performClick()
-        compose.onNodeWithText("Rock", substring = false).performClick()
-        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).assertTextContains("Soul, Pop, Rock")
+        compose.onNodeWithText("POP", substring = false).performClick()
+        compose.onNodeWithText("ROCK", substring = false).performClick()
+        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).assertTextContains("SOUL, POP, ROCK")
         compose.onNodeWithText(base.getString(R.string.genre_library_search)).performTextInput("ro")
         Espresso.closeSoftKeyboard()
-        compose.onNodeWithText("Pop", substring = false).assertDoesNotExist()
-        compose.onNodeWithText("Rock", substring = false).assertIsDisplayed()
+        compose.onNodeWithText("POP", substring = false).assertDoesNotExist()
+        compose.onNodeWithText("ROCK", substring = false).assertIsDisplayed()
         compose.onNodeWithText(base.getString(R.string.genre_library_search)).performTextClearance()
         Espresso.closeSoftKeyboard()
         capture("genre-library-teaching.png")
         compose.onNodeWithText(base.getString(android.R.string.cancel)).performClick()
         assertFalse(GenreCorrections(base).read().any { it.songKey == source.uri.toString() })
         compose.onNodeWithText(source.title).performClick()
-        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextInput("Soul")
+        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextInput("SOUL")
         Espresso.closeSoftKeyboard()
-        compose.onNodeWithText("Pop", substring = false).performClick()
-        compose.onNodeWithText("Rock", substring = false).performClick()
+        compose.onNodeWithText("POP", substring = false).performClick()
+        compose.onNodeWithText("ROCK", substring = false).performClick()
         compose.onNodeWithText(base.getString(R.string.genre_teach)).performClick()
-        compose.waitUntil(15_000) { GenreCorrections(base).read().any { it.songKey == source.uri.toString() && it.genre == "Soul, Pop, Rock" } }
+        compose.waitUntil(15_000) { GenreCorrections(base).read().any { it.songKey == source.uri.toString() && it.genre == "SOUL, POP, ROCK" } }
     }
     @Test fun savedCorrectionSurvivesSchedulingFailureAndCanRetryTraining() {
         val source = song("재시도", "-"); var fail = true
@@ -181,35 +181,45 @@ class GenreControlsTest {
         } } }
         compose.waitUntil(15_000) { compose.onAllNodesWithText(source.title).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText(source.title).performClick()
-        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextInput("Jazz")
+        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextInput("JAZZ")
         Espresso.closeSoftKeyboard()
         compose.onNodeWithText(base.getString(R.string.genre_teach)).performClick()
         compose.waitUntil(15_000) { compose.onAllNodesWithText(base.getString(R.string.genre_saved_training_pending)).fetchSemanticsNodes().isNotEmpty() }
-        assertEquals("Jazz", GenreCorrections(base).apply(listOf(source)).single().genre)
+        assertEquals("JAZZ", GenreCorrections(base).apply(listOf(source)).single().genre)
         fail = false
         compose.onNodeWithText(base.getString(R.string.genre_retry_training)).performClick()
         compose.waitUntil(15_000) { compose.onAllNodesWithText(base.getString(R.string.genre_training_scheduled)).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText(base.getString(R.string.genre_retry_training)).assertDoesNotExist()
     }
+    @Test fun legacyMixedCaseCorrectionsAreMigratedToOneUppercaseLabel() {
+        val source = song("대문자", "Pop")
+        val file = File(base.filesDir, "music_metadata/personalization/learning/genre-corrections.json")
+        file.parentFile!!.mkdirs()
+        val row = GenreCorrection(source.uri.toString(), EnrichmentStore.signature(source), source.title, source.artist,
+            "Pop, pop, POP, Rock", System.currentTimeMillis())
+        file.writeText(com.google.gson.Gson().toJson(listOf(row)))
+        assertEquals("POP, ROCK", GenreCorrections(base).read().single().genre)
+        assertTrue(file.readText().contains("POP, ROCK"))
+    }
     @Test fun interruptedCorrectionWriteRecoversTheOriginalAtomicBackup() {
-        val source = song("복원", "Pop"); val store = GenreCorrections(base)
-        store.put(source, "Jazz")
+        val source = song("복원", "POP"); val store = GenreCorrections(base)
+        store.put(source, "JAZZ")
         val file = File(base.filesDir, "music_metadata/personalization/learning/genre-corrections.json")
         val backup = File(file.path + ".bak")
         backup.writeBytes(file.readBytes()); file.writeText("{interrupted")
-        assertEquals("Jazz", store.apply(listOf(source)).single().genre)
+        assertEquals("JAZZ", store.apply(listOf(source)).single().genre)
         assertFalse(backup.exists())
-        store.put(source, "Rock")
-        assertEquals("Rock", store.apply(listOf(source)).single().genre)
+        store.put(source, "ROCK")
+        assertEquals("ROCK", store.apply(listOf(source)).single().genre)
     }
     @Test fun librarySelectionEnforcesTheSameEightGenreLimitAsManualInput() {
         var input by mutableStateOf((1..8).joinToString(", ") { "genre$it" })
-        compose.setContent { MaterialTheme { GenreTeachingDialog("선택 한도", input, { input = it }, listOf("Extra"),
+        compose.setContent { MaterialTheme { GenreTeachingDialog("선택 한도", input, { input = it }, listOf("EXTRA"),
             busy = false, canForget = false, error = null, onDismiss = {}, onSave = {}, onForget = {}) } }
-        compose.onNodeWithText("Extra").assertIsNotEnabled()
+        compose.onNodeWithText("EXTRA").assertIsNotEnabled()
         compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextReplacement((1..7).joinToString(", ") { "genre$it" })
         Espresso.closeSoftKeyboard()
-        compose.onNodeWithText("Extra").performClick()
+        compose.onNodeWithText("EXTRA").performClick()
         assertEquals(8, GenreUtils.splitGenres(input).size)
         compose.onNodeWithText(base.getString(R.string.genre_teach)).assertIsEnabled()
         compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextReplacement((1..9).joinToString(", ") { "genre$it" })
@@ -217,7 +227,7 @@ class GenreControlsTest {
         compose.onNodeWithText(base.getString(R.string.genre_teach)).assertIsNotEnabled()
     }
     @Test fun indexDropsRemovedAndChangedRecordingsButPreservesCurrentOnes() {
-        val keep = song("保留", "Pop"); val changed = song("교체", "Rock"); val removed = song("삭제", "Jazz")
+        val keep = song("保留", "POP"); val changed = song("교체", "ROCK"); val removed = song("삭제", "JAZZ")
         EnrichmentLearningIndex(base).use { index ->
             listOf(keep, changed, removed).forEach { index.put(it.uri.toString(), it.genre, listOf(1.0, 0.0), null, EnrichmentStore.signature(it)) }
             index.reconcile(listOf(keep, changed.copy(dateModified = changed.dateModified + 1000)))
@@ -226,7 +236,7 @@ class GenreControlsTest {
         }
     }
     @Test fun visibilitySwitchHidesTrainingEntryAndKeepsAlgorithmServiceAndData() {
-        val source = song("유지", "Pop"); GenreCorrections(base).put(source, "Jazz")
+        val source = song("유지", "POP"); GenreCorrections(base).put(source, "JAZZ")
         compose.setContent { CompositionLocalProvider(LocalContext provides compose.activity) { MaterialTheme {
             SettingsScreen(onBackClick = {}, onNavigateTo = { error("Unexpected route $it") })
         } } }
@@ -241,7 +251,7 @@ class GenreControlsTest {
         compose.onNodeWithText(base.getString(R.string.algorithm_patterns)).assertIsDisplayed()
         compose.onNodeWithText(base.getString(R.string.algorithm_learning)).assertDoesNotExist()
         capture("genre-service-with-training-hidden.png")
-        assertEquals("Jazz", GenreCorrections(base).apply(listOf(source)).single().genre)
+        assertEquals("JAZZ", GenreCorrections(base).apply(listOf(source)).single().genre)
         assertFalse(base.getSharedPreferences("rhythm_preferences", 0).getBoolean("learning_ui_enabled", true))
         compose.onNodeWithText(base.getString(R.string.ui_close)).performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText(base.getString(R.string.algorithm_patterns)).fetchSemanticsNodes().isEmpty() }
@@ -251,10 +261,10 @@ class GenreControlsTest {
         compose.onNodeWithText(base.getString(android.R.string.ok)).performClick()
         compose.onNode(hasSetTextAction()).performTextReplacement("알고리즘")
         compose.onNodeWithText(base.getString(R.string.algorithm_training_title)).assertIsDisplayed()
-        assertEquals("Jazz", GenreCorrections(base).apply(listOf(source)).single().genre)
+        assertEquals("JAZZ", GenreCorrections(base).apply(listOf(source)).single().genre)
     }
     @Test fun hidingTrainingToolsKeepsRecommendationPlaybackAndLyricsContent() {
-        val songs = listOf(song("한곡", "Pop"), song("다른곡", "Rock"))
+        val songs = listOf(song("한곡", "POP"), song("다른곡", "ROCK"))
         compose.runOnUiThread { AppSettings.getInstance(base).setLearningUiEnabled(false) }
         compose.setContent { CompositionLocalProvider(LocalContext provides compose.activity) { MaterialTheme {
             val vm: MusicViewModel = viewModel()
