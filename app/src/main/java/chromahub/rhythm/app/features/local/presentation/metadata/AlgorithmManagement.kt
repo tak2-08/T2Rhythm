@@ -68,7 +68,11 @@ fun AlgorithmManagement(training: Boolean = false, onDismiss: () -> Unit) {
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column {
-            Text(stringResource(if (training) R.string.algorithm_training_title else R.string.algorithm_title), Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.headlineSmall)
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(stringResource(if (training) R.string.algorithm_training_title else R.string.algorithm_title),
+                    Modifier.weight(1f).padding(vertical = 12.dp), style = MaterialTheme.typography.headlineSmall)
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.ui_close)) }
+            }
             PrimaryTabRow(selectedTabIndex = tab) {
                 (if (training) listOf(R.string.genre_training_title, R.string.algorithm_learning) else listOf(R.string.algorithm_patterns, R.string.algorithm_data)).forEachIndexed { i, title ->
                     Tab(tab == i, onClick = { tab = i }, text = { Text(stringResource(title)) })

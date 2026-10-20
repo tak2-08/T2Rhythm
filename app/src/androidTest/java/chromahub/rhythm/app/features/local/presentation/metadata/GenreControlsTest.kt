@@ -57,6 +57,8 @@ class GenreControlsTest {
         compose.runOnUiThread { AppSettings.getInstance(base).setLearningUiEnabled(previousUi) }
     }
     private fun capture(name: String) {
+        compose.waitForIdle()
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
         InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot().let { bitmap ->
             File(base.getExternalFilesDir(null), name).outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
             bitmap.recycle()
@@ -157,7 +159,7 @@ class GenreControlsTest {
         capture("genre-service-with-training-hidden.png")
         assertEquals("Jazz", GenreCorrections(base).apply(listOf(source)).single().genre)
         assertFalse(base.getSharedPreferences("rhythm_preferences", 0).getBoolean("learning_ui_enabled", true))
-        Espresso.pressBack()
+        compose.onNodeWithText(base.getString(R.string.ui_close)).performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText(base.getString(R.string.algorithm_patterns)).fetchSemanticsNodes().isEmpty() }
         compose.onNode(hasSetTextAction()).performTextReplacement("학습 UI")
         compose.onNodeWithText(base.getString(R.string.learning_ui_title)).performClick()
