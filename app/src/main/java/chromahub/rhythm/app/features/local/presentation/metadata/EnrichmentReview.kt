@@ -9,9 +9,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -24,12 +26,15 @@ import kotlinx.coroutines.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, onDismiss: () -> Unit) {
+fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, initialProposalId: String? = null,
+    fallbackSong: chromahub.rhythm.app.shared.data.model.Song? = null, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val store = remember { EnrichmentStore(context) }
     val songs by viewModel.songs.collectAsState()
     val current by viewModel.currentSong.collectAsState()
+    val playing by viewModel.isPlaying.collectAsState()
+    val progress by viewModel.progress.collectAsState()
     val revision by EnrichmentStore.revision.collectAsState()
     var proposals by remember { mutableStateOf(emptyList<EnrichmentProposal>()) }
     var history by remember { mutableStateOf(false) }
@@ -39,7 +44,11 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, onDismi
     var message by remember { mutableStateOf<String?>(null) }
     var permissionId by remember { mutableStateOf<String?>(null) }
     var permissionUndo by remember { mutableStateOf(false) }
-    LaunchedEffect(revision) { proposals = withContext(Dispatchers.IO) { store.list(1000).filter { songKey == null || it.songKey == songKey } } }
+    val singleProposal = remember { initialProposalId != null }
+    LaunchedEffect(revision, songKey, initialProposalId) {
+        proposals = withContext(Dispatchers.IO) { store.list(1000).filter { songKey == null || it.songKey == songKey } }
+        if (selected == null && initialProposalId != null) selected = proposals.firstOrNull { it.id == initialProposalId && it.state == "PENDING" }
+    }
     fun finish(id: String, undo: Boolean) {
         scope.launch {
             try {
@@ -78,7 +87,7 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, onDismi
         }
     fun apply(proposal: EnrichmentProposal, undo: Boolean) {
         val song =
-            songs.firstOrNull { it.uri.toString() == proposal.songKey }
+            songs.firstOrNull { it.uri.toString() == proposal.songKey } ?: fallbackSong?.takeIf { it.uri.toString() == proposal.songKey }
                 ?: run {
                     message = context.getString(R.string.discovery_stale)
                     return
@@ -235,13 +244,42 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, onDismi
         }
     }
     selected?.let { proposal ->
-        val song = songs.firstOrNull { it.uri.toString() == proposal.songKey }
+        val song = songs.firstOrNull { it.uri.toString() == proposal.songKey } ?: fallbackSong?.takeIf { it.uri.toString() == proposal.songKey }
+        if (proposal.kind == "LYRICS" && proposal.state == "PENDING" && song != null && proposal.beforeLyrics != null) {
+            LyricTimingEditor(song, proposal.beforeLyrics, viewModel, proposal = proposal) {
+                selected = null
+                if (singleProposal) onDismiss()
+            }
+        } else {
+        val lines = remember(proposal.value) { LocalLyricAlignment.parse(proposal.value) }
+        val position = if (song != null && current?.uri == song.uri) (progress * song.duration).toLong() else -1L
+        val activeLine = lines.indexOfLast { it.ms <= position }
+        val reviewList = rememberLazyListState()
         AlertDialog(
             onDismissRequest = { if (!busy) selected = null },
             title = { Text(proposal.title, maxLines = 2) },
             text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (proposal.kind == "LYRICS" && song != null) Row(
+                        Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        FilledTonalIconButton(enabled = !busy, onClick = {
+                            if (current?.uri == song.uri && playing) viewModel.togglePlayPause()
+                            else viewModel.previewLyricLine(song, if (position >= 0) position else lines.firstOrNull()?.ms ?: 0L)
+                        }) {
+                            Icon(MaterialSymbolIcon(if (current?.uri == song.uri && playing) "pause" else "play_arrow"),
+                                context.getString(if (current?.uri == song.uri && playing) R.string.lyric_ai_pause_preview else R.string.discovery_play_review))
+                        }
+                        fun clock(ms: Long) = "%02d:%02d".format(java.util.Locale.ROOT, ms.coerceAtLeast(0) / 60000, ms.coerceAtLeast(0) / 1000 % 60)
+                        Text(clock(position) + " / " + clock(song.duration), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                        TextButton(enabled = activeLine >= 0, onClick = { scope.launch { reviewList.animateScrollToItem(activeLine + 2) } }) {
+                            Text(context.getString(R.string.lyric_ai_current_line))
+                        }
+                    }
                 LazyColumn(
-                    Modifier.heightIn(max = 420.dp),
+                    Modifier.heightIn(max = 360.dp),
+                    state = reviewList,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     item {
@@ -269,24 +307,10 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, onDismi
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                        if (song != null)
-                            item {
-                                TextButton(
-                                    enabled = !busy,
-                                    onClick = {
-                                        viewModel.playSongWithQueueOption(
-                                            song,
-                                            replaceQueue = false,
-                                        )
-                                    },
-                                ) {
-                                    Text(context.getString(R.string.discovery_play_review))
-                                }
-                            }
                         val before =
                             LocalLyricAlignment.parse(proposal.beforeLyrics?.syncedLyrics.orEmpty())
                         items(
-                            LocalLyricAlignment.parse(proposal.value)
+                            lines
                                 .take(1000)
                                 .withIndex()
                                 .toList(),
@@ -301,7 +325,7 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, onDismi
                                         ms / 1000 % 60,
                                         ms % 1000,
                                     )
-                            if (proposal.state == "PENDING" && song != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (proposal.state == "PENDING" && song != null) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf(-200L to "−0.2s", 200L to "+0.2s").forEach { (delta, label) ->
                                     TextButton(enabled = !busy, onClick = {
                                         scope.launch {
@@ -345,7 +369,7 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, onDismi
                                 trailingContent = {
                                     IconButton(
                                         enabled = seekable,
-                                        onClick = { if (current?.uri != song?.uri && song != null) viewModel.playSong(song) else viewModel.seekTo(line.ms, autoPlayIfPaused = true) },
+                                        onClick = { song?.let { viewModel.previewLyricLine(it, line.ms) } },
                                     ) {
                                         Icon(
                                             MaterialSymbolIcon("play_arrow"),
@@ -356,8 +380,9 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, onDismi
                                 },
                                 modifier =
                                     Modifier.clickable(enabled = seekable) {
-                                        if (current?.uri != song?.uri && song != null) viewModel.playSong(song) else viewModel.seekTo(line.ms, autoPlayIfPaused = true)
+                                        song?.let { viewModel.previewLyricLine(it, line.ms) }
                                     },
+                                colors = ListItemDefaults.colors(containerColor = if (index == activeLine) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface),
                             )
                         }
                     }
@@ -365,6 +390,7 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, onDismi
                     message?.let { text ->
                         item { Text(text, color = MaterialTheme.colorScheme.error) }
                     }
+                }
                 }
             },
             confirmButton = {
@@ -408,5 +434,6 @@ fun EnrichmentReview(viewModel: MusicViewModel, songKey: String? = null, onDismi
                     }
             },
         )
+        }
     }
 }

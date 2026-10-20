@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="timing_editor_title">Time lyrics</string>
+    <string name="timing_proposal_title">Review AI lyrics</string>
+    <string name="timing_manual_open">Time lyrics yourself</string>
+    <string name="timing_editor_hint">Mark the first sound and last sound of each line. LRC timestamps mean line START. Ends clear the line during gaps. The original changes only when you save.</string>
+    <string name="timing_mark_start">Mark start</string>
+    <string name="timing_mark_end">Mark end → next</string>
+    <string name="timing_start">Start</string>
+    <string name="timing_end">End</string>
+    <string name="timing_loop">Loop line</string>
+    <string name="timing_order_error">Keep start before end, within the song, and avoid overlapping the next line.</string>
+    <string name="timing_play_first">Play this song first, then mark its playback position.</string>
+    <string name="timing_export">Export LRC</string>
+    <string name="timing_save_error">Could not save. The original or song may have changed. Your draft is kept.</string>
+    <string name="timing_saved">Lyrics saved. Manually recorded or corrected timing is used for learning.</string>
+    <string name="timing_line_number">Line %1$d / %2$d</string>
+    <string name="timing_selected_line">%1$d · %2$s</string>
+    <string name="timing_undo">Undo</string>
+    <string name="timing_redo_line">Clear this line</string>
+    <string name="timing_all_earlier">All earlier</string>
+    <string name="timing_all_later">All later</string>
+    <string name="timing_reject_relearn">Reject and learn again</string>
+    <string name="timing_exact_hint">Minutes:seconds.milliseconds, for example 01:23.456</string>
+    <string name="timing_save">Save</string>
+    <string name="timing_close">Keep draft and close</string>
+    <string name="timing_retry_learning">Learning from reviewed lyrics before trying again.</string>
+    <string name="timing_retry_needs_examples">More reviewed timing is needed. A new validated model can propose again; the rejected result will not be repeated.</string>
+    <string name="timing_retry_queued">A new lyric timing proposal is queued.</string>
+    <string name="timing_retry_ready">A new proposal is ready. Tap ✨ to review.</string>
+    <string name="timing_learning_pending">Reviewed timing awaiting audio analysis: %1$d</string>
+    <string name="timing_learning_validated">Timing model validated on separate recordings.</string>
+    <string name="timing_learning_kept">The candidate did not pass validation. Keeping the previous timing model.</string>
+    <string name="timing_learning_provisional">Not enough separate recordings for validation. General timing stays conservative.</string>
+    <string name="timing_learning_cross">Recording cross-validation · the tested recording and its copies are excluded from learning.</string>
+    <string name="timing_retry_paused">Automatic retry paused. Tap ✨ to request another analysis.</string>
+    <string name="timing_learning_failed">Learning could not finish. Your corrections are kept; retry from Algorithm management.</string>
+</resources>

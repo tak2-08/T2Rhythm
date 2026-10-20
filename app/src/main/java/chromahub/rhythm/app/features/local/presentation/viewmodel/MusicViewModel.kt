@@ -6425,6 +6425,20 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Preview a proposed line without applying lyrics or replacing the listener's queue. */
+    fun previewLyricLine(song: Song, positionMs: Long = 0L) {
+        if (!canStartPlayback("lyricPreview")) return
+        val controller = mediaController ?: return
+        chromahub.rhythm.app.features.local.data.discovery.LyricPreviewPlayback.start(
+            controller, song.id, positionMs, song.duration,
+        ) { addSongToQueue(song) }
+    }
+
+    /** Read directly on the UI thread when a user taps; progress flows are deliberately throttled. */
+    fun lyricTimingPosition(song: Song): Long? = mediaController?.takeIf {
+        it.currentMediaItem?.mediaId == song.id && currentSong.value?.uri == song.uri
+    }?.currentPosition?.takeIf { it >= 0 }
+
     fun seekTo(positionMs: Long, autoPlayIfPaused: Boolean = false) {
         Log.d(TAG, "Seek to position: $positionMs ms (autoPlay=$autoPlayIfPaused)")
         _isSeeking.value = true
@@ -8329,17 +8343,19 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * Save edited lyrics for the current song to cache
      */
     suspend fun applyReviewedLyrics(song: Song, proposal: chromahub.rhythm.app.features.local.data.discovery.EnrichmentProposal, undo: Boolean) {
-        val previous = withContext(Dispatchers.IO) { repository.peekLocalLyrics(song) }
+        val displayed = withContext(Dispatchers.Main) { _currentLyrics.value.takeIf { currentSong.value?.uri == song.uri } }
+        val previous = displayed ?: withContext(Dispatchers.IO) { repository.peekLocalLyrics(song) }
         if (undo) check(previous?.syncedLyrics == proposal.value)
         else {
-            check(previous?.syncedLyrics == proposal.beforeLyrics?.syncedLyrics && previous?.plainLyrics == proposal.beforeLyrics?.plainLyrics)
+            check(chromahub.rhythm.app.features.local.data.discovery.EnrichmentStore.signature(song) == proposal.sourceSignature)
+            check(chromahub.rhythm.app.features.local.data.discovery.EnrichmentStore.sameLyrics(previous, proposal.beforeLyrics))
             check(proposal.beforeLyrics?.wordByWordLyrics.isNullOrBlank())
         }
         val value = if (undo) requireNotNull(proposal.beforeLyrics) else LyricsData(
             chromahub.rhythm.app.features.local.data.discovery.LocalLyricAlignment.parse(proposal.value).joinToString("\n") { it.text },
             proposal.value, source = "T2Rhythm reviewed alignment", isCorrected = true)
         withContext(Dispatchers.IO) {
-            chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(getApplication<Application>()).saveFetched(song, value, reviewed = true)
+            chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(getApplication<Application>()).saveFetched(song, value, embed = false, reviewed = true)
             repository.updateLyricsCache(song.artist, song.title, song.id, value)
         }
         withContext(Dispatchers.Main) {

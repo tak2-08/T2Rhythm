@@ -313,7 +313,8 @@ fun ExpressivePlayerScreen(
     onArtworkInspect: () -> Unit = {},
     pendingTasteReview: Boolean = false,
     onReviewInfo: () -> Unit = {},
-    onEditBottomButtons: () -> Unit = {}
+    onEditBottomButtons: () -> Unit = {},
+    lyricSuggestion: @Composable () -> Unit = {},
 ) {
     val artworkScale by animateFloatAsState(
         targetValue = if (isPlaying) 1.0f else 0.85f,
@@ -1356,6 +1357,8 @@ fun ExpressivePlayerScreen(
                 }
 
                 val lyricsView = @Composable { modifier: Modifier ->
+                    Column(modifier.padding(top = 56.dp)) {
+                    if (!isLoadingLyrics) lyricSuggestion()
                     RhythmPlayerLyricsPanel(
                         lyrics = lyrics,
                         isLoadingLyrics = isLoadingLyrics,
@@ -1377,8 +1380,9 @@ fun ExpressivePlayerScreen(
                         buttonContentColor = if (useAccentBackground) accentBg else null,
                         fadeColor = if (isBackdropEnabled) null else lyricsScrimColor,
                         onNavigateToLyricsSettings = onNavigateToLyricsSettings,
-                        modifier = modifier
+                        modifier = Modifier.fillMaxWidth().weight(1f)
                     )
+                    }
                 }
 
                 // Use fully qualified AnimatedVisibility to avoid ColumnScope receiver capture

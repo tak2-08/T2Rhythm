@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.debounce
 
 @OptIn(FlowPreview::class)
 @Composable
-fun LearningPreferences() {
+fun LearningPreferences(lyricOnly: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val store = remember { EnrichmentStore(context) }
@@ -67,6 +67,7 @@ fun LearningPreferences() {
             }
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!lyricOnly) {
         Text(
             context.getString(R.string.discovery_learning_settings),
             style = MaterialTheme.typography.titleMedium,
@@ -75,6 +76,7 @@ fun LearningPreferences() {
             context.getString(R.string.discovery_learning_hint),
             style = MaterialTheme.typography.bodySmall,
         )
+        } else Text(context.getString(R.string.lyric_ai_mode_label), style = MaterialTheme.typography.titleSmall)
         Box {
             OutlinedButton(onClick = { choices = true }) {
                 Text(
@@ -169,7 +171,7 @@ fun LearningPreferences() {
                 Text(context.getString(R.string.discovery_cancel_download))
             }
         }
-        Box {
+        if (!lyricOnly) Box {
             TextButton(onClick = { refreshChoices = true }) {
                 Text(context.getString(R.string.discovery_auto_refresh, hours))
             }

@@ -44,10 +44,10 @@
     <string name="discovery_mobile">Allow mobile data for this download</string>
     <string name="discovery_queued">Added to background downloads.</string>
     <string name="discovery_learning_settings">On-device learning</string>
-    <string name="discovery_learning_hint" formatted="false">Learning and speech analysis run with low device load while plugged in or at 90% battery or higher. A missing model or insufficient evidence keeps the lightweight fallback. Suggestions never overwrite tags automatically.</string>
-    <string name="discovery_mode_light">Lightweight · default</string>
-    <string name="discovery_mode_precise">Speech model assisted</string>
-    <string name="discovery_mode_hybrid">Hybrid · choose stronger evidence</string>
+    <string name="discovery_learning_hint" formatted="false">Automatic learning runs when charging or at least 90% charged, with low device load. A lyric analysis you request can run above 20% battery with power saving off and safe device conditions. Speech alignment needs an installed model.</string>
+    <string name="discovery_mode_light">Waveform · quick draft</string>
+    <string name="discovery_mode_precise">Speech alignment · model required</string>
+    <string name="discovery_mode_hybrid">Speech first · waveform fallback</string>
     <string name="discovery_model_name">Vosk Korean speech model</string>
     <string name="discovery_model_size" formatted="false">Optional Korean model: about 87 MB download and 265 MB installed. Download starts on an internet connection, including mobile data. Only lyrics analysis waits for low device load and either external power or at least 90% battery.</string>
     <string name="discovery_remove_model">Remove speech model</string>
@@ -68,7 +68,7 @@
     <string name="discovery_method_reference">Timing reused from a matching audio fingerprint and lyric text.</string>
     <string name="discovery_method_genre">Compared with audio features of locally tagged songs. Unreviewed predictions are never used as training labels.</string>
     <string name="discovery_method_estimate">Estimated from timed-lyric examples, sentence length and the audio envelope. This does not directly recognize singing; listen carefully before applying.</string>
-    <string name="discovery_preview_hint">Play this song, then tap a line to hear its proposed time. The existing queue is kept.</string>
+    <string name="discovery_preview_hint">Tap a line to listen from its proposed time. The current line is highlighted. Original lyrics stay unchanged until you accept.</string>
     <string name="discovery_play_review">Play song for review</string>
     <string name="discovery_accept">Accept and save</string>
     <string name="discovery_reject">Reject</string>

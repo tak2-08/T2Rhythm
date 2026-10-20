@@ -65,7 +65,7 @@ object LocalGenreClassifier {
     }
 }
 
-@Keep data class TimedLine(val ms: Long, val text: String)
+@Keep data class TimedLine(val ms: Long, val text: String, val endMs: Long? = null)
 
 @Keep
 data class SpeechWord(val startMs: Long, val endMs: Long, val text: String, val confidence: Double)
@@ -77,6 +77,10 @@ data class TimingTraining(
     val genre: String,
     val durationMs: Long,
     val lines: List<TimedLine>,
+    val reviewed: Boolean = false,
+    val audio: List<Double>? = null,
+    val speechOffsetMs: Double? = null,
+    val speechEndOffsetMs: Double? = null,
 )
 
 @Keep
@@ -85,6 +89,7 @@ data class TimingGuess(
     val confidence: Double,
     val method: String,
     val evidence: Int,
+    val anchors: List<Int> = emptyList(),
 )
 
 object LocalLyricAlignment {
@@ -100,12 +105,10 @@ object LocalLyricAlignment {
                 ?.groupValues
                 ?.get(1)
                 ?.toLongOrNull() ?: 0
-        return lrc.lineSequence()
+        val events = lrc.lineSequence()
             .take(3000)
             .flatMap { row ->
                 val text = row.replace(stamp, "").trim()
-                if (text.isBlank()) emptySequence()
-                else
                     stamp
                         .findAll(row)
                         .filter { it.groupValues[2].toInt() < 60 }
@@ -121,25 +124,26 @@ object LocalLyricAlignment {
             }
             .sortedBy { it.ms }
             .toList()
+        return events.mapIndexedNotNull { index, event ->
+            if (event.text.isBlank()) null else event.copy(endMs = events.getOrNull(index + 1)
+                ?.takeIf { it.text.isBlank() && it.ms > event.ms }?.ms)
+        }
     }
 
     fun valid(lines: List<TimedLine>, duration: Long) =
         lines.size in 3..2000 &&
             lines.first().ms >= 0 &&
             lines.last().ms < duration &&
-            lines.zipWithNext().all { (a, b) -> b.ms > a.ms }
+            lines.zipWithNext().all { (a, b) -> b.ms > a.ms } &&
+            lines.withIndex().all { (i, line) -> line.endMs == null ||
+                line.endMs > line.ms && line.endMs <= (lines.getOrNull(i + 1)?.ms ?: duration) }
 
     fun lrc(lines: List<TimedLine>) =
-        lines.joinToString("\n") {
-            "[%02d:%02d.%03d]%s"
-                .format(
-                    java.util.Locale.ROOT,
-                    it.ms / 60000,
-                    it.ms / 1000 % 60,
-                    it.ms % 1000,
-                    it.text,
-                )
-        }
+        lines.mapIndexed { i, line ->
+            fun stamp(ms: Long) = "[%02d:%02d.%03d]".format(java.util.Locale.ROOT, ms / 60000, ms / 1000 % 60, ms % 1000)
+            stamp(line.ms) + line.text + (line.endMs?.takeIf { it <= (lines.getOrNull(i + 1)?.ms ?: Long.MAX_VALUE) }
+                ?.let { "\n" + stamp(it) }.orEmpty())
+        }.joinToString("\n")
 
     fun text(plain: String?, synced: String?): List<String> =
         (plain?.takeIf { it.isNotBlank() }?.lines() ?: parse(synced.orEmpty()).map { it.text })
@@ -159,6 +163,7 @@ object LocalLyricAlignment {
         genre: String,
         envelope: List<Double>,
         examples: List<TimingTraining>,
+        audio: List<Double> = emptyList(),
     ): TimingGuess? {
         if (lines.size !in 3..1000 || duration !in 15_000..1_200_000) return null
         val textKey = lines.map(::normalized)
@@ -225,7 +230,8 @@ object LocalLyricAlignment {
             } else .65
         val weights =
             lines.map { normalized(it).length.toDouble().coerceAtLeast(2.0).pow(exponent) }
-        val total = weights.sum()
+        // With references, outro is the LAST LINE START, not the end of the last line.
+        val total = if (learned) weights.dropLast(1).sum() else weights.sum()
         var cumulative = 0.0
         var previous = -1L
         val guessed =
@@ -244,8 +250,9 @@ object LocalLyricAlignment {
                 TimedLine(ms, line)
             }
         if (!valid(guessed, duration)) return null
+        val fitted = LearnedLyricTiming.fit(lines, duration, genre, guessed, training, audio)
         return TimingGuess(
-            guessed,
+            fitted,
             if (learned) (.25 + training.size.coerceAtMost(40) * .004).coerceAtMost(.45) else .18,
             if (learned) "learned_estimate" else "waveform_estimate",
             training.size,
@@ -268,6 +275,7 @@ object LocalLyricAlignment {
                     it.endMs >= it.startMs
             }
         val anchors = mutableMapOf<Int, Long>()
+        val anchorEnds = mutableMapOf<Int, Long>()
         var cursor = 0
         lines.forEachIndexed { i, line ->
             checkpoint()
@@ -292,6 +300,7 @@ object LocalLyricAlignment {
                     .maxByOrNull { it.third }
             if (hits != null) {
                 anchors[i] = reliable[hits.first].startMs
+                anchorEnds[i] = reliable[hits.second].endMs
                 cursor = hits.second + 1
             }
         }
@@ -314,14 +323,15 @@ object LocalLyricAlignment {
                             after != null -> anchors[after]!! * i / (after + 1)
                             else -> 0
                         }
-                TimedLine(ms, line)
-            }
+                TimedLine(ms, line, anchorEnds[i])
+            }.let { rows -> rows.mapIndexed { i, line -> line.copy(endMs = line.endMs?.coerceAtMost(rows.getOrNull(i + 1)?.ms ?: duration)?.takeIf { it > line.ms }) } }
         return if (valid(result, duration))
             TimingGuess(
                 result,
                 (anchors.size.toDouble() / lines.size * .9).coerceAtMost(.9),
                 "speech_anchors",
                 anchors.size,
+                anchors.keys.toList(),
             )
         else null
     }

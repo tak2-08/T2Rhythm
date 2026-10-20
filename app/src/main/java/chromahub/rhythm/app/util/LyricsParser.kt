@@ -411,7 +411,8 @@ object LyricsParser {
         if (parsed is SemanticLyrics.SyncedLyrics) {
             val grouped = parsed.text.groupBy { it.start }
             return grouped.map { (start, lines) ->
-                val mainLine = lines.firstOrNull { !it.isTranslated } ?: lines.first()
+                val mainLine = lines.firstOrNull { !it.isTranslated && it.text.isNotBlank() }
+                    ?: lines.firstOrNull { it.text.isNotBlank() } ?: lines.first()
                 val mainText = mainLine.text.trim()
                 
                 var translation: String? = null

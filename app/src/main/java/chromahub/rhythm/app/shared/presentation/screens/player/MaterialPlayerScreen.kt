@@ -1661,7 +1661,8 @@ fun MaterialPlayerScreen(
                         visible = showAlbumArt,
                         enter = fadeIn() + slideInVertically { it },
                         exit = fadeOut() + slideOutVertically { it },
-                        modifier = Modifier.weight(1f, fill = false)
+                        modifier = Modifier.weight(1f, fill = showLyricsView)
+                            .then(if (showLyricsView) Modifier.fillMaxWidth() else Modifier)
                     ) {
                         // State for artwork swipe gestures
                         var artworkOffsetX by remember { mutableFloatStateOf(0f) }
@@ -1677,9 +1678,9 @@ fun MaterialPlayerScreen(
                         )
                         
                         Box(
-                            modifier = Modifier
-                                .fillMaxHeight(if (isLandscapeTablet) 1.0f else if (isTablet) 0.55f else albumArtFraction) // Responsive size based on screen dimensions
-                                .aspectRatio(1f)
+                            modifier = (if (showLyricsView) Modifier.fillMaxSize() else Modifier
+                                .fillMaxHeight(if (isLandscapeTablet) 1.0f else if (isTablet) 0.55f else albumArtFraction)
+                                .aspectRatio(1f))
                                 .graphicsLayer {
                                     val currentSwipeProgress = (animatedSwipeOffset / screenHeight).coerceIn(0f, 1f)
                                     // Album art scales and shrinks during swipe (mini-player effect)
@@ -2290,6 +2291,9 @@ fun MaterialPlayerScreen(
                                                         }
                                                     }
                                                     
+                                                    Column(Modifier.fillMaxSize()) {
+                                                        chromahub.rhythm.app.features.local.presentation.metadata.LyricSuggestionButton(song, lyrics, musicViewModel)
+                                                        Box(Modifier.fillMaxWidth().weight(1f)) {
                                                     if (wordByWordLyrics != null) {
                                                         // Use WordByWordLyricsView for Rhythm word-by-word lyrics
                                                         WordByWordLyricsView(
@@ -2305,7 +2309,6 @@ fun MaterialPlayerScreen(
                                                             showRomanization = showLyricsRomanization
                                                         )
                                                     } else {
-                                                        chromahub.rhythm.app.features.local.presentation.metadata.LyricSuggestionButton(song, lyrics, musicViewModel)
                                                         // Fall back to line-by-line synced or plain lyrics
                                                         val lyricsText = remember(lyrics) {
                                                             lyrics.getBestLyrics() ?: ""
@@ -2398,6 +2401,8 @@ fun MaterialPlayerScreen(
                                                                         .padding(horizontal = 8.dp)
                                                                 )
                                                             }
+                                                        }
+                                                    }
                                                         }
                                                     }
                                                 }

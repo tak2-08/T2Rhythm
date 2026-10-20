@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -25,31 +26,40 @@ import kotlinx.coroutines.*
 import java.time.LocalDate
 import kr.co.metadata.crawler.CatalogIdentity
 
+private data class ReportLoad(val window: ReportWindow, val report: ListeningReport? = null, val loading: Boolean = true, val failed: Boolean = false)
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ListeningReportPanel(viewModel: MusicViewModel) {
+fun ListeningReportPanel(viewModel: MusicViewModel,
+    readReport: suspend (ListeningLedger, ReportWindow) -> ListeningReport = { ledger, window -> ListeningReports.read(ledger, window) }) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val ledger = remember { ListeningLedger.get(context) }
     val revision by ledger.changes.collectAsState()
     val songs by viewModel.songs.collectAsState()
-    var period by remember { mutableStateOf(ReportPeriod.WEEK) }
-    var offset by remember { mutableIntStateOf(0) }
-    var report by remember { mutableStateOf<ListeningReport?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    var failed by remember { mutableStateOf(false) }
+    var period by rememberSaveable { mutableStateOf(ReportPeriod.WEEK) }
+    var offset by rememberSaveable { mutableIntStateOf(0) }
+    val today = LocalDate.now()
+    val window = remember(period, offset, today) { period.window(today, offset) }
+    var loaded by remember { mutableStateOf<ReportLoad?>(null) }
+    val current = loaded?.takeIf { it.window == window }
+    val report = current?.report
+    val busy = current?.loading != false
+    val failed = current?.failed == true
+    var retry by remember { mutableIntStateOf(0) }
     var playlist by remember { mutableStateOf(false) }
     var playlistName by remember { mutableStateOf("") }
     var mix by remember { mutableStateOf(false) }
-    LaunchedEffect(period, offset, revision) {
-        busy = true
-        try { report = withContext(Dispatchers.IO) { ListeningReports.read(ledger, period.window(LocalDate.now(), offset)) }; failed = false }
+    LaunchedEffect(window, revision, retry) {
+        val previous = loaded?.takeIf { it.window == window }?.report
+        loaded = ReportLoad(window, previous)
+        try { loaded = ReportLoad(window, withContext(Dispatchers.IO) { readReport(ledger, window) }, loading = false) }
         catch (cancel: CancellationException) { throw cancel }
-        catch (_: Exception) { failed = true }
-        finally { busy = false }
+        catch (_: Exception) { loaded = ReportLoad(window, previous, loading = false, failed = true) }
     }
-    val resolved = remember(report, songs) {
-        val byUri = songs.associateBy { it.uri.toString() }
-        val byIdentity = songs.groupBy { CatalogIdentity.normalize(it.title) + "|" + CatalogIdentity.normalize(it.artist) }
+    // Period changes only resolve the report's short ranking, rather than rebuilding the library indexes.
+    val byUri = remember(songs) { songs.associateBy { it.uri.toString() } }
+    val byIdentity = remember(songs) { songs.groupBy { CatalogIdentity.normalize(it.title) + "|" + CatalogIdentity.normalize(it.artist) } }
+    val resolved = remember(report, byUri, byIdentity) {
         report?.tracks.orEmpty().map { track ->
             val direct = byUri[track.key]?.takeIf { CatalogIdentity.titleMatches(it.title, track.title) && CatalogIdentity.artistMatches(it.artist, track.artist) }
             val matches = byIdentity[CatalogIdentity.normalize(track.title) + "|" + CatalogIdentity.normalize(track.artist)].orEmpty()
@@ -67,11 +77,14 @@ fun ListeningReportPanel(viewModel: MusicViewModel) {
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(enabled = !busy && offset > -520, onClick = { offset-- }) { Icon(MaterialSymbolIcon("chevron_left"), stringResource(R.string.report_previous), Modifier.size(24.dp)) }
-                Text(report?.window?.let { "${it.first} — ${it.until.minusDays(1)}" }.orEmpty(), Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+                Text("${window.first} — ${window.until.minusDays(1)}", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
                 IconButton(enabled = !busy && offset < 0, onClick = { offset++ }) { Icon(MaterialSymbolIcon("chevron_right"), stringResource(R.string.report_next), Modifier.size(24.dp)) }
             }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (failed) Text(stringResource(R.string.discovery_operation_failed), color = MaterialTheme.colorScheme.error)
+            if (failed) {
+                Text(stringResource(R.string.usability_load_failed), color = MaterialTheme.colorScheme.error)
+                TextButton(onClick = { retry++ }) { Text(stringResource(R.string.mv_retry)) }
+            }
             report?.let { data ->
                 Box(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF403170), Color(0xFF164E60))), RoundedCornerShape(24.dp)).padding(24.dp)) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -107,7 +120,7 @@ fun ListeningReportPanel(viewModel: MusicViewModel) {
         }
     }
     if (playlist) AlertDialog(onDismissRequest = { playlist = false }, title = { Text(stringResource(R.string.report_save_playlist)) }, text = { OutlinedTextField(playlistName, { playlistName = it.take(120) }, singleLine = true) },
-        confirmButton = { TextButton(enabled = playlistName.isNotBlank(), onClick = { viewModel.createPlaylist(playlistName.trim(), queue); playlist = false }) { Text(stringResource(R.string.report_save_playlist)) } },
+        confirmButton = { TextButton(enabled = playlistName.isNotBlank() && !busy && queue.isNotEmpty(), onClick = { viewModel.createPlaylist(playlistName.trim(), queue); playlist = false }) { Text(stringResource(R.string.report_save_playlist)) } },
         dismissButton = { TextButton(onClick = { playlist = false }) { Text(stringResource(android.R.string.cancel)) } })
     if (mix) ReportMixDialog(queue.take(8), viewModel) { mix = false }
 }

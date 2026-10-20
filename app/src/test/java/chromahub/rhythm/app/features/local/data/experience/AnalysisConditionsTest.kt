@@ -5,6 +5,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AnalysisConditionsTest {
+    @Test fun explicitSongAnalysisDoesNotWaitForChargingOrNinetyPercent() {
+        val conditions = AnalysisConditions(false, 55, cpuBusy = true, schedulerBusy = true)
+        assertTrue(conditions.allowsUserRequest())
+        assertFalse(conditions.allowsWork())
+        assertFalse(conditions.copy(batteryPercent = 19).allowsUserRequest())
+        assertTrue(conditions.copy(batteryPercent = 20).allowsUserRequest())
+        assertFalse(conditions.copy(memoryPressure = true).allowsUserRequest())
+        assertFalse(conditions.copy(powerSave = true).allowsUserRequest())
+        assertFalse(conditions.copy(thermalLevel = 3).allowsUserRequest())
+    }
     @Test
     fun unpluggedBatteryStartsAtNinetyPercent() {
         assertFalse(AnalysisConditions(false, 89).allowsWork())

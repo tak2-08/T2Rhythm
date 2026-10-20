@@ -16,11 +16,19 @@ object TimingReferencePolicy {
     /** One recording has one vote, with a per-genre quota and a fixed global memory bound. */
     fun balanced(examples: List<TimingTraining>, limit: Int = 32): List<TimingTraining> {
         val counts = mutableMapOf<String, Int>()
-        return examples.filter { it.pcm.isNotBlank() && LocalLyricAlignment.valid(it.lines, it.durationMs) }
+        var bytes = 0
+        return examples.filter { it.pcm.isNotBlank() && !it.pcm.startsWith("pending:") && LocalLyricAlignment.valid(it.lines, it.durationMs) }
+            .sortedByDescending { it.reviewed }
             .distinctBy { it.pcm }.filter { sample ->
                 val genre = sample.genre.lowercase(java.util.Locale.ROOT)
                 val n = counts[genre] ?: 0
-                if (n >= 8) false else { counts[genre] = n + 1; true }
+                val size = LocalLyricAlignment.lrc(sample.lines).toByteArray().size + sample.genre.toByteArray().size + 2048
+                if (n >= 8 || bytes + size > 2_000_000) false else { counts[genre] = n + 1; bytes += size; true }
             }.take(limit)
     }
+
+    fun revision(examples: List<TimingTraining>): String = LearnedLyricTiming.VERSION + ":" +
+        kr.co.metadata.crawler.CatalogFileStore.hash(examples.sortedBy { it.pcm }.joinToString("|") {
+            "${it.pcm}:${it.reviewed}:${it.genre}:${it.durationMs}:${LocalLyricAlignment.lrc(it.lines)}:${it.audio}:${it.speechOffsetMs}:${it.speechEndOffsetMs}"
+        })
 }

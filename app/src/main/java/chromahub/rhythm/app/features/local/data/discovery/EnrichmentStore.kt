@@ -30,6 +30,7 @@ data class EnrichmentProposal(
     val state: String = "PENDING",
     val decidedAt: Long = 0,
     val predictedValue: String? = null,
+    val learningRevision: String? = null,
 )
 
 @Keep
@@ -37,6 +38,7 @@ data class EnrichmentModel(
     val version: Int = 1,
     val examples: List<GenreExample> = emptyList(),
     val timings: List<TimingTraining> = emptyList(),
+    val timingRevision: String? = null,
 )
 
 class EnrichmentStore(private val context: Context) {
@@ -63,9 +65,16 @@ class EnrichmentStore(private val context: Context) {
             .getOrNull() ?: EnrichmentModel()
 
     fun saveModel(model: EnrichmentModel) {
+        var bounded = model
+        var bytes = gson.toJson(bounded).toByteArray()
+        while (bytes.size > 7_500_000 && bounded.examples.isNotEmpty()) {
+            bounded = bounded.copy(examples = bounded.examples.take(bounded.examples.size / 2))
+            bytes = gson.toJson(bounded).toByteArray()
+        }
+        require(bytes.size <= 7_500_000)
         PersonalArchive.atomicWrite(
             File(context.cacheDir, "enrichment-model.json"),
-            gson.toJson(model).toByteArray(),
+            bytes,
         )
         revision.value++
     }
@@ -88,20 +97,32 @@ class EnrichmentStore(private val context: Context) {
             .mapNotNull { get(it.nameWithoutExtension) }
             .sortedByDescending { it.createdAt }
 
+    /** Read the indexed current proposal without decoding every song's history. */
+    fun current(songKey: String, kind: String): EnrichmentProposal? = synchronized(lock) {
+        runCatching {
+            val pointer = File(root, "current-${CatalogFileStore.hash(songKey + kind)}")
+            require(pointer.length() in 1..64)
+            get(pointer.readText())?.takeIf { it.songKey == songKey && it.kind == kind }
+        }.getOrNull()
+    }
+
     fun propose(proposal: EnrichmentProposal, updateHints: Boolean = true): Boolean =
         synchronized(lock) {
             if (get(proposal.id) != null) return@synchronized false
             val pointer =
                 File(root, "current-${CatalogFileStore.hash(proposal.songKey+proposal.kind)}")
-            val old = runCatching { get(pointer.readText()) }.getOrNull()
+            val old = current(proposal.songKey, proposal.kind)
             val sameInput = old?.sourceSignature == proposal.sourceSignature &&
                 (proposal.kind != "LYRICS" || sameLyrics(old.beforeLyrics, proposal.beforeLyrics))
-            if (
+            if (proposal.kind != "LYRICS" &&
                 old?.state == "REJECTED" &&
                     sameInput &&
                     System.currentTimeMillis() - old.decidedAt < 30 * 86400_000L
             )
                 return@synchronized false
+            if (proposal.kind == "LYRICS" && proposal.method != "manual_timing" &&
+                old?.state == "REJECTED" && sameInput &&
+                (old.learningRevision == proposal.learningRevision || !TimingRetryPolicy.changed(old.value, proposal.value))) return@synchronized false
             if (
                 old?.state == "PENDING" &&
                     sameInput &&
@@ -147,10 +168,11 @@ class EnrichmentStore(private val context: Context) {
         evidence: Int,
         before: LyricsData? = null,
         examples: List<String> = emptyList(),
+        learningRevision: String? = null,
     ): EnrichmentProposal {
         val signature = signature(song)
         return EnrichmentProposal(
-            CatalogFileStore.hash(if (kind == "LYRICS") "$kind|$signature|$value|${gson.toJson(before)}" else "$kind|$signature|$value"),
+            CatalogFileStore.hash(if (kind == "LYRICS") "$kind|$signature|$value|${gson.toJson(before)}|${if (method == "manual_timing") "manual:${System.nanoTime()}" else "auto"}" else "$kind|$signature|$value"),
             kind,
             song.uri.toString(),
             song.title,
@@ -163,14 +185,26 @@ class EnrichmentStore(private val context: Context) {
             song.genre,
             before,
             examples,
+            learningRevision = learningRevision,
         )
     }
 
     private fun save(proposal: EnrichmentProposal) {
+        val bytes = gson.toJson(proposal).toByteArray()
+        require(bytes.size <= 2_000_000)
         PersonalArchive.atomicWrite(
             File(proposals, "${proposal.id}.json"),
-            gson.toJson(proposal).toByteArray(),
+            bytes,
         )
+        var used = 0L
+        proposals.listFiles().orEmpty().sortedWith(compareByDescending<File> { it.nameWithoutExtension == proposal.id }
+            .thenByDescending { it.lastModified() }).forEachIndexed { i, file ->
+            used += file.length(); if (i >= 256 || used > 16_000_000) file.delete()
+        }
+        root.listFiles { file -> file.name.startsWith("current-") }.orEmpty().forEach { pointer ->
+            val id = runCatching { pointer.takeIf { it.length() in 1..64 }?.readText() }.getOrNull()
+            if (id == null || !id.matches(Regex("[a-f0-9]{64}")) || !File(proposals, "$id.json").exists()) pointer.delete()
+        }
         revision.value++
         PersonalArchive.enqueue(context)
     }

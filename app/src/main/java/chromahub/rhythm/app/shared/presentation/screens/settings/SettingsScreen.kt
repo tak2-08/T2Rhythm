@@ -160,6 +160,9 @@ import chromahub.rhythm.app.shared.presentation.components.SettingsPalettes
 
 // Define routes for navigation
 object SettingsRoutes {
+    const val ALGORITHM_MANAGEMENT = "algorithm_management"
+    const val DOWNLOAD_CENTER = "download_center"
+    const val VIDEO_LIBRARY = "video_library"
     const val CATALOG_LIBRARY = "catalog_library_settings"
     const val NOTIFICATIONS = "notifications_settings"
     const val LABS = "labs_settings"
@@ -232,11 +235,11 @@ fun SettingsScreen(
     val hapticFeedback = LocalHapticFeedback.current
     val context = LocalContext.current
     val appSettings = AppSettings.getInstance(context)
-    var showAlgorithms by remember { mutableStateOf(false) }
-    var showVideos by remember { mutableStateOf(false) }
+    var showAlgorithms by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showVideos by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     if (showVideos) chromahub.rhythm.app.features.local.presentation.metadata.VideoLibraryManager(onDismiss = { showVideos = false })
     if (showAlgorithms) chromahub.rhythm.app.features.local.presentation.metadata.AlgorithmManagement(onDismiss = { showAlgorithms = false })
-    var showDownloads by remember { mutableStateOf(false) }
+    var showDownloads by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     if (showDownloads) chromahub.rhythm.app.features.local.presentation.metadata.DownloadCenter { showDownloads = false }
 
 
@@ -256,7 +259,9 @@ fun SettingsScreen(
     var showFdroidWarningDialog by remember { mutableStateOf(false) }
 
     // Search state
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    val searchFocus = androidx.compose.ui.platform.LocalFocusManager.current
+    val searchKeyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val searchIndex = remember(context) { buildSettingsSearchIndex(context) }
     val searchResults = remember(searchQuery, searchIndex) { 
         searchSettings(searchQuery, searchIndex) 
@@ -475,10 +480,15 @@ fun SettingsScreen(
             SettingsSearchResults(
                 results = searchResults,
                 onResultClick = { result ->
-                    if (result.route != null) {
-                        onNavigateTo(result.route)
+                    searchFocus.clearFocus()
+                    searchKeyboard?.hide()
+                    when (result.route) {
+                        SettingsRoutes.ALGORITHM_MANAGEMENT -> showAlgorithms = true
+                        SettingsRoutes.DOWNLOAD_CENTER -> showDownloads = true
+                        SettingsRoutes.VIDEO_LIBRARY -> showVideos = true
+                        null -> Unit
+                        else -> onNavigateTo(result.route)
                     }
-                    searchQuery = "" // Clear search when item clicked
                 },
                 modifier = modifier
                     .fillMaxSize()

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lyric_ai_local_required">Download this song to your device to suggest line timings.</string>
+    <string name="lyric_ai_analyzing_audio">Analyzing the audio waveform… Your original lyrics are unchanged.</string>
+    <string name="lyric_ai_analyzing_speech">Matching speech to lyrics · %1$d%%</string>
+    <string name="lyric_ai_matching">Creating a separate line-by-line proposal…</string>
+    <string name="lyric_ai_input_limits">Use 3–1,000 lyric lines and audio between 15 seconds and 20 minutes.</string>
+    <string name="lyric_ai_pause_preview">Pause preview</string>
+    <string name="lyric_ai_model_required">Install a speech model in the analysis settings, or choose a waveform draft.</string>
+    <string name="soft_update_title">Recommendation settings</string>
+    <string name="soft_update_description">Check for updated recommendation rules and home arrangements.</string>
+    <string name="soft_update_latest">Your recommendation settings are up to date. There are no new settings to apply.</string>
+    <string name="soft_update_app_required">Update the app first to use these recommendation settings.</string>
+    <string name="soft_update_checking">Checking…</string>
+    <string name="lyric_ai_current_line">Current line</string>
+    <string name="lyric_ai_mode_label">Analysis method</string>
+</resources>

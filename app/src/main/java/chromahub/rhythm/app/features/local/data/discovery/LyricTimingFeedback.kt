@@ -8,7 +8,8 @@ import chromahub.rhythm.app.features.local.data.metadata.PersonalArchive
 import com.google.gson.Gson
 import java.io.File
 
-@Keep data class TimingReview(val id: String, val example: TimingTraining, val errorMs: Double?, val at: Long)
+@Keep data class TimingReview(val id: String, val example: TimingTraining, val errorMs: Double?, val at: Long,
+    val sourceSignature: String? = null, val pending: Boolean = false, val calibrationAttempted: Boolean = false)
 
 /** Durable, replaceable reviewed samples; raw audio and recognition buffers never enter this file. */
 class LyricTimingFeedback(private val context: Context) {
@@ -21,15 +22,61 @@ class LyricTimingFeedback(private val context: Context) {
         if (proposal.kind != "LYRICS") return@synchronized
         val existing = read().filter { it.id != proposal.id }
         val next = if (proposal.state == "ACCEPTED") {
-            val feature = ListeningLedger.get(context).feature(proposal.songKey) ?: return@synchronized
-            val duration = feature.decodedDurationMs
+            // Accepting our unchanged estimate is preference feedback, not independent timing truth.
+            if (proposal.method != "manual_timing" &&
+                (proposal.predictedValue == null || proposal.predictedValue == proposal.value)) {
+                write(existing); return@synchronized
+            }
+            val signature = proposal.sourceSignature.removePrefix(proposal.songKey + ":")
+            val feature = ListeningLedger.get(context).feature(proposal.songKey, signature)
+            val duration = proposal.sourceSignature.substringAfterLast(':').toLongOrNull() ?: return@synchronized
             val lines = LocalLyricAlignment.parse(proposal.value)
-            if (!LocalLyricAlignment.valid(lines, duration) || lines.size > 400) return@synchronized
+            if (!LocalLyricAlignment.valid(lines, duration) || lines.size > 1000) return@synchronized
             val predicted = LocalLyricAlignment.parse(proposal.predictedValue ?: proposal.value)
             val error = if (proposal.predictedValue != null && predicted.size == lines.size) lines.zip(predicted).map { (a, b) -> kotlin.math.abs(a.ms - b.ms).toDouble() }.average() else null
-            val sample = TimingTraining(proposal.songKey, feature.pcmSha256, proposal.beforeGenre.orEmpty(), duration, lines.map { it.copy(text = it.text.take(400)) })
-            listOf(TimingReview(proposal.id, sample, error, System.currentTimeMillis())) + existing.filter { it.example.pcm != sample.pcm }
+            val sample = TimingTraining(proposal.songKey, feature?.pcmSha256 ?: "pending:${kr.co.metadata.crawler.CatalogFileStore.hash(proposal.sourceSignature)}",
+                proposal.beforeGenre.orEmpty(), duration, lines.map { it.copy(text = it.text.take(400)) }, reviewed = true,
+                audio = feature?.let(chromahub.rhythm.app.features.local.data.experience.AudioVectors::describe))
+            listOf(TimingReview(proposal.id, sample, error, System.currentTimeMillis(), proposal.sourceSignature, feature == null)) +
+                existing.filter { it.example.pcm != sample.pcm && it.example.key != sample.key }
         } else existing
+        write(next)
+    }
+    fun resolve(song: chromahub.rhythm.app.shared.data.model.Song) = resolveAll(listOf(song))
+    fun resolveAll(songs: List<chromahub.rhythm.app.shared.data.model.Song>, checkpoint: () -> Unit = {}) {
+        if (songs.isEmpty()) return
+        val byKey = songs.associateBy { it.uri.toString() }
+        val snapshot = read()
+        // Recognition can be slow. Never hold the label lock while calibrating or cooling down.
+        val updates = snapshot.associate { review ->
+            checkpoint()
+            val song = byKey[review.example.key] ?: return@associate review.id to review
+            val feature = ListeningLedger.get(context).feature(song.uri.toString(), "${song.dateModified}:${song.duration}") ?: return@associate review.id to review
+            review.id to if (review.sourceSignature != null && review.sourceSignature != EnrichmentStore.signature(song)) null
+            else if (!review.pending && review.example.pcm != feature.pcmSha256) review
+            else {
+                val words = SpeechAlignment.read(context, song.uri.toString())?.takeIf { it.complete && it.signature == EnrichmentStore.signature(song) }
+                val recognized = words?.let { LocalLyricAlignment.speech(review.example.lines.map { it.text }, it.words, song.duration, checkpoint) }
+                val calibration = recognized?.let { TimingSpeechCalibration.measure(review.example.lines, it) }
+                review.copy(example = review.example.copy(pcm = feature.pcmSha256,
+                    audio = chromahub.rhythm.app.features.local.data.experience.AudioVectors.describe(feature),
+                    reviewed = review.example.reviewed || (review.errorMs ?: 0.0) > 0,
+                    speechOffsetMs = calibration?.first, speechEndOffsetMs = calibration?.second), pending = false, calibrationAttempted = words != null)
+            }
+        }
+        val originals = snapshot.associateBy { it.id }
+        synchronized(lock) {
+            // A save/undo that happened during analysis takes precedence over this snapshot.
+            val next = read().mapNotNull { current ->
+                if (current == originals[current.id]) updates[current.id] else current
+            }.distinctBy { it.example.pcm }
+            write(next)
+        }
+    }
+    fun examples() = read().filter { !it.pending && !it.example.pcm.startsWith("pending:") &&
+        (it.example.reviewed || (it.errorMs ?: 0.0) > 0) }.map { it.example.copy(reviewed = true) }
+    fun discard(id: String) = synchronized(lock) { write(read().filter { it.id != id }) }
+    private fun write(next: List<TimingReview>) {
         val bounded = next.take(96).toMutableList()
         var bytes = gson.toJson(bounded).toByteArray()
         while (bytes.size > 4_000_000 && bounded.isNotEmpty()) { bounded.removeAt(bounded.lastIndex); bytes = gson.toJson(bounded).toByteArray() }

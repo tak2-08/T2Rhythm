@@ -62,10 +62,10 @@ object SpeechAlignment {
             checkpoint.words,
             song.duration,
             budget::blockingCheckpoint,
-        )
+        )?.let { TimingSpeechCalibration.apply(it, EnrichmentStore(context).model().timings, song.duration) }
     }
 
-    suspend fun schedule(context: Context, song: Song) =
+    suspend fun schedule(context: Context, song: Song, userInitiated: Boolean = false, replaceBackground: Boolean = false) =
         withContext(Dispatchers.IO) {
             if (song.duration !in 15_000..1_200_000 || !SpeechModelStore.installed(context))
                 return@withContext
@@ -73,26 +73,26 @@ object SpeechAlignment {
             val previous = read(context, key)
             if (
                 previous?.signature == EnrichmentStore.signature(song) &&
-                    (previous.complete || previous.failures >= 3)
+                    (previous.complete || previous.failures >= 3 && !replaceBackground)
             )
                 return@withContext
-            if (previous?.signature != EnrichmentStore.signature(song))
+            if (previous?.signature != EnrichmentStore.signature(song) || replaceBackground && (previous.failures >= 3))
                 save(
                     context,
                     key,
                     SpeechCheckpoint(EnrichmentStore.signature(song), CatalogSongCodec.encode(song)),
                 )
-            enqueue(context, key, false)
+            enqueue(context, key, false, userInitiated, replaceBackground)
         }
 
-    internal fun enqueue(context: Context, key: String, continuation: Boolean) {
+    internal fun enqueue(context: Context, key: String, continuation: Boolean, userInitiated: Boolean = false, replaceBackground: Boolean = false) {
         WorkManager.getInstance(context)
             .enqueueUniqueWork(
                 "speech_alignment:${CatalogFileStore.hash(key)}",
-                if (continuation) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP,
+                if (replaceBackground) ExistingWorkPolicy.REPLACE else if (continuation) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP,
                 OneTimeWorkRequestBuilder<SpeechAlignmentWorker>()
                     .addTag("speech_alignment")
-                    .setInputData(workDataOf("key" to key))
+                    .setInputData(workDataOf("key" to key, "userInitiated" to userInitiated))
                     .setConstraints(
                         Constraints.Builder()
 
@@ -134,7 +134,8 @@ class SpeechAlignmentWorker(context: Context, params: WorkerParameters) :
                 SpeechAlignment.read(applicationContext, key) ?: return@withContext Result.failure()
             if (saved.complete) return@withContext Result.success()
             val job = currentCoroutineContext()[Job]
-            val budget = AnalysisBudget(applicationContext, { job?.isActive != false }, 90_000)
+            val userInitiated = inputData.getBoolean("userInitiated", false)
+            val budget = AnalysisBudget(applicationContext, { job?.isActive != false }, 90_000, userInitiated = userInitiated)
             if (!budget.allowed()) return@withContext Result.retry()
             val memory = ActivityManager.MemoryInfo()
             (applicationContext.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
@@ -194,11 +195,13 @@ class SpeechAlignmentWorker(context: Context, params: WorkerParameters) :
                         failures = 0,
                     )
                 SpeechAlignment.save(applicationContext, key, next)
-                if (!next.complete) SpeechAlignment.enqueue(applicationContext, key, true)
+                if (!next.complete) SpeechAlignment.enqueue(applicationContext, key, true, userInitiated)
                 else {
                     // Recognition checkpoints are committed before alignment; a time slice never
                     // rolls them back.
                     EnrichmentLearningWorker.enqueue(applicationContext)
+                    if (LyricTimingFeedback(applicationContext).read().any { it.example.key == key && !it.calibrationAttempted })
+                        TimingLearningWorker.enqueue(applicationContext, userInitiated)
                     PersonalArchive.enqueue(applicationContext)
                 }
                 Result.success()
@@ -215,7 +218,7 @@ class SpeechAlignmentWorker(context: Context, params: WorkerParameters) :
                         failures = if (saved.chunkMs <= 1000) saved.failures + 1 else saved.failures,
                     ),
                 )
-                if (saved.failures < 3) SpeechAlignment.enqueue(applicationContext, key, true)
+                if (saved.failures < 3) SpeechAlignment.enqueue(applicationContext, key, true, userInitiated)
                 Result.success()
             } catch (_: Exception) {
                 SpeechAlignment.save(
@@ -223,7 +226,7 @@ class SpeechAlignmentWorker(context: Context, params: WorkerParameters) :
                     key,
                     saved.copy(failures = saved.failures + 1),
                 )
-                if (saved.failures < 2) SpeechAlignment.enqueue(applicationContext, key, true)
+                if (saved.failures < 2) SpeechAlignment.enqueue(applicationContext, key, true, userInitiated)
                 Result.success()
             }
         }

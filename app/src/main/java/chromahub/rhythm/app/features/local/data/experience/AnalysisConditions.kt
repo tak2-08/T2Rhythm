@@ -10,6 +10,9 @@ internal data class AnalysisConditions(
     val cpuBusy: Boolean = false,
     val schedulerBusy: Boolean = false,
 ) {
+    fun allowsUserRequest() =
+        (plugged || batteryPercent >= 20) && thermalLevel < 3 && !powerSave && !memoryPressure
+
     fun allowsWork() =
         (plugged || batteryPercent >= 90) &&
             thermalLevel < 2 &&

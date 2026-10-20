@@ -57,6 +57,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                                         label.orEmpty(),
                                         song.duration,
                                         lines.map { it.copy(text = it.text.take(400)) },
+                                        audio = AudioVectors.describe(feature),
                                     )
                                 else null
                             index.put(
@@ -81,9 +82,10 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                         return@withContext Result.success()
                     }
                     val candidate = index.model(store.list(1000), budget::blockingCheckpoint,
-                        LyricTimingFeedback(applicationContext).read().map { it.example })
+                        LyricTimingFeedback(applicationContext).examples())
                     val model = TimingValidation.select(applicationContext, candidate, store.model(), budget::blockingCheckpoint)
                     store.saveModel(model)
+                    TimingRetryQueue(applicationContext).schedule(model)
                     for ((i, song) in batch.withIndex()) {
                         run inferSong@{
                             budget.checkpoint()
@@ -117,8 +119,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                             }
                             val lyrics = repository.peekLocalLyrics(song) ?: return@inferSong
                             if (!lyrics.wordByWordLyrics.isNullOrBlank()) return@inferSong
-                            val text =
-                                LocalLyricAlignment.text(lyrics.plainLyrics, lyrics.syncedLyrics)
+                            val text = LyricTimingInput.lines(lyrics)
                             if (text.isEmpty()) return@inferSong
                             val mode = store.mode()
                             if (mode != "LIGHT") SpeechAlignment.schedule(applicationContext, song)
@@ -127,7 +128,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                                     SpeechAlignment.guess(applicationContext, song, text, budget)
                                 else null
                             val light =
-                                if (mode != "PRECISE" || precise == null)
+                                if (mode != "PRECISE")
                                     LocalLyricAlignment.light(
                                         text,
                                         song.duration,
@@ -135,6 +136,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                                         song.genre.orEmpty(),
                                         feature.alignmentEnvelope.orEmpty(),
                                         model.timings.filter { it.key != key },
+                                        AudioVectors.describe(feature),
                                     )
                                 else null
                             val guess =
@@ -164,6 +166,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                                             guess.method,
                                             guess.evidence,
                                             lyrics,
+                                            learningRevision = model.timingRevision,
                                         )
                                     )
                             }
@@ -180,6 +183,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                         .putInt("offset", 0)
                         .putLong("lastPass", System.currentTimeMillis())
                         .apply()
+                    if (LyricTimingFeedback(applicationContext).read().any { it.pending }) TimingLearningWorker.enqueue(applicationContext)
                 }
                 Result.success()
             } catch (cancel: CancellationException) {
