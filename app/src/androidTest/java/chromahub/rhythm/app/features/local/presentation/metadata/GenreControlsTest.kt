@@ -174,7 +174,7 @@ class GenreControlsTest {
             val vm: MusicViewModel = viewModel()
             Column { PersonalCollectionsContent(songs, emptyList(), null, { _, _ -> }, { _, _ -> })
                 Text("일반 가사 본문")
-                LyricSuggestionButton(songs.first(), LyricsData(plainLyrics = "첫 줄\n둘째 줄\n셋째 줄"), vm)
+                LyricSuggestionButton(songs.first(), LyricsData(plainLyrics = "첫 줄\n둘째 줄\n셋째 줄", syncedLyrics = null), vm)
             }
         } } }
         compose.onNodeWithText(base.getString(R.string.personal_like)).assertDoesNotExist()
