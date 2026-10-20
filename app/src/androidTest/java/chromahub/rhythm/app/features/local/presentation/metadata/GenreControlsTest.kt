@@ -49,7 +49,10 @@ class GenreControlsTest {
         previousShelf = base.getSharedPreferences("recommendation_shelf", 0).getString("current", null)
     }
     @After fun cleanup() {
-        backups.forEach { (file, bytes) -> if (bytes == null) file.delete() else file.writeBytes(bytes) }
+        backups.forEach { (file, bytes) ->
+            File(file.path + ".bak").delete(); File(file.path + ".new").delete()
+            if (bytes == null) file.delete() else file.writeBytes(bytes)
+        }
         GenreCorrections.revision.value++; EnrichmentStore.revision.value++
         EnrichmentLearningIndex(base).use { it.writableDatabase.delete("samples", "song LIKE ?", arrayOf("%$prefix%")) }
         ListeningLedger.get(base).writableDatabase.delete("features", "song_key LIKE ?", arrayOf("%$prefix%"))
@@ -140,6 +143,87 @@ class GenreControlsTest {
         compose.waitUntil(15_000) { GenreCorrections(base).read().any { it.songKey == source.uri.toString() && it.genre == "Jazz, Soul" } }
         compose.waitUntil(15_000) { compose.onAllNodesWithText(base.getString(R.string.genre_saved)).fetchSemanticsNodes().isNotEmpty() }
         assertEquals("-", source.genre)
+    }
+    @Test fun teachingCombinesManualInputAndLibraryChoicesAndCancelDoesNotSave() {
+        val source = song("목록", "-")
+        val catalog = listOf(source, song("pop", "Pop; Rock"), song("case", "pop; —; unknown"))
+        compose.setContent { CompositionLocalProvider(LocalContext provides compose.activity) { MaterialTheme {
+            GenreTrainingPanel(loadSongs = { catalog }, scheduleTraining = {})
+        } } }
+        compose.waitUntil(15_000) { compose.onAllNodesWithText(source.title).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(source.title).performClick()
+        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextInput("Soul")
+        Espresso.closeSoftKeyboard()
+        compose.onNodeWithText("Pop", substring = false).performClick()
+        compose.onNodeWithText("Rock", substring = false).performClick()
+        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).assertTextContains("Soul, Pop, Rock")
+        compose.onNodeWithText(base.getString(R.string.genre_library_search)).performTextInput("ro")
+        Espresso.closeSoftKeyboard()
+        compose.onNodeWithText("Pop", substring = false).assertDoesNotExist()
+        compose.onNodeWithText("Rock", substring = false).assertIsDisplayed()
+        compose.onNodeWithText(base.getString(R.string.genre_library_search)).performTextClearance()
+        Espresso.closeSoftKeyboard()
+        capture("genre-library-teaching.png")
+        compose.onNodeWithText(base.getString(android.R.string.cancel)).performClick()
+        assertFalse(GenreCorrections(base).read().any { it.songKey == source.uri.toString() })
+        compose.onNodeWithText(source.title).performClick()
+        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextInput("Soul")
+        Espresso.closeSoftKeyboard()
+        compose.onNodeWithText("Pop", substring = false).performClick()
+        compose.onNodeWithText("Rock", substring = false).performClick()
+        compose.onNodeWithText(base.getString(R.string.genre_teach)).performClick()
+        compose.waitUntil(15_000) { GenreCorrections(base).read().any { it.songKey == source.uri.toString() && it.genre == "Soul, Pop, Rock" } }
+    }
+    @Test fun savedCorrectionSurvivesSchedulingFailureAndCanRetryTraining() {
+        val source = song("재시도", "-"); var fail = true
+        compose.setContent { CompositionLocalProvider(LocalContext provides compose.activity) { MaterialTheme {
+            GenreTrainingPanel(loadSongs = { listOf(source) }, scheduleTraining = { if (fail) throw java.io.IOException("offline") })
+        } } }
+        compose.waitUntil(15_000) { compose.onAllNodesWithText(source.title).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(source.title).performClick()
+        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextInput("Jazz")
+        Espresso.closeSoftKeyboard()
+        compose.onNodeWithText(base.getString(R.string.genre_teach)).performClick()
+        compose.waitUntil(15_000) { compose.onAllNodesWithText(base.getString(R.string.genre_saved_training_pending)).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals("Jazz", GenreCorrections(base).apply(listOf(source)).single().genre)
+        fail = false
+        compose.onNodeWithText(base.getString(R.string.genre_retry_training)).performClick()
+        compose.waitUntil(15_000) { compose.onAllNodesWithText(base.getString(R.string.genre_training_scheduled)).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(base.getString(R.string.genre_retry_training)).assertDoesNotExist()
+    }
+    @Test fun interruptedCorrectionWriteRecoversTheOriginalAtomicBackup() {
+        val source = song("복원", "Pop"); val store = GenreCorrections(base)
+        store.put(source, "Jazz")
+        val file = File(base.filesDir, "music_metadata/personalization/learning/genre-corrections.json")
+        val backup = File(file.path + ".bak")
+        backup.writeBytes(file.readBytes()); file.writeText("{interrupted")
+        assertEquals("Jazz", store.apply(listOf(source)).single().genre)
+        assertFalse(backup.exists())
+        store.put(source, "Rock")
+        assertEquals("Rock", store.apply(listOf(source)).single().genre)
+    }
+    @Test fun librarySelectionEnforcesTheSameEightGenreLimitAsManualInput() {
+        var input by mutableStateOf((1..8).joinToString(", ") { "genre$it" })
+        compose.setContent { MaterialTheme { GenreTeachingDialog("선택 한도", input, { input = it }, listOf("Extra"),
+            busy = false, canForget = false, error = null, onDismiss = {}, onSave = {}, onForget = {}) } }
+        compose.onNodeWithText("Extra").assertIsNotEnabled()
+        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextReplacement((1..7).joinToString(", ") { "genre$it" })
+        Espresso.closeSoftKeyboard()
+        compose.onNodeWithText("Extra").performClick()
+        assertEquals(8, GenreUtils.splitGenres(input).size)
+        compose.onNodeWithText(base.getString(R.string.genre_teach)).assertIsEnabled()
+        compose.onNodeWithText(base.getString(R.string.genre_correct_label)).performTextReplacement((1..9).joinToString(", ") { "genre$it" })
+        Espresso.closeSoftKeyboard()
+        compose.onNodeWithText(base.getString(R.string.genre_teach)).assertIsNotEnabled()
+    }
+    @Test fun indexDropsRemovedAndChangedRecordingsButPreservesCurrentOnes() {
+        val keep = song("保留", "Pop"); val changed = song("교체", "Rock"); val removed = song("삭제", "Jazz")
+        EnrichmentLearningIndex(base).use { index ->
+            listOf(keep, changed, removed).forEach { index.put(it.uri.toString(), it.genre, listOf(1.0, 0.0), null, EnrichmentStore.signature(it)) }
+            index.reconcile(listOf(keep, changed.copy(dateModified = changed.dateModified + 1000)))
+            val keys = index.model(emptyList()).examples.map { it.key }.filter { it.contains(prefix) }
+            assertEquals(listOf(keep.uri.toString()), keys)
+        }
     }
     @Test fun visibilitySwitchHidesTrainingEntryAndKeepsAlgorithmServiceAndData() {
         val source = song("유지", "Pop"); GenreCorrections(base).put(source, "Jazz")

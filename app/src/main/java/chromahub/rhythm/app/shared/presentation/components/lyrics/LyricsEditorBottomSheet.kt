@@ -73,6 +73,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -183,7 +184,8 @@ fun LyricsEditorBottomSheet(
     onDismiss: () -> Unit,
     onSave: (String, Int, String) -> Unit,
     onRefresh: () -> Unit = {},
-    onEmbedInFile: (String) -> Unit = {}
+    onEmbedInFile: (String) -> Unit = {},
+    manualTiming: @Composable (LyricsData) -> Unit = {}
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -1094,10 +1096,16 @@ fun LyricsEditorBottomSheet(
                     Text(stringResource(R.string.catalog_find_lyrics))
                 }
                 Spacer(Modifier.height(8.dp))
+                manualTiming(when (selectedFormat) {
+                    LyricFormat.WORD_BY_WORD -> LyricsData(null, null, wordByWordLyrics = editedLyrics)
+                    else -> LyricsData(editedLyrics, null)
+                })
+                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = editedLyrics,
                     onValueChange = { updateEditedLyrics(it) },
                     modifier = Modifier
+                        .testTag("lyrics-edit-text")
                         .fillMaxWidth()
                         .fillMaxHeight(),
                     placeholder = {

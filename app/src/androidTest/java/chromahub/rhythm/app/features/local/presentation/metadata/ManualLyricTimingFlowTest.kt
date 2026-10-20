@@ -24,6 +24,7 @@ import chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import chromahub.rhythm.app.features.local.di.LocalMusicModule
 import chromahub.rhythm.app.shared.data.model.*
+import chromahub.rhythm.app.shared.presentation.components.lyrics.LyricsEditorBottomSheet
 import java.io.File
 import java.util.Locale
 import java.util.UUID
@@ -115,15 +116,47 @@ class ManualLyricTimingFlowTest {
         compose.onNodeWithText("00:01.234 → 00:03.456").assertExists()
         LyricTimingDraftStore(context).delete(track)
     }
-    @Test fun manualEntryIsAvailableForPlainAndAlreadyTimedLyrics() {
-        val track = song(); var lyrics by mutableStateOf(LyricsData(text, null))
+    @Test fun manualEntryIsOnlyInTextEditorForPlainAndAlreadyTimedLyrics() {
+        val track = song(); var lyrics by mutableStateOf(LyricsData(text, null)); var editing by mutableStateOf(false)
         compose.setContent { val vm: MusicViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
-            MaterialTheme { CompositionLocalProvider(LocalContext provides compose.activity) { LyricSuggestionButton(track, lyrics, vm) } } }
-        compose.onNodeWithTag("lyric-manual-action").assertIsDisplayed()
+            MaterialTheme { CompositionLocalProvider(LocalContext provides compose.activity) {
+                LyricSuggestionButton(track, lyrics, vm)
+                if (editing) LyricsEditorBottomSheet(lyrics, track.title, song = track, onDismiss = { editing = false }, onSave = { _, _, _ -> },
+                    manualTiming = { input -> ManualLyricTimingButton(track, lyrics, vm, input) })
+            } } }
+        compose.onNodeWithTag("lyric-manual-action").assertDoesNotExist()
         compose.onNodeWithTag("lyric-ai-action").assertIsDisplayed()
+        compose.runOnIdle { editing = true }
+        compose.onNodeWithTag("lyric-manual-action").assertIsDisplayed()
+        screenshot("lyrics-manual-in-edit.png")
         compose.runOnIdle { lyrics = LyricsData(text, "[00:01]첫 번째 노래\n[00:05]잠시 쉬었다가\n[00:10]마지막을 맞춰요") }
         compose.onNodeWithTag("lyric-manual-action").assertIsDisplayed()
+        compose.runOnIdle { editing = false }
+        compose.onNodeWithTag("lyric-manual-action").assertDoesNotExist()
         compose.onNodeWithTag("lyric-ai-action").assertDoesNotExist()
+    }
+    @Test fun timingUsesEditedTextButKeepsOriginalSnapshotAndDraftsDistinct() {
+        val track = song(); val original = LyricsData(text, null)
+        val input = LyricsData("바꾼 첫 줄\n바꾼 두 번째 줄\n바꾼 마지막 줄", null)
+        var open by mutableStateOf(true)
+        compose.setContent { val vm: MusicViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+            MaterialTheme { if (open) LyricTimingEditor(track, original, vm, inputLyrics = input,
+                playbackOverride = TimingPlayback({ 1234 }, { false }, {}, {}, {})) { open = false } }
+        }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("timing-mark-start").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("바꾼 첫 줄").assertExists()
+        compose.onNodeWithTag("timing-mark-start").performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.timing_close)).performClick()
+        compose.waitUntil(10_000) { !open }
+        val drafts = LyricTimingDraftStore(context)
+        val saved = drafts.read(track, original, null, input)!!
+        assertEquals(original, saved.original)
+        assertEquals(input, saved.inputLyrics)
+        assertEquals("바꾼 첫 줄", saved.rows.first().text)
+        assertEquals(1234L, saved.rows.first().start)
+        assertNull(drafts.read(track, original, null))
+        assertNull(AutomaticLyricsStore.get(context).read(track))
+        drafts.delete(track)
     }
     @Test fun savedManualLabelsSurviveMissingAnalysisAndResolveToOneRecordingVote() {
         val root = File(context.cacheDir, "manual-labels-${UUID.randomUUID()}").apply { mkdirs() }

@@ -3852,6 +3852,7 @@ fun MaterialPlayerScreen(
             song = song,
             isStreamingMode = isStreamingMode,
             onDismiss = { showLyricsEditorDialog = false },
+            manualTiming = { input -> chromahub.rhythm.app.features.local.presentation.metadata.ManualLyricTimingButton(song, lyrics, musicViewModel, input) },
             onSave = { editedLyrics, timeOffset, format ->
                 // Save lyrics to cache and update current lyrics immediately with offset
                 musicViewModel.saveEditedLyrics(editedLyrics, timeOffset, format)

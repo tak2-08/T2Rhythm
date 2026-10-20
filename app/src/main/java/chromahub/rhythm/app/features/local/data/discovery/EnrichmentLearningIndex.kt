@@ -61,6 +61,26 @@ internal class EnrichmentLearningIndex(context: Context) :
             put(song.uri.toString(), genre, vector, null, EnrichmentStore.signature(song))
     }
 
+    /** A removed or replaced recording cannot keep voting through a disposable cache. */
+    fun reconcile(songs: List<chromahub.rhythm.app.shared.data.model.Song>, checkpoint: () -> Unit = {}) {
+        val signatures = songs.associate { it.uri.toString() to EnrichmentStore.signature(it) }
+        val stale = mutableListOf<String>()
+        readableDatabase.rawQuery("SELECT song,signature FROM samples", null).use { c ->
+            while (c.moveToNext()) {
+                checkpoint()
+                if (signatures[c.getString(0)] != c.getString(1)) stale += c.getString(0)
+            }
+        }
+        writableDatabase.beginTransaction()
+        try {
+            stale.forEach { key ->
+                checkpoint()
+                writableDatabase.delete("samples", "song=?", arrayOf(key))
+            }
+            writableDatabase.setTransactionSuccessful()
+        } finally { writableDatabase.endTransaction() }
+    }
+
     fun model(feedback: List<EnrichmentProposal>, checkpoint: () -> Unit = {}, reviewed: List<TimingTraining> = emptyList(),
               genreReviews: List<GenreExample> = emptyList(), correctedKeys: Set<String> = genreReviews.map { it.key }.toSet()): EnrichmentModel {
         // Rebuildable cache: keep a fixed representative reservoir, with no duplicate recording votes.

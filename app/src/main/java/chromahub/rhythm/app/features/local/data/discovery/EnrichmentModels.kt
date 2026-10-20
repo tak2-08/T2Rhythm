@@ -23,24 +23,31 @@ object LocalGenreClassifier {
                 it.key != key && it.vector.size == vector.size && it.vector.all(Double::isFinite)
             }
         if (
-            compatible.count { it.positive } < 6 ||
+            compatible.filter { it.positive }.map { it.key }.distinct().size < 6 ||
                 compatible.filter { it.positive }.map { it.genre }.distinct().size < 2
         )
             return null
-        val nearest =
+        // Choose recordings before expanding their labels. A song with eight tags must
+        // not occupy eight of the nine neighbor slots or count as eight recordings.
+        val nearestKeys =
             compatible
                 .filter { it.positive }
                 .map { it to AudioVectors.cosine(vector, it.vector) }
                 .sortedByDescending { it.second }
+                .distinctBy { it.first.key }
                 .take(9)
-        if (nearest.size < 3 || nearest.first().second < .75) return null
+                .map { it.first.key }.toSet()
+        val nearest = compatible.filter { it.positive && it.key in nearestKeys }
+            .map { it to AudioVectors.cosine(vector, it.vector) }
+        if (nearest.size < 3 || nearest.maxOf { it.second } < .75) return null
         val classes = compatible.filter { it.positive }.groupingBy { it.genre }.eachCount()
+        val labelsPerRecording = nearest.groupingBy { it.first.key }.eachCount()
         val scores =
             nearest
                 .groupBy { it.first.genre }
                 .mapValues { (genre, rows) ->
                     val positive =
-                        rows.sumOf { exp((it.second - 1) * 30) } /
+                        rows.sumOf { exp((it.second - 1) * 30) / labelsPerRecording.getValue(it.first.key) } /
                             sqrt((classes[genre] ?: 1).toDouble())
                     val negative =
                         compatible

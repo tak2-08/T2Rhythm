@@ -28,6 +28,13 @@ object GenreUtils {
     fun normalizedGenres(rawGenre: String?): Set<String> =
         splitGenres(rawGenre).map { it.lowercase(java.util.Locale.ROOT) }.toSet()
 
+    /** Use real library labels, preserving their spelling but combining case variants. */
+    fun availableGenres(tags: Iterable<String?>): List<String> {
+        val seen = mutableSetOf<String>()
+        return tags.flatMap(::splitGenres).filter { it.length <= 80 &&
+            seen.add(it.lowercase(java.util.Locale.ROOT)) }.sortedWith(String.CASE_INSENSITIVE_ORDER)
+    }
+
     /** An empty selection means all; otherwise match any of the selected genres. */
     fun matchesAny(rawGenre: String?, selected: Set<String>): Boolean {
         val targets = selected.flatMap { normalizedGenres(it) }.toSet()

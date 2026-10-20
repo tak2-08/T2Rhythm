@@ -31,6 +31,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                     if (databaseMissing) 0 else state.getInt("offset", 0).coerceIn(0, songs.size)
                 val batch = songs.drop(begin).take(128)
                 EnrichmentLearningIndex(applicationContext).use { index ->
+                    index.reconcile(songs, budget::blockingCheckpoint)
                     if (phase == "TRAIN")
                         batch.forEachIndexed { i, song ->
                             budget.checkpoint()

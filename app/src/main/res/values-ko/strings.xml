@@ -3344,10 +3344,17 @@
     <string name="genre_song_search">곡 이름 또는 아티스트</string>
     <string name="genre_missing_only">장르가 없는 곡만</string>
     <string name="genre_missing">장르 없음</string>
-    <string name="genre_edit_hint">쉼표로 구분해 장르를 최대 8개 입력하세요. 다시 알려주면 이 곡의 이전 교정을 교체합니다. 최근 512곡을 보관하고 장르별 학습 표본 수를 제한합니다. 소리 분석이 필요한 자료는 백그라운드에서 이어서 학습합니다.</string>
+    <string name="genre_edit_hint">장르를 직접 입력하거나 아래 목록에서 여러 개 선택하세요. 쉼표로 최대 8개, 장르마다 80자까지 입력할 수 있습니다.</string>
     <string name="genre_correct_label">올바른 장르</string>
     <string name="genre_teach">저장하고 학습</string>
     <string name="genre_forget">내 장르 교정 지우기</string>
     <string name="genre_removed">교정을 지웠습니다. 원래 장르를 다시 사용합니다.</string>
     <string name="genre_saved">장르를 저장했습니다. 소리 분석과 학습을 예약했습니다.</string>
+    <string name="genre_selected_count">선택한 장르: %1$d / 8</string>
+    <string name="genre_library_search">기존 음원의 장르 검색</string>
+    <string name="genre_library_empty">아직 등록된 장르가 없습니다. 위에 직접 입력해 주세요.</string>
+    <string name="genre_library_no_matches">일치하는 장르가 없습니다. 새 장르는 위에 직접 입력할 수 있습니다.</string>
+    <string name="genre_saved_training_pending">교정은 저장됐지만 일부 학습 작업을 시작하지 못했습니다. 다시 시도해 주세요.</string>
+    <string name="genre_retry_training">학습 다시 시도</string>
+    <string name="genre_training_scheduled">학습을 다시 예약했습니다.</string>
 </resources>

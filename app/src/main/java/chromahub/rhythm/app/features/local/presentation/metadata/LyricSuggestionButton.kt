@@ -51,7 +51,6 @@ fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicView
     var proposalId by remember(key, original) { mutableStateOf<String?>(null) }
     var review by remember(key) { mutableStateOf(false) }
     var options by remember(key) { mutableStateOf(false) }
-    var manual by remember(key) { mutableStateOf(false) }
     var retryState by remember(key) { mutableStateOf<String?>(null) }
     var starting by remember(key) { mutableStateOf(false) }
     var error by remember(key) { mutableStateOf(false) }
@@ -67,17 +66,13 @@ fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicView
     val latest = (jobs + retryJobs).distinctBy { it.id }.maxByOrNull { job -> job.tags.firstNotNullOfOrNull { it.removePrefix("lyric_request_").toLongOrNull() } ?: 0L }
     val active = starting || latest?.state?.isFinished == false
     val failed = !active && proposalId == null && (error || latest?.state == WorkInfo.State.FAILED)
+    if (lines.isEmpty()) return
     Surface(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
         color = MaterialTheme.colorScheme.surfaceContainer, contentColor = MaterialTheme.colorScheme.onSurface,
         shape = RoundedCornerShape(20.dp)) {
     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilledTonalButton(enabled = local && (if (timed.isEmpty()) lines.size else timed.size) in 1..1000 && song.duration > 0,
-                onClick = { manual = true }, modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("lyric-manual-action")) {
-                Icon(MaterialSymbolIcon("touch_app"), null, Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.timing_manual_open))
-            }
-        if (lines.isNotEmpty()) FilledTonalIconButton(
+        FilledTonalIconButton(
             modifier = Modifier.size(48.dp).testTag("lyric-ai-action"),
             onClick = { if (proposalId != null) review = true else options = true },
             enabled = local && (!active || proposalId != null),
@@ -134,5 +129,26 @@ fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicView
         dismissButton = { TextButton(onClick = { options = false }) { Text(stringResource(android.R.string.cancel)) } },
     )
     if (review) EnrichmentReview(viewModel, songKey = song.uri.toString(), initialProposalId = proposalId, fallbackSong = song) { review = false }
-    if (manual) LyricTimingEditor(song, original, viewModel) { manual = false }
+}
+
+/** Shown only by the lyrics text editor; AI suggestions stay on the reading screen. */
+@Composable
+fun ManualLyricTimingButton(song: Song?, original: LyricsData?, viewModel: MusicViewModel,
+    inputLyrics: LyricsData? = original) {
+    val learningUi by chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(LocalContext.current).learningUiEnabled.collectAsState()
+    if (!learningUi || song == null || original == null || inputLyrics == null) return
+    val timed = remember(inputLyrics) { LocalLyricAlignment.parse(inputLyrics.getBestLyrics().orEmpty()) }
+    val lines = remember(inputLyrics) { LyricTimingInput.lines(inputLyrics) }
+    if (timed.isEmpty() && lines.isEmpty()) return
+    var manualInput by remember(song.uri, original) { mutableStateOf<LyricsData?>(null) }
+    FilledTonalButton(enabled = song.uri.scheme in setOf("content", "file") &&
+        (if (timed.isEmpty()) lines.size else timed.size) in 1..1000 && song.duration > 0,
+        onClick = { manualInput = inputLyrics },
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("lyric-manual-action")) {
+        Icon(MaterialSymbolIcon("touch_app"), null, Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.timing_manual_open))
+    }
+    manualInput?.let { input ->
+        LyricTimingEditor(song, original, viewModel, inputLyrics = input) { manualInput = null }
+    }
 }

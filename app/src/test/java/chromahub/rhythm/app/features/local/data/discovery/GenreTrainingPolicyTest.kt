@@ -6,6 +6,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class GenreTrainingPolicyTest {
+    @Test fun libraryChoicesSplitDeduplicateAndRejectUnusableLabels() {
+        assertEquals(listOf("Jazz", "K-Pop", "R&B", "Rock"), GenreUtils.availableGenres(
+            listOf(null, "-", "unknown", " Rock; Jazz; R&B", "rock, jazz, K-Pop", "Z".repeat(81))))
+    }
+    @Test fun multipleLabelsCannotPassTheMinimumRecordingCount() {
+        val examples = (1..5).map { GenreExample("s$it", if (it == 1) "pop, rock" else "pop", listOf(1.0, 0.0)) }
+        assertNull(LocalGenreClassifier.predict("unseen", listOf(1.0, 0.0), examples))
+    }
+    @Test fun oneHeavilyTaggedRecordingCannotCrowdOutOtherNeighbors() {
+        val examples = listOf(GenreExample("many-tags", (1..8).joinToString(",") { "other$it" }, listOf(1.0, 0.0))) +
+            (1..3).map { GenreExample("pop$it", "pop", listOf(1.0, 0.0)) } +
+            (1..3).map { GenreExample("rock$it", "rock", listOf(0.0, 1.0)) }
+        val guess = LocalGenreClassifier.predict("unseen", listOf(1.0, 0.0), examples)!!
+        assertEquals("pop", guess.genre)
+        assertEquals(setOf("pop1", "pop2", "pop3"), guess.neighbors.toSet())
+    }
     @Test fun missingTagsNeverBecomeGenresButRealNamesRemain() {
         listOf(null, "", "  ", "-", "—", "--", "＿", "<unknown>", "Unknown", "알 수 없음", "n/a", "미지정").forEach {
             assertTrue("Placeholder: $it", GenreUtils.splitGenres(it).isEmpty())

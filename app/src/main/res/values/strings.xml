@@ -3118,10 +3118,17 @@
     <string name="genre_song_search">Song or artist</string>
     <string name="genre_missing_only">Without a genre</string>
     <string name="genre_missing">No genre</string>
-    <string name="genre_edit_hint">Enter up to 8 genres separated by commas. Re-teaching replaces this song\'s previous example. At most 512 songs are kept, with balanced samples per genre. Audio analysis can finish later in the background.</string>
+    <string name="genre_edit_hint">Type genres or select several from your library below. Use commas for up to 8 genres, with at most 80 characters each.</string>
     <string name="genre_correct_label">Correct genres</string>
     <string name="genre_teach">Save and teach</string>
     <string name="genre_forget">Remove my correction</string>
     <string name="genre_removed">Correction removed. The original genre is used again.</string>
     <string name="genre_saved">Genres saved. Audio analysis and training are scheduled.</string>
+    <string name="genre_selected_count">Selected genres: %1$d / 8</string>
+    <string name="genre_library_search">Search genres from your library</string>
+    <string name="genre_library_empty">No library genres yet. Type your own above.</string>
+    <string name="genre_library_no_matches">No matching genres. You can type a new genre above.</string>
+    <string name="genre_saved_training_pending">Your correction is saved, but some training tasks could not start. Please retry.</string>
+    <string name="genre_retry_training">Retry training</string>
+    <string name="genre_training_scheduled">Training has been scheduled again.</string>
 </resources>

@@ -16,6 +16,7 @@ import chromahub.rhythm.app.features.local.data.discovery.*
 import chromahub.rhythm.app.features.local.data.experience.AudioAnalysisWorker
 import chromahub.rhythm.app.features.local.di.LocalMusicModule
 import chromahub.rhythm.app.shared.data.model.Song
+import chromahub.rhythm.app.util.GenreUtils
 import kotlinx.coroutines.*
 
 @Composable
@@ -35,29 +36,44 @@ fun GenreTrainingPanel(loadSongs: (suspend () -> List<Song>)? = null,
     var genre by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
     var retry by remember { mutableIntStateOf(0) }
+    var pendingTraining by remember { mutableStateOf<Song?>(null) }
     LaunchedEffect(revision, retry) {
         loading = true
         try {
             val data = withContext(Dispatchers.IO) {
-                (loadSongs?.invoke() ?: LocalMusicModule.provideMusicRepository(context).loadSongs()) to store.read().associateBy { it.songKey }
+                val catalog = loadSongs?.invoke() ?: LocalMusicModule.provideMusicRepository(context).loadSongs()
+                val signatures = catalog.associate { it.uri.toString() to EnrichmentStore.signature(it) }
+                catalog to store.read().filter { signatures[it.songKey] == it.signature }.associateBy { it.songKey }
             }
             songs = data.first; corrections = data.second
         } catch (cancel: CancellationException) { throw cancel }
         catch (_: Exception) { message = context.getString(R.string.usability_load_failed) }
         finally { loading = false }
     }
+    suspend fun train(song: Song): Boolean {
+        var success = true
+        try { store.refreshModel(songs, song) }
+        catch (cancel: CancellationException) { throw cancel }
+        catch (_: Exception) { success = false }
+        // A rebuildable model failure must not prevent durable corrections from being learned later.
+        try { scheduleTraining(context) }
+        catch (cancel: CancellationException) { throw cancel }
+        catch (_: Exception) { success = false }
+        return success
+    }
     fun update(remove: Boolean) {
+        if (busy) return
         val song = selected ?: return
         busy = true; message = null
         val label = genre
         scope.launch {
             try {
-                withContext(Dispatchers.IO) {
+                val trained = withContext(Dispatchers.IO) {
                     if (remove) store.remove(song.uri.toString()) else store.put(song, label)
-                    store.refreshModel(songs, song)
-                    scheduleTraining(context)
+                    train(song)
                 }
-                message = context.getString(if (remove) R.string.genre_removed else R.string.genre_saved)
+                pendingTraining = song.takeUnless { trained }
+                message = context.getString(if (!trained) R.string.genre_saved_training_pending else if (remove) R.string.genre_removed else R.string.genre_saved)
                 selected = null
             } catch (cancel: CancellationException) { throw cancel }
             catch (_: Exception) { message = context.getString(R.string.discovery_operation_failed) }
@@ -85,7 +101,7 @@ fun GenreTrainingPanel(loadSongs: (suspend () -> List<Song>)? = null,
                     supportingContent = { Text(song.artist + " · " + (corrections[song.uri.toString()]?.genre
                         ?: song.genre?.takeIf(chromahub.rhythm.app.util.GenreUtils::isKnownGenre) ?: stringResource(R.string.genre_missing))) },
                     modifier = Modifier.clickable(enabled = !busy) {
-                        selected = song; genre = corrections[song.uri.toString()]?.genre
+                        message = null; selected = song; genre = corrections[song.uri.toString()]?.genre
                             ?: chromahub.rhythm.app.util.GenreUtils.splitGenres(song.genre).joinToString(", ")
                     })
             }
@@ -94,16 +110,20 @@ fun GenreTrainingPanel(loadSongs: (suspend () -> List<Song>)? = null,
             Text(it, style = MaterialTheme.typography.bodySmall)
             if (songs.isEmpty()) TextButton(onClick = { retry++ }) { Text(stringResource(R.string.mv_retry)) }
         }
+        if (pendingTraining != null) TextButton(enabled = !busy, onClick = {
+            val song = pendingTraining ?: return@TextButton
+            busy = true
+            scope.launch {
+                try {
+                    val trained = withContext(Dispatchers.IO) { train(song) }
+                    if (trained) pendingTraining = null
+                    message = context.getString(if (trained) R.string.genre_training_scheduled else R.string.genre_saved_training_pending)
+                } finally { busy = false }
+            }
+        }) { Text(stringResource(R.string.genre_retry_training)) }
     }
-    if (selected != null) AlertDialog(onDismissRequest = { if (!busy) selected = null },
-        title = { Text(selected!!.title) }, text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.genre_edit_hint), style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(genre, onValueChange = { genre = it.take(640) }, enabled = !busy,
-                label = { Text(stringResource(R.string.genre_correct_label)) }, modifier = Modifier.fillMaxWidth())
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (selected!!.uri.toString() in corrections) TextButton(enabled = !busy, onClick = { update(true) }) { Text(stringResource(R.string.genre_forget)) }
-            message?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        } }, confirmButton = { TextButton(enabled = !busy && chromahub.rhythm.app.util.GenreUtils.splitGenres(genre).let { it.size in 1..8 && it.all { label -> label.length <= 80 } },
-            onClick = { update(false) }) { Text(stringResource(R.string.genre_teach)) } },
-        dismissButton = { TextButton(enabled = !busy, onClick = { selected = null }) { Text(stringResource(android.R.string.cancel)) } })
+    val available = remember(songs, corrections) { GenreUtils.availableGenres(songs.map { it.genre } + corrections.values.map { it.genre }) }
+    selected?.let { song -> GenreTeachingDialog(song.title, genre, { genre = it }, available, busy,
+        canForget = song.uri.toString() in corrections, error = message,
+        onDismiss = { selected = null }, onSave = { update(false) }, onForget = { update(true) }) }
 }
