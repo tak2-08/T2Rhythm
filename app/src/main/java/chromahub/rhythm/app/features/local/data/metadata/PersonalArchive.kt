@@ -272,6 +272,7 @@ class PersonalArchive(private val context: Context) {
                     "recommendations",
                     "videos",
                     "entities",
+                    "pages",
                     "context",
                     "personalization",
                     "preferences",
@@ -387,7 +388,8 @@ class PersonalArchive(private val context: Context) {
                             val bytes =
                                 context.contentResolver.openInputStream(remote.uri)?.use {
                                     it.readBytesBounded(
-                                        if (category == "images" || category == "originals")
+                                        if (category == "pages") 22_000_000
+                                        else if (category == "images" || category == "originals")
                                             20 * 1024 * 1024
                                         else if (category == "speech") 3_000_000
                                         else 2 * 1024 * 1024
