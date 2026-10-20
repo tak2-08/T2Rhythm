@@ -96,6 +96,7 @@ class UsabilityBehaviorTest {
         compose.onNode(hasSetTextAction()).performTextInput("알고리즘")
         compose.onNodeWithText(base.getString(R.string.algorithm_title)).performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText(base.getString(R.string.algorithm_patterns)).fetchSemanticsNodes().isNotEmpty() }
+        Espresso.closeSoftKeyboard()
         Espresso.pressBack()
         compose.waitUntil(10_000) { compose.onAllNodesWithText(base.getString(R.string.algorithm_patterns)).fetchSemanticsNodes().isEmpty() }
         compose.onNode(hasSetTextAction()).assertTextContains("알고리즘")
