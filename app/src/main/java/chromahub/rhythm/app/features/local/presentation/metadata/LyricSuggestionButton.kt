@@ -35,7 +35,7 @@ fun LyricSuggestionButton(song: Song?, lyrics: LyricsData?, viewModel: MusicView
     val local = song.uri.scheme in setOf("content", "file")
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val key = SongArtworkOverrides.key(song)
+    val key = SongArtworkOverrides.key(context, song)
     val jobs by remember(key) { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(LyricSuggestionWorker.name(key)) }.collectAsState(emptyList())
     val retryJobs by remember(key) { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(LyricSuggestionWorker.name(song.uri.toString())) }.collectAsState(emptyList())
     val speechJobs by remember(key) { WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow("speech_alignment:${kr.co.metadata.crawler.CatalogFileStore.hash(song.uri.toString())}") }.collectAsState(emptyList())

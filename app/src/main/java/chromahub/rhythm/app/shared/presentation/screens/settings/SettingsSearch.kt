@@ -99,6 +99,10 @@ data class SearchableSettingItem(
  */
 fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
     return buildList {
+        add(SearchableSettingItem("file_names", context.getString(R.string.file_names_title), context.getString(R.string.file_names_short),
+            listOf("filename", "rename", "metadata", "파일명", "이름", "자동", "정리", "메타데이터"), MaterialSymbolIcon("drive_file_rename_outline"), SettingsRoutes.FILE_NAMES, context.getString(R.string.settings_section_library_content)))
+        add(SearchableSettingItem("learning_power", context.getString(R.string.analysis_battery_title), context.getString(R.string.analysis_battery_hint),
+            listOf("battery", "learning", "75", "50", "95", "배터리", "학습", "분석", "잔량"), MaterialSymbolIcon("battery_charging_full"), SettingsRoutes.LEARNING_POWER, context.getString(R.string.settings_section_storage_data)))
         add(SearchableSettingItem("algorithm_training", context.getString(R.string.algorithm_training_title), context.getString(R.string.algorithm_training_hint),
             listOf("training", "teach", "genre", "학습", "장르", "교정", "가르치기"), MaterialSymbolIcon("model_training"), SettingsRoutes.ALGORITHM_TRAINING, context.getString(R.string.settings_section_storage_data)))
         add(SearchableSettingItem("learning_ui", context.getString(R.string.learning_ui_title), context.getString(R.string.learning_ui_hint),

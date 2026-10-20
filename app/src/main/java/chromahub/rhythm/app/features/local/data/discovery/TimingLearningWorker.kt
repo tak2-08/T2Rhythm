@@ -61,7 +61,8 @@ class TimingLearningWorker(context: Context, params: WorkerParameters) : Corouti
                     val timing = TimingTraining(song.uri.toString(), audio.pcmSha256, song.genre.orEmpty(), song.duration,
                         lines.map { it.copy(text = it.text.take(400)) }, audio = AudioVectors.describe(audio))
                     candidates += timing
-                    index.put(song.uri.toString(), song.genre, AudioVectors.describe(audio), timing, EnrichmentStore.signature(song))
+                    index.put(song.uri.toString(), song.genre, AudioVectors.describe(audio), timing, EnrichmentStore.signature(song),
+                        GenreSignalFeatures.extract(audio, song.title, lyrics))
                 }
                 prefs.edit().putInt("offset", if (ordered.isEmpty()) 0 else (offset + batch.size) % ordered.size).apply()
                 val old = store.model()

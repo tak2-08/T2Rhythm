@@ -68,6 +68,7 @@ fun LearningPreferences(lyricOnly: Boolean = false) {
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!lyricOnly) {
+        AnalysisPowerSetting()
         Text(
             context.getString(R.string.discovery_learning_settings),
             style = MaterialTheme.typography.titleMedium,

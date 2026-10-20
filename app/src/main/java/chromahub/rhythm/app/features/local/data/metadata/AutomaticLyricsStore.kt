@@ -27,6 +27,16 @@ class AutomaticLyricsStore private constructor(private val context: Context) {
         val file = File(root, "${key(song)}.data.json")
         if (!file.isFile || file.length() > 2_000_000) null else Gson().fromJson(file.readText(), LyricsData::class.java)
     }.getOrNull()
+    /** Preserve a filename-based sidecar before renaming its audio; do not embed or change review flags. */
+    suspend fun preserveForRename(song: Song, data: LyricsData) = withContext(Dispatchers.IO) {
+        if (!data.hasLyrics() || data.isErrorMessage()) return@withContext
+        locks.computeIfAbsent(key(song)) { Mutex() }.withLock {
+            if (read(song) != null) return@withLock
+            write(File(root, "${key(song)}.data.json"), Gson().toJson(data))
+            saveFormat(File(root, "${key(song)}.lrc"), data.syncedLyrics)
+            saveFormat(File(root, "${key(song)}.txt"), data.plainLyrics)
+        }
+    }
     suspend fun saveFetched(song: Song, data: LyricsData, embed: Boolean = true, reviewed: Boolean = false) = withContext(Dispatchers.IO) {
         if ((!reviewed && !catalog.preferences.options.value.autoLyrics) || !data.hasLyrics() || data.isErrorMessage()) return@withContext
         locks.computeIfAbsent(key(song)) { Mutex() }.withLock {

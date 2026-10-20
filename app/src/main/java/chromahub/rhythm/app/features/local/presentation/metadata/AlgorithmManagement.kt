@@ -24,6 +24,7 @@ private data class AlgorithmSnapshot(
     val reviews: List<TimingReview> = emptyList(),
     val trainedAt: Long = 0,
     val bytes: Long = 0,
+    val genreValidation: GenreValidationResult? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -59,6 +60,7 @@ fun AlgorithmManagement(training: Boolean = false, onDismiss: () -> Unit) {
                         File(context.cacheDir, "enrichment-model.json").lastModified()),
                     File(context.filesDir, "music_metadata/personalization/learning").walkTopDown().filter { it.isFile }.sumOf { it.length() } +
                         listOf("enrichment-model.json", "enrichment-learning.db").sumOf { File(context.cacheDir, it).length() },
+                    GenreValidation.read(context),
                 )
             }
             snapshot = loaded; failed = false
@@ -85,6 +87,12 @@ fun AlgorithmManagement(training: Boolean = false, onDismiss: () -> Unit) {
                     TextButton(onClick = { retry++ }) { Text(stringResource(R.string.mv_retry)) }
                 }
                 if (training && tab == 0) {
+                    item { Text(stringResource(R.string.genre_signal_weights), style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.genre_signal_hint), style = MaterialTheme.typography.bodySmall)
+                        val report = snapshot.genreValidation
+                        Text(if (report?.accuracy == null) stringResource(R.string.genre_validation_provisional)
+                            else stringResource(R.string.genre_validation_score, report.recordings, (report.accuracy * 100).toInt()), style = MaterialTheme.typography.bodySmall)
+                        if (report?.promoted == false) Text(stringResource(R.string.genre_validation_kept)) }
                     item { GenreTrainingPanel() }
                 } else if (!training && tab == 0) {
                     item { Text(stringResource(R.string.algorithm_observations), style = MaterialTheme.typography.bodySmall) }
@@ -150,6 +158,7 @@ fun AlgorithmManagement(training: Boolean = false, onDismiss: () -> Unit) {
                     item { LearningPreferences() }
                     item { RecommendationFeedbackSettings() }
                 } else {
+                    item { AnalysisPowerSetting() }
                     item { Text(context.getString(R.string.algorithm_storage, Formatter.formatShortFileSize(context, bytes)), style = MaterialTheme.typography.titleMedium) }
                     item { Text(stringResource(R.string.algorithm_storage_hint), style = MaterialTheme.typography.bodySmall) }
                     item { PersonalExperiencePanel() }

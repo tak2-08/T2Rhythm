@@ -8,6 +8,6 @@
     <string name="download_remove_failed_all">Delete files and history for failed or cancelled downloads</string>
     <string name="retention_title">History storage and automatic summaries</string>
     <string name="retention_description">Keep detailed records for %1$d days. Older history keeps compact listening intervals and recommendation features, preserving dates, listening time, completion, preference changes and contextual relationships. Fine coordinates and raw sensor detail are reduced. Music, lyrics and favourites are retained.</string>
-    <string name="retention_conditions" formatted="false">Maintenance runs in small slices at low load while plugged in or at 90% battery or higher. Closed monthly journals are replaced with summaries.</string>
+    <string name="retention_conditions" formatted="false">Maintenance runs in small slices at low load while plugged in or above the configured minimum battery level. Closed monthly journals are replaced with summaries.</string>
     <string name="retention_saved">Space saved in history files: %1$s</string>
 </resources>

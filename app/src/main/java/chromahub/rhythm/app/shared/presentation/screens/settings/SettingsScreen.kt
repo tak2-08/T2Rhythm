@@ -162,6 +162,8 @@ import chromahub.rhythm.app.shared.presentation.components.SettingsPalettes
 // Define routes for navigation
 object SettingsRoutes {
     const val ALGORITHM_MANAGEMENT = "algorithm_management"
+    const val LEARNING_POWER = "learning_power"
+    const val FILE_NAMES = "file_names"
     const val ALGORITHM_TRAINING = "algorithm_training"
     const val LEARNING_UI = "learning_ui"
     const val DOWNLOAD_CENTER = "download_center"
@@ -239,6 +241,11 @@ fun SettingsScreen(
     val context = LocalContext.current
     val appSettings = AppSettings.getInstance(context)
     val learningUi by appSettings.learningUiEnabled.collectAsState()
+    val learningBattery by appSettings.analysisMinimumBattery.collectAsState()
+    var showLearningPower by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    if (showLearningPower) chromahub.rhythm.app.features.local.presentation.metadata.AnalysisPowerDialog { showLearningPower = false }
+    var showFileNames by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    if (showFileNames) chromahub.rhythm.app.features.local.presentation.metadata.FileNameSettings { showFileNames = false }
     var showTraining by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var showLearningOptions by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(learningUi) { if (!learningUi) showTraining = false }
@@ -413,6 +420,7 @@ fun SettingsScreen(
                 title = context.getString(R.string.settings_section_library_content),
                 items = listOf(
                     SettingItem(RhythmIcons.Folder, context.getString(R.string.settings_media_scan_title), context.getString(R.string.settings_media_scan_desc), palette = SettingsPalettes.Amber, onClick = { onNavigateTo(SettingsRoutes.MEDIA_SCAN) }),
+                    SettingItem(MaterialSymbolIcon("drive_file_rename_outline"), context.getString(R.string.file_names_title), context.getString(R.string.file_names_short), palette = SettingsPalettes.Teal, onClick = { showFileNames = true }),
                     SettingItem(RhythmIcons.Artist, context.getString(R.string.settings_artist_parsing), context.getString(R.string.settings_artist_parsing_desc), palette = SettingsPalettes.Rose, onClick = { onNavigateTo(SettingsRoutes.ARTIST_SEPARATORS) }),
                     SettingItem(MaterialSymbolIcon("playlist_add_check_circle"), context.getString(R.string.settings_playlists_title), context.getString(R.string.settings_playlists_desc), palette = SettingsPalettes.Coral, onClick = { onNavigateTo(SettingsRoutes.PLAYLISTS) }),
                     SettingItem(RhythmIcons.Library, context.getString(R.string.settings_library_settings), context.getString(R.string.settings_library_settings_desc), palette = SettingsPalettes.Teal, onClick = { onNavigateTo(SettingsRoutes.LIBRARY_SETTINGS) })
@@ -433,6 +441,7 @@ fun SettingsScreen(
                 title = context.getString(R.string.settings_section_storage_data),
                 items = buildList {
                     add(SettingItem(MaterialSymbolIcon("neurology"), context.getString(R.string.algorithm_title), context.getString(R.string.algorithm_hint), palette = SettingsPalettes.Purple, onClick = { showAlgorithms = true }))
+                    add(SettingItem(MaterialSymbolIcon("battery_charging_full"), context.getString(R.string.analysis_battery_title), context.getString(R.string.analysis_battery_value, learningBattery), palette = SettingsPalettes.Lime, onClick = { showLearningPower = true }))
                     add(SettingItem(MaterialSymbolIcon("visibility"), context.getString(R.string.learning_ui_title), context.getString(R.string.learning_ui_hint), toggleState = learningUi, onToggleChange = appSettings::setLearningUiEnabled))
                     if (learningUi) add(SettingItem(MaterialSymbolIcon("model_training"), context.getString(R.string.algorithm_training_title), context.getString(R.string.algorithm_training_hint), palette = SettingsPalettes.Purple, onClick = { showTraining = true }))
                     add(SettingItem(MaterialSymbolIcon("video_library"), context.getString(R.string.video_library_title), context.getString(R.string.video_library_hint), palette = SettingsPalettes.SkyBlue, onClick = { showVideos = true }))
@@ -500,6 +509,8 @@ fun SettingsScreen(
                         SettingsRoutes.ALGORITHM_TRAINING -> if (learningUi) showTraining = true
                         SettingsRoutes.LEARNING_UI -> showLearningOptions = true
                         SettingsRoutes.ALGORITHM_MANAGEMENT -> showAlgorithms = true
+                        SettingsRoutes.LEARNING_POWER -> showLearningPower = true
+                        SettingsRoutes.FILE_NAMES -> showFileNames = true
                         SettingsRoutes.DOWNLOAD_CENTER -> showDownloads = true
                         SettingsRoutes.VIDEO_LIBRARY -> showVideos = true
                         null -> Unit

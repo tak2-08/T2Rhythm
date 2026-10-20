@@ -51,7 +51,7 @@ class MusicVideoRepository(private val context: Context) {
     private val records = File(root, "records").apply { mkdirs() }
     private val gson = Gson()
     private fun record(key: String) = File(records, "${kr.co.metadata.crawler.CatalogFileStore.hash(key)}.json")
-    fun key(song: Song): String = chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides.key(song)
+    fun key(song: Song): String = chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides.key(context, song)
     /** Upgrade legacy URI links before a rebuild; a tombstone prevents removed links reappearing. */
     fun get(song: Song): MusicVideo? = synchronized(downloadInstallLock) {
         val stable = key(song)

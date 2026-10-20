@@ -44,12 +44,12 @@
     <string name="discovery_mobile">Allow mobile data for this download</string>
     <string name="discovery_queued">Added to background downloads.</string>
     <string name="discovery_learning_settings">On-device learning</string>
-    <string name="discovery_learning_hint" formatted="false">Automatic learning runs when charging or at least 90% charged, with low device load. A lyric analysis you request can run above 20% battery with power saving off and safe device conditions. Speech alignment needs an installed model.</string>
+    <string name="discovery_learning_hint" formatted="false">Automatic learning runs when charging or above the configured minimum battery level, with low device load. A lyric analysis you request can run above 20% battery with power saving off and safe device conditions. Speech alignment needs an installed model.</string>
     <string name="discovery_mode_light">Waveform · quick draft</string>
     <string name="discovery_mode_precise">Speech alignment · model required</string>
     <string name="discovery_mode_hybrid">Speech first · waveform fallback</string>
     <string name="discovery_model_name">Vosk Korean speech model</string>
-    <string name="discovery_model_size" formatted="false">Optional Korean model: about 87 MB download and 265 MB installed. Download starts on an internet connection, including mobile data. Only lyrics analysis waits for low device load and either external power or at least 90% battery.</string>
+    <string name="discovery_model_size" formatted="false">Optional Korean model: about 87 MB download and 265 MB installed. Download starts on an internet connection, including mobile data. Only lyrics analysis waits for low device load and either external power or the configured minimum battery level.</string>
     <string name="discovery_remove_model">Remove speech model</string>
     <string name="discovery_install_model">Install Korean model</string>
     <string name="discovery_model_ready">Model installed. Analysis continues in short resumable chunks.</string>
@@ -60,7 +60,7 @@
     <string name="discovery_review_hint">Review the evidence and listen before applying. Originals and your decisions are kept so accepted changes can be undone.</string>
     <string name="discovery_pending">To review</string>
     <string name="discovery_history">Review history</string>
-    <string name="discovery_review_empty" formatted="false">No suggestions here yet. Learning needs tagged audio and timed-lyric examples, and waits for low device load and either external power or at least 90% battery. Uncertain matches are withheld.</string>
+    <string name="discovery_review_empty" formatted="false">No suggestions here yet. Learning needs tagged audio and timed-lyric examples, and waits for low device load and either external power or the configured minimum battery level. Uncertain matches are withheld.</string>
     <string name="discovery_genre_proposal">Suggested genre</string>
     <string name="discovery_timing_proposal">Suggested lyric timing</string>
     <string name="discovery_proposal_strength">Reference score %1$d/100 · review required</string>

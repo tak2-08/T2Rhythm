@@ -273,6 +273,7 @@ class PersonalArchive(private val context: Context) {
                     "videos",
                     "entities",
                     "pages",
+                    "file_names",
                     "context",
                     "personalization",
                     "preferences",
@@ -460,6 +461,7 @@ class PersonalArchive(private val context: Context) {
             }
             ledger.invalidate()
             CatalogEnrichmentService.get(context).reloadStored()
+            SongFileIdentity.invalidate()
             enqueue(context)
             count
         }

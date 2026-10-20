@@ -16,7 +16,7 @@ class EntityPageMaterializer(private val context: Context) {
     private val pages = EntityPageStore(context)
     private val catalog = CatalogEnrichmentService.get(context)
     private fun tracks(songs: List<Song>) = songs.map { PageTrack(it.title, it.artist, it.album, it.duration,
-        it.year, GenreUtils.splitGenres(it.genre).joinToString(", ").ifEmpty { null }, it.path ?: it.uri.toString()) }
+        it.year, GenreUtils.splitGenres(it.genre).joinToString(", ").ifEmpty { null }, catalog.songKey(it)) }
     private suspend fun art(page: EntityPage, uri: Uri?) {
         if (uri == null || page.imageEdited || page.imageSource == uri.toString() || pages.image(page) == uri) return
         try { withTimeout(12_000) { pages.save(EntityKind.valueOf(page.kind), page.key, page.title, page.artist,

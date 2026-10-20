@@ -44,6 +44,9 @@ interface SongDao {
     @Query("UPDATE songs SET bitrate = :bitrate, sampleRate = :sampleRate, channels = :channels, codec = :codec WHERE id = :id AND uri = :uri")
     suspend fun updateAudioMetadata(id: String, uri: String, bitrate: Int?, sampleRate: Int?, channels: Int?, codec: String?): Int
 
+    @Query("UPDATE songs SET path = :path, dateModified = :modified WHERE id = :id AND uri = :uri")
+    suspend fun updateFileLocation(id: String, uri: String, path: String, modified: Long): Int
+
     @Query("UPDATE songs SET genre = :genre WHERE id = :id AND uri = :uri AND (genre = :expectedGenre OR (genre IS NULL AND :expectedGenre IS NULL))")
     suspend fun updateDetectedGenre(id: String, uri: String, expectedGenre: String?, genre: String?): Int
 

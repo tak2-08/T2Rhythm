@@ -16,7 +16,7 @@ class SongArtworkOverrides(private val context: Context) {
     private val gson = Gson()
     private fun file(key: String) = File(root, "${CatalogFileStore.hash(key)}.json")
     fun read(song: Song): Choice? = synchronized(lock) {
-        val key = key(song)
+        val key = key(context, song)
         val identity = context.filesDir.path + ":" + key
         if (cache.containsKey(identity)) return@synchronized cache[identity]
         runCatching {
@@ -26,7 +26,7 @@ class SongArtworkOverrides(private val context: Context) {
         }.getOrNull().also { cache[identity] = it }
     }
     fun save(song: Song, uri: Uri?, removed: Boolean = uri == null) = synchronized(lock) {
-        val key = key(song)
+        val key = key(context, song)
         val choice = Choice(key, uri?.toString(), removed, System.currentTimeMillis())
         PersonalArchive.atomicWrite(file(key), gson.toJson(choice).toByteArray())
         cache[context.filesDir.path + ":" + key] = choice
@@ -48,5 +48,6 @@ class SongArtworkOverrides(private val context: Context) {
         }
         fun invalidate() = synchronized(lock) { cache.clear() }
         fun key(song: Song) = song.path?.takeIf { it.isNotBlank() } ?: song.uri.toString().substringBefore('?')
+        fun key(context: Context, song: Song) = SongFileIdentity.key(context, song)
     }
 }

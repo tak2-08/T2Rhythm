@@ -13,8 +13,8 @@ internal data class AnalysisConditions(
     fun allowsUserRequest() =
         (plugged || batteryPercent >= 20) && thermalLevel < 3 && !powerSave && !memoryPressure
 
-    fun allowsWork() =
-        (plugged || batteryPercent >= 90) &&
+    fun allowsWork(minimumBattery: Int = 75) =
+        (plugged || batteryPercent >= minimumBattery.coerceIn(50, 95)) &&
             thermalLevel < 2 &&
             !powerSave &&
             !memoryPressure &&

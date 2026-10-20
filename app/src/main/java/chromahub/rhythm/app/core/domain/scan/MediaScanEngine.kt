@@ -415,6 +415,7 @@ class MediaScanEngine(
 
             appSettings.setLastScanTimestamp(System.currentTimeMillis())
             chromahub.rhythm.app.features.local.data.metadata.EntityPageMaterializationWorker.enqueue(context)
+            chromahub.rhythm.app.features.local.data.metadata.FileNameWorker.enqueue(context)
             try {
                 context.getSharedPreferences("library_scan_metadata", Context.MODE_PRIVATE)
                     .edit { putInt("last_scan_mediastore_count", rawMediaStoreCount) }

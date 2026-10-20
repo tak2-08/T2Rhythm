@@ -39,7 +39,7 @@ class LyricSuggestionWorker(context: Context, params: WorkerParameters) : Corout
             require(file.length() in 1..1_000_000)
             val request = Gson().fromJson(file.readText(), LyricAlignmentRequest::class.java)
             val song = LocalMusicModule.provideMusicRepository(applicationContext).loadSongs()
-                .firstOrNull { (if (inputData.getBoolean("byUri", false)) it.uri.toString() else chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides.key(it)) == key }
+                .firstOrNull { (if (inputData.getBoolean("byUri", false)) it.uri.toString() else chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides.key(applicationContext, it)) == key }
                 ?: return@withContext failure("stale")
             if (request.signature != "${song.dateModified}:${song.duration}") return@withContext failure("stale")
             val store = EnrichmentStore(applicationContext)
@@ -105,7 +105,7 @@ class LyricSuggestionWorker(context: Context, params: WorkerParameters) : Corout
         }
         private fun requestFile(context: Context, key: String) = File(context.filesDir, "music_metadata/personalization/lyric_requests/${CatalogFileStore.hash(key)}.json")
         suspend fun cancel(context: Context, song: Song) = withContext(Dispatchers.IO) {
-            val key = chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides.key(song)
+            val key = chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides.key(context, song)
             WorkManager.getInstance(context).cancelUniqueWork(name(key))
             WorkManager.getInstance(context).cancelUniqueWork(name(song.uri.toString()))
             WorkManager.getInstance(context).cancelUniqueWork("speech_alignment:${CatalogFileStore.hash(song.uri.toString())}")
@@ -116,7 +116,7 @@ class LyricSuggestionWorker(context: Context, params: WorkerParameters) : Corout
         suspend fun enqueue(context: Context, song: Song, lyrics: LyricsData) = withContext(Dispatchers.IO) {
             TimingRetryQueue(context).resume(song.uri.toString())
             require(LyricTimingInput.lines(lyrics).size in 3..1000)
-            val key = chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides.key(song)
+            val key = chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides.key(context, song)
             // Store only lyrics and stable identifiers; Android Uri is not a JSON transport type.
             val bytes = Gson().toJson(LyricAlignmentRequest("${song.dateModified}:${song.duration}", lyrics)).toByteArray()
             require(bytes.size <= 1_000_000)

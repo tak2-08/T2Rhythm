@@ -29,7 +29,8 @@ internal class AnalysisBudget(
     fun allowed(): Boolean = accepts(DeviceAnalysisLoad.conditions(context))
 
     private fun accepts(conditions: AnalysisConditions) =
-        if (userInitiated) conditions.allowsUserRequest() else conditions.allowsWork()
+        if (userInitiated) conditions.allowsUserRequest() else conditions.allowsWork(
+            chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).analysisMinimumBattery.value)
 
     private fun requireAllowed() {
         val conditions = DeviceAnalysisLoad.conditions(context)

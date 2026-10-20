@@ -1211,6 +1211,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     init {
         val catalog = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(application)
         chromahub.rhythm.app.features.local.data.metadata.EntityPageMaterializationWorker.enqueue(application)
+        chromahub.rhythm.app.features.local.data.metadata.FileNameWorker.enqueue(application)
         viewModelScope.launch {
             appSettings.useFolderNameAsAlbum.drop(1).collect {
                 refreshLibrary(showMediaScanLoader = false)

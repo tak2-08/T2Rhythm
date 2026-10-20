@@ -16,11 +16,25 @@ class AnalysisConditionsTest {
         assertFalse(conditions.copy(thermalLevel = 3).allowsUserRequest())
     }
     @Test
-    fun unpluggedBatteryStartsAtNinetyPercent() {
-        assertFalse(AnalysisConditions(false, 89).allowsWork())
-        assertTrue(AnalysisConditions(false, 90).allowsWork())
+    fun unpluggedBatteryStartsAtSeventyFivePercent() {
+        assertFalse(AnalysisConditions(false, 74).allowsWork())
+        assertTrue(AnalysisConditions(false, 75).allowsWork())
         assertTrue(AnalysisConditions(false, 100).allowsWork())
         assertFalse(AnalysisConditions(false, -1).allowsWork())
+    }
+
+    @Test fun customMinimumUsesInclusiveBoundariesAndClampsToTheSupportedRange() {
+        assertFalse(AnalysisConditions(false, 49).allowsWork(50))
+        assertTrue(AnalysisConditions(false, 50).allowsWork(50))
+        assertFalse(AnalysisConditions(false, 94).allowsWork(95))
+        assertTrue(AnalysisConditions(false, 95).allowsWork(95))
+        assertFalse(AnalysisConditions(false, 49).allowsWork(0))
+        assertTrue(AnalysisConditions(false, 95).allowsWork(100))
+    }
+    @Test fun loweringTheThresholdNeverBypassesHeatOrPowerSaving() {
+        assertFalse(AnalysisConditions(false, 80, thermalLevel = 2).allowsWork(50))
+        assertFalse(AnalysisConditions(false, 80, powerSave = true).allowsWork(50))
+        assertTrue(AnalysisConditions(true, 10).allowsWork(95))
     }
 
     @Test

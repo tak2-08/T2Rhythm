@@ -11,11 +11,45 @@ data class GenreExample(
     val genre: String,
     val vector: List<Double>,
     val positive: Boolean = true,
+    val signals: GenreSignals? = null,
 )
 
 @Keep data class GenreGuess(val genre: String, val confidence: Double, val neighbors: List<String>)
 
 object LocalGenreClassifier {
+    /** Fixed modality order; recordings, including duplicate PCM, each contribute at most one vote. */
+    fun predict(key: String, signals: GenreSignals, examples: List<GenreExample>, excludePcm: Boolean = false): GenreGuess? {
+        if (!GenreSignalFeatures.valid(signals)) return null
+        fun identity(example: GenreExample) = example.signals?.pcm?.takeIf { it.length == 64 } ?: example.key
+        val candidates = GenreTrainingPolicy.merge(examples, emptyList()).mapNotNull { sample ->
+            if (sample.key == key || !GenreSignalFeatures.valid(sample.signals) ||
+                excludePcm && signals.pcm.isNotEmpty() && signals.pcm == sample.signals?.pcm) return@mapNotNull null
+            GenreSignalFeatures.similarity(signals, sample.signals!!)?.let { sample to it }
+        }.distinctBy { Triple(identity(it.first), it.first.genre, it.first.positive) }
+        val positives = candidates.filter { it.first.positive }
+        if (positives.map { identity(it.first) }.distinct().size < 6 || positives.map { it.first.genre }.distinct().size < 2) return null
+        val neighbors = positives.sortedByDescending { it.second.score }.distinctBy { identity(it.first) }.take(9)
+        if (neighbors.maxOfOrNull { it.second.score }?.let { it < .75 } != false) return null
+        val nearestIds = neighbors.map { identity(it.first) }.toSet()
+        val nearest = positives.filter { identity(it.first) in nearestIds }
+        val labelCounts = nearest.groupingBy { identity(it.first) }.eachCount()
+        val classes = positives.groupingBy { it.first.genre }.eachCount()
+        val scores = nearest.groupBy { it.first.genre }.mapValues { (genre, rows) ->
+            val positive = rows.sumOf { exp((it.second.score - 1) * 18) * it.second.coverage / labelCounts.getValue(identity(it.first)) } /
+                sqrt(classes.getValue(genre).toDouble())
+            val negative = candidates.filter { !it.first.positive && it.first.genre == genre }
+                .sumOf { exp((it.second.score - 1) * 20) * it.second.coverage } * .35
+            (positive - negative).coerceAtLeast(0.0)
+        }.entries.sortedByDescending { it.value }
+        val best = scores.firstOrNull() ?: return null; val total = scores.sumOf { it.value }
+        if (total <= 0) return null
+        val probability = best.value / total
+        val support = nearest.filter { it.first.genre == best.key }.distinctBy { identity(it.first) }
+        if (probability < .58 || probability - (scores.getOrNull(1)?.value ?: 0.0) / total < .18 || support.size < 3) return null
+        val coverage = support.map { it.second.coverage }.average()
+        return GenreGuess(best.key, (probability * support.size / (support.size + 1) * coverage).coerceIn(0.0, 1.0), support.map { it.first.key }.take(5))
+    }
+
     fun predict(key: String, vector: List<Double>, examples: List<GenreExample>): GenreGuess? {
         if (vector.isEmpty() || vector.any { !it.isFinite() }) return null
         val compatible =

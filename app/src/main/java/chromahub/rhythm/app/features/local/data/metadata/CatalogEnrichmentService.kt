@@ -59,7 +59,7 @@ class CatalogEnrichmentService private constructor(private val context: Context)
 
     fun onlineArtworkEnabled() = enabled() && preferences.options.value.artwork && preferences.options.value.artworkSource !in setOf("LOCAL_ONLY", "LEGACY", "DISABLED") && preferences.options.value.providers.isNotEmpty()
     fun enabled() = preferences.options.value.enabled && AppSettings.getInstance(context).integrationsEnabled.value
-    fun songKey(song: Song): String = song.path?.takeIf(String::isNotBlank) ?: song.uri.toString().substringBefore('?')
+    fun songKey(song: Song): String = SongFileIdentity.key(context, song)
     fun albumKey(title: String, artist: String) = "${CatalogIdentity.normalize(artist)}:${CatalogIdentity.normalize(title)}"
     fun artistKey(name: String) = CatalogIdentity.normalize(name)
     private fun cacheKey(kind: EntityKind, key: String) = "${kind.name}:$key"

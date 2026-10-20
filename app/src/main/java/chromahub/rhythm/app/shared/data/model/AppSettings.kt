@@ -964,7 +964,20 @@ class AppSettings private constructor(context: Context) {
     private val _libraryCombineDiscs = MutableStateFlow(prefs.getBoolean(KEY_LIBRARY_COMBINE_DISCS, false))
     val libraryCombineDiscs: StateFlow<Boolean> = _libraryCombineDiscs.asStateFlow()
     private val _useFolderNameAsAlbum = MutableStateFlow(prefs.getBoolean("use_folder_name_as_album", false))
+    private val _analysisMinimumBattery = MutableStateFlow(prefs.getInt("analysis_minimum_battery", 75).coerceIn(50, 95))
+    val analysisMinimumBattery: StateFlow<Int> = _analysisMinimumBattery.asStateFlow()
+    fun setAnalysisMinimumBattery(value: Int) {
+        val bounded = value.coerceIn(50, 95)
+        prefs.edit { putInt("analysis_minimum_battery", bounded) }
+        _analysisMinimumBattery.value = bounded
+    }
     val useFolderNameAsAlbum: StateFlow<Boolean> = _useFolderNameAsAlbum.asStateFlow()
+    private val _autoFileNames = MutableStateFlow(prefs.getBoolean("auto_file_names", false))
+    val autoFileNames: StateFlow<Boolean> = _autoFileNames.asStateFlow()
+    private val _fileNameFormat = MutableStateFlow(prefs.getString("file_name_format", "ARTIST_TITLE").takeIf { it in setOf("ARTIST_TITLE", "TITLE") } ?: "ARTIST_TITLE")
+    val fileNameFormat: StateFlow<String> = _fileNameFormat.asStateFlow()
+    fun setAutoFileNames(enabled: Boolean) { prefs.edit { putBoolean("auto_file_names", enabled) }; _autoFileNames.value = enabled }
+    fun setFileNameFormat(format: String) { require(format in setOf("ARTIST_TITLE", "TITLE")); prefs.edit { putString("file_name_format", format) }; _fileNameFormat.value = format }
     fun setUseFolderNameAsAlbum(enabled: Boolean) {
         prefs.edit { putBoolean("use_folder_name_as_album", enabled) }
         _useFolderNameAsAlbum.value = enabled
@@ -5528,6 +5541,9 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
         _songsSortOrder.value = prefs.getString(KEY_SONGS_SORT_ORDER, "TITLE_ASC") ?: "TITLE_ASC"
         _libraryCombineDiscs.value = prefs.getBoolean(KEY_LIBRARY_COMBINE_DISCS, false)
         _useFolderNameAsAlbum.value = prefs.getBoolean("use_folder_name_as_album", false)
+        _analysisMinimumBattery.value = prefs.getInt("analysis_minimum_battery", 75).coerceIn(50, 95)
+        _autoFileNames.value = prefs.getBoolean("auto_file_names", false)
+        _fileNameFormat.value = prefs.getString("file_name_format", "ARTIST_TITLE").takeIf { it in setOf("ARTIST_TITLE", "TITLE") } ?: "ARTIST_TITLE"
         _preferSongArtwork.value = if (prefs.contains(KEY_PREFER_SONG_ARTWORK)) {
             prefs.getBoolean(KEY_PREFER_SONG_ARTWORK, true)
         } else {
