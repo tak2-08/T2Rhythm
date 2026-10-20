@@ -18,6 +18,7 @@ adb shell dumpsys battery set ac 1
 
 # Separate invocations avoid silently running only the first comma-separated class on AGP 9.
 classes=(
+    chromahub.rhythm.app.features.local.presentation.metadata.GenreControlsTest
     chromahub.rhythm.app.features.local.data.metadata.AssetIntegrityRegressionTest
     chromahub.rhythm.app.features.local.data.video.DownloadPlaybackRegressionTest
     chromahub.rhythm.app.features.local.presentation.metadata.PersonalInsightsScreensTest
@@ -26,9 +27,8 @@ classes=(
     chromahub.rhythm.app.features.local.presentation.metadata.LyricsEntryAndUpdatesTest
     chromahub.rhythm.app.features.local.presentation.metadata.ManualLyricTimingFlowTest
     chromahub.rhythm.app.features.local.presentation.metadata.UsabilityBehaviorTest
-    chromahub.rhythm.app.features.local.presentation.metadata.GenreControlsTest
 )
-expected_counts=(4 1 4 1 1 8 7 7 8)
+expected_counts=(8 4 1 4 1 1 8 7 7)
 for index in "${!classes[@]}"; do
     class_name="${classes[$index]}"
     result=0
