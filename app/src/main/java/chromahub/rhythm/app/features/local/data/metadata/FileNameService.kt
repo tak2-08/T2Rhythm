@@ -76,13 +76,17 @@ class FileNameService(private val context: Context) {
         if (source.length() != beforeSize || source.lastModified() != beforeModified) return@withContext null
         FileNamePlan(song.copy(path = source.path, dateModified = current.modified), uri, source.path, name, beforeSize, beforeModified)
     }
-    private fun digest(file: File): String {
+    private fun digest(uri: Uri): String {
         val hash = MessageDigest.getInstance("SHA-256")
-        hash.update(file.length().toString().toByteArray())
-        java.io.RandomAccessFile(file, "r").use { input ->
+        // Android 10 scoped storage can allow a MediaStore URI while rejecting a raw path.
+        val descriptor = requireNotNull(context.contentResolver.openFileDescriptor(uri, "r"))
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).use { input ->
+            val channel = input.channel
+            val length = channel.size()
+            hash.update(length.toString().toByteArray())
             val buffer = ByteArray(65536)
             val n = input.read(buffer); if (n > 0) hash.update(buffer, 0, n)
-            if (input.length() > buffer.size) { input.seek((input.length() - buffer.size).coerceAtLeast(0)); val tail = input.read(buffer); if (tail > 0) hash.update(buffer, 0, tail) }
+            if (length > buffer.size) { channel.position((length - buffer.size).coerceAtLeast(0)); val tail = input.read(buffer); if (tail > 0) hash.update(buffer, 0, tail) }
         }
         return hash.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
     }
@@ -99,7 +103,7 @@ class FileNameService(private val context: Context) {
                     val repository = LocalMusicModule.provideMusicRepository(context)
                     repository.peekLocalLyrics(plan.song)?.let { AutomaticLyricsStore.get(context).preserveForRename(plan.song, it) }
                     val key = catalog.songKey(plan.song)
-                    val entry = FileNameJournal(CatalogSongCodec.encode(plan.song), plan.mutationUri.toString(), plan.oldPath, plan.newPath, key, digest(source))
+                    val entry = FileNameJournal(CatalogSongCodec.encode(plan.song), plan.mutationUri.toString(), plan.oldPath, plan.newPath, key, digest(plan.mutationUri))
                     save(entry)
                     SongFileIdentity.stage(context, plan.oldPath, plan.newPath, key, plan.song.uri.toString())
                     try {
@@ -111,7 +115,7 @@ class FileNameService(private val context: Context) {
                         }
                         check(context.contentResolver.update(plan.mutationUri, values, null, null) == 1)
                         val current = location(plan.mutationUri) ?: error("Missing renamed media")
-                        check(File(current.path).parentFile == source.parentFile && File(current.path).isFile && digest(File(current.path)) == entry.digest)
+                        check(File(current.path).parentFile == source.parentFile && File(current.path).isFile && digest(plan.mutationUri) == entry.digest)
                         if (current.path != plan.newPath) SongFileIdentity.rollback(context, plan.oldPath, plan.newPath, key)
                         SongFileIdentity.commit(context, plan.oldPath, current.path, key, plan.song.uri.toString())
                         val after = plan.song.copy(path = current.path, dateModified = current.modified)
@@ -147,7 +151,7 @@ class FileNameService(private val context: Context) {
                     val entry = AtomicFile(file).openRead().use { input -> require(file.length() in 1..32000); gson.fromJson(input.bufferedReader().readText(), FileNameJournal::class.java) }
                     if (entry.state == "PERMISSION") return@runCatching
                     val current = location(Uri.parse(entry.mutationUri)) ?: return@runCatching
-                    if (current.path == entry.newPath && File(current.path).isFile && digest(File(current.path)) == entry.digest) {
+                    if (current.path == entry.newPath && File(current.path).isFile && digest(Uri.parse(entry.mutationUri)) == entry.digest) {
                         val song = CatalogSongCodec.decode(entry.song)
                         SongFileIdentity.commit(context, entry.oldPath, entry.newPath, entry.key, song.uri.toString())
                         RhythmDatabase.getInstance(context).songDao().updateFileLocation(song.id, song.uri.toString(), current.path, current.modified)

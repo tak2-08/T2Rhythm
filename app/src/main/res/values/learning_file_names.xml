@@ -18,6 +18,7 @@
     <string name="file_names_example">Example: %1$s</string>
     <string name="file_names_preview">Preview filename changes</string>
     <string name="file_names_progress">Checked %1$d tracks…</string>
+    <string name="file_names_applying">Changing file names…</string>
     <string name="file_names_pending">%1$d files need permission or another attempt. Preview to review them.</string>
     <string name="file_names_empty">No filenames to change. Files already organized, playing, unavailable or missing title tags are skipped.</string>
     <string name="file_names_count">Selected %1$d / %2$d files</string>

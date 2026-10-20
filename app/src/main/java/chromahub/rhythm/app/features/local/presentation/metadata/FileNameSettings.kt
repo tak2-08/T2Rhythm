@@ -120,7 +120,8 @@ fun FileNameSettingsPanel() {
         }) { Text(stringResource(R.string.file_names_preview)) }
         if (busy) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text(stringResource(R.string.file_names_progress, progress), modifier = Modifier.testTag("file-names-progress"), style = MaterialTheme.typography.bodySmall)
+            Text(if (previewJob != null) stringResource(R.string.file_names_progress, progress) else stringResource(R.string.file_names_applying),
+                modifier = Modifier.testTag("file-names-progress"), style = MaterialTheme.typography.bodySmall)
             if (previewJob != null) TextButton(onClick = { previewJob?.cancel() }) { Text(stringResource(android.R.string.cancel)) }
         }
         if (pending > 0) Text(stringResource(R.string.file_names_pending, pending), style = MaterialTheme.typography.bodySmall)

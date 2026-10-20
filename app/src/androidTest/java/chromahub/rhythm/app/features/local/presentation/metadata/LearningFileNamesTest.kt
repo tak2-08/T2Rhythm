@@ -77,6 +77,8 @@ class LearningFileNamesTest {
     }
     private fun capture(name: String) {
         compose.mainClock.advanceTimeBy(1200); compose.waitForIdle()
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+        Thread.sleep(200) // Let the device draw the frame before UiAutomation captures the surface.
         val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         File(context.getExternalFilesDir(null), name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle()
     }
@@ -111,6 +113,7 @@ class LearningFileNamesTest {
         compose.setContent { CompositionLocalProvider(LocalContext provides compose.activity) { MaterialTheme { AnalysisPowerSetting() } } }
         compose.onNodeWithText(context.getString(R.string.analysis_battery_value, 75)).assertIsDisplayed().performClick()
         compose.onNodeWithTag("analysis-battery-slider").performSemanticsAction(SemanticsActions.SetProgress) { assertTrue(it(95f)) }
+        compose.onNodeWithText(context.getString(R.string.analysis_battery_value, 95)).assertIsDisplayed()
         capture("learning-battery-range.png")
         compose.onNodeWithText(context.getString(R.string.page_save)).performClick()
         assertEquals(95, settings.analysisMinimumBattery.value)
@@ -133,7 +136,7 @@ class LearningFileNamesTest {
         assertTrue(File(plan.oldPath).isFile); assertFalse(File(plan.newPath).exists())
     }
     @Test fun renameKeepsBytesUriTagsAndManualLinksThroughADatabaseRebuild() = runBlocking {
-        val song = fixture(); val source = File(song.path!!); val original = source.readBytes()
+        val song = fixture(); val source = File(song.path!!); val original = context.contentResolver.openInputStream(song.uri)!!.use { it.readBytes() }
         val key = CatalogEnrichmentService.get(context).songKey(song)
         val image = File(context.filesDir, "rename-$token.png").apply { writeBytes(byteArrayOf(1, 2, 3)) }; owned += image
         SongArtworkOverrides(context).save(song, Uri.fromFile(image))
@@ -146,7 +149,7 @@ class LearningFileNamesTest {
         val service = FileNameService(context); val plan = service.plan(song, "ARTIST_TITLE")!!
         val outcome = service.rename(plan); assertEquals("DONE", outcome.state)
         val after = outcome.after!!
-        assertEquals(song.uri, after.uri); assertFalse(source.exists()); assertArrayEquals(original, File(after.path!!).readBytes())
+        assertEquals(song.uri, after.uri); assertFalse(source.exists()); assertArrayEquals(original, context.contentResolver.openInputStream(after.uri)!!.use { it.readBytes() })
         assertEquals(EnrichmentStore.signature(song), EnrichmentStore.signature(after))
         assertEquals(after.path, RhythmDatabase.getInstance(context).songDao().getSongById(song.id)!!.path)
         assertEquals("JAZZ", GenreCorrections(context).apply(listOf(after)).single().genre)
@@ -159,13 +162,13 @@ class LearningFileNamesTest {
     }
     @Test fun existingNamesAndFilesChangedAfterPreviewAreNeverOverwritten() = runBlocking {
         val song = fixture(); val service = FileNameService(context); val plan = service.plan(song, "ARTIST_TITLE")!!
-        val other = fixture(plan.name); val bytes = File(other.path!!).readBytes()
+        val other = fixture(plan.name); val bytes = context.contentResolver.openInputStream(other.uri)!!.use { it.readBytes() }
         assertEquals("COLLISION", service.rename(plan).state)
-        assertArrayEquals(bytes, File(other.path!!).readBytes()); assertTrue(File(song.path!!).isFile)
+        assertArrayEquals(bytes, context.contentResolver.openInputStream(other.uri)!!.use { it.readBytes() }); assertTrue(File(song.path!!).isFile)
         val next = service.plan(song, "ARTIST_TITLE")!!; assertTrue(next.name.contains(" (2)"))
-        File(song.path!!).setLastModified(File(song.path!!).lastModified() + 5000)
+        context.contentResolver.openOutputStream(song.uri, "wa")!!.use { it.write(0) }
         assertEquals("STALE", service.rename(next).state)
-        assertArrayEquals(bytes, File(other.path!!).readBytes())
+        assertArrayEquals(bytes, context.contentResolver.openInputStream(other.uri)!!.use { it.readBytes() })
     }
     @Test fun untaggedAndCurrentlyPlayingAudioAreDeferred() = runBlocking {
         val missing = fixture(title = null); val service = FileNameService(context)
