@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="usability_album_source_hint">This is a provider playlist. Check its tracks and edition before saving.</string>
+    <string name="usability_download_short_hint">Search by title or artist.</string>
+    <string name="usability_download_help">Search and download help</string>
     <string name="usability_timing_tools">Lyric tools and help</string>
     <string name="usability_timing_help">How to time lyrics</string>
     <string name="usability_timing_short_hint">Mark the first sound as start and the last sound as end.</string>

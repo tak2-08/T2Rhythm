@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="usability_album_source_hint">제공처의 재생목록입니다. 수록곡과 버전을 확인한 뒤 저장하세요.</string>
+    <string name="usability_download_short_hint">음원 이름이나 아티스트로 검색하세요.</string>
+    <string name="usability_download_help">검색·다운로드 도움말</string>
     <string name="usability_timing_tools">가사 도구·도움말</string>
     <string name="usability_timing_help">가사 시간 맞추는 방법</string>
     <string name="usability_timing_short_hint">각 줄의 첫 소리에 시작, 마지막 소리에 끝을 찍으세요.</string>

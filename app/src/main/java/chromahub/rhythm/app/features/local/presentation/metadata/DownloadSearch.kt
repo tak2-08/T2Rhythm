@@ -4,6 +4,8 @@ package chromahub.rhythm.app.features.local.presentation.metadata
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -44,6 +46,7 @@ fun DownloadSearch(
     val context = LocalContext.current
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = LocalFocusManager.current
+    var help by remember { mutableStateOf(false) }
     fun work(block: suspend () -> Unit) = state.work(requestScope, context.getString(R.string.discovery_operation_failed), block)
     fun search() {
         if (state.busy || state.query.isBlank() && state.artist.isBlank()) return
@@ -77,7 +80,12 @@ fun DownloadSearch(
     }
     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 650.dp).imePadding().navigationBarsPadding().testTag("download-search-list"), state = state.listState,
         contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { Text(stringResource(R.string.download_search_hint), style = MaterialTheme.typography.bodySmall) }
+        item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(stringResource(R.string.usability_download_short_hint), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                IconButton(onClick = { help = true }) { Icon(MaterialSymbolIcon("help"), stringResource(R.string.usability_download_help)) }
+            }
+        }
         item {
             OutlinedTextField(state.query, { state.query = it.take(240) },
                 label = { Text(stringResource(if (albumMode) R.string.download_album_name else R.string.download_song_name)) },
@@ -133,6 +141,7 @@ fun DownloadSearch(
                 Text(stringResource(R.string.usability_back_to_albums))
             }
             Text(album.title, style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.usability_album_source_hint), style = MaterialTheme.typography.bodySmall)
             Text(stringResource(R.string.download_album_preview, state.songs.size), style = MaterialTheme.typography.bodySmall)
             Button(enabled = !state.busy && state.songs.isNotEmpty(), onClick = { val batch = state.songs.toList(); work { enqueue(batch) } }) { Text(stringResource(R.string.download_album_all)) }
         } }
@@ -152,4 +161,7 @@ fun DownloadSearch(
             }
         }
     }
+    if (help) AlertDialog(onDismissRequest = { help = false }, title = { Text(stringResource(R.string.usability_download_help)) },
+        text = { Text(stringResource(R.string.download_search_hint), Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState())) },
+        confirmButton = { TextButton(onClick = { help = false }) { Text(stringResource(android.R.string.ok)) } })
 }

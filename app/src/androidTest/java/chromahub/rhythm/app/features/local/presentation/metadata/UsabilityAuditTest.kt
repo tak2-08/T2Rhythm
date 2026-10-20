@@ -111,6 +111,11 @@ class UsabilityAuditTest {
         compose.onNode(hasSetTextAction() and hasText(base.getString(R.string.download_song_name))).performTextInput("노래 제목")
         assertFontScale(base.getString(R.string.download_song_name))
         capture("audit-03-download-search-large-text.png")
+        androidx.test.espresso.Espresso.pressBack()
+        compose.onNodeWithTag("download-search-list").performScrollToIndex(0)
+        compose.onNodeWithContentDescription(base.getString(R.string.usability_download_help)).performClick()
+        compose.onNodeWithText(base.getString(R.string.download_search_hint)).assertExists()
+        compose.onNodeWithText(base.getString(android.R.string.ok)).performClick()
     }
     @Test fun findingAlgorithmManagementThroughSettingsSearch() {
         content { SettingsScreen(onBackClick = {}, onNavigateTo = {}) }
