@@ -10,6 +10,11 @@ on:
       - "scripts/run_personal_experience_regression.sh"
       - ".github/workflows/experience-regression.yml"
   workflow_dispatch:
+    inputs:
+      audit_only:
+        description: Capture actual app navigation, large text, keyboard and landscape layouts
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -49,15 +54,16 @@ jobs:
           disable-animations: true
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
-          script: bash scripts/run_personal_experience_regression.sh
+          script: ${{ inputs.audit_only && 'bash scripts/run_usability_audit.sh' || 'bash scripts/run_personal_experience_regression.sh' }}
       - name: Upload regression reports
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: personal-experience-regression
+          name: ${{ inputs.audit_only && 'usability-audit' || 'personal-experience-regression' }}
           path: |
             app/build/outputs/experience-regression/
             app/build/outputs/experience-screenshots/
+            app/build/outputs/usability-audit/
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/connected/
           retention-days: 14
