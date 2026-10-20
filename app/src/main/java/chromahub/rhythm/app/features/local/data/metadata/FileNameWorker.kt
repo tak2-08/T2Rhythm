@@ -26,6 +26,7 @@ class FileNameWorker(context: Context, params: WorkerParameters) : CoroutineWork
             val start = if (prefs.getString("signature", null) == signature) prefs.getInt("offset", 0).coerceIn(0, songs.size) else 0
             var next = start
             val started = android.os.SystemClock.elapsedRealtime()
+            val reserved = mutableMapOf<String, MutableSet<String>>()
             for (song in songs.drop(start).take(64)) {
                 currentCoroutineContext().ensureActive()
                 if (!settings.autoFileNames.value || settings.fileNameFormat.value != format) break
@@ -34,7 +35,7 @@ class FileNameWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 val catalog = CatalogEnrichmentService.get(applicationContext)
                 if (prefs.getString(id, null) != sourceStamp && !catalog.audioBusy(song)) {
                     try {
-                        val plan = service.plan(song, format)
+                        val plan = service.plan(song, format, reserved)
                         val outcome = plan?.let { service.rename(it) }
                         if (outcome?.state != "BUSY" && !catalog.audioBusy(song)) prefs.edit().putString(id, outcome?.after?.let { stamp(it, format) } ?: sourceStamp).apply()
                     } catch (cancel: CancellationException) { throw cancel }

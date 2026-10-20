@@ -39,12 +39,26 @@ class FileNameService(private val context: Context) {
     private val catalog get() = CatalogEnrichmentService.get(context)
     private val journals get() = File(context.filesDir, "music_metadata/file_names/pending").apply { mkdirs() }
     private fun journal(uri: String) = File(journals, CatalogFileStore.hash(uri) + ".json")
-    private data class Location(val path: String, val modified: Long)
+    private data class Location(val path: String, val modified: Long, val relativePath: String?)
     private fun location(uri: Uri): Location? = context.contentResolver.query(uri,
-        arrayOf(MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.DATE_MODIFIED), null, null, null)?.use { c ->
+        (listOf(MediaStore.Audio.Media.DATA, MediaStore.Audio.Media.DATE_MODIFIED) +
+            if (Build.VERSION.SDK_INT >= 29) listOf(MediaStore.MediaColumns.RELATIVE_PATH) else emptyList()).toTypedArray(), null, null, null)?.use { c ->
         if (!c.moveToFirst() || c.isNull(0)) null else {
-            val raw = c.getLong(1); Location(c.getString(0), if (raw in 1..99_999_999_999L) raw * 1000 else raw)
+            val raw = c.getLong(1); Location(c.getString(0), if (raw in 1..99_999_999_999L) raw * 1000 else raw,
+                if (Build.VERSION.SDK_INT >= 29 && !c.isNull(2)) c.getString(2) else null)
         }
+    }
+    private fun directoryNames(uri: Uri, location: Location, directory: File): MutableSet<String> {
+        val names = directory.list().orEmpty().toMutableSet()
+        // Scoped storage may permit each media URI but hide a raw directory listing on Android 10.
+        if (Build.VERSION.SDK_INT >= 29 && location.relativePath != null) {
+            val volume = uri.pathSegments.firstOrNull() ?: MediaStore.VOLUME_EXTERNAL
+            context.contentResolver.query(MediaStore.Files.getContentUri(volume), arrayOf(MediaStore.MediaColumns.DISPLAY_NAME),
+                "${MediaStore.MediaColumns.RELATIVE_PATH}=?", arrayOf(location.relativePath), null)?.use { cursor ->
+                while (cursor.moveToNext()) if (!cursor.isNull(0)) names += cursor.getString(0)
+            }
+        }
+        return names
     }
     private fun mutationUri(song: Song): Uri? {
         if (song.uri.scheme != "content" || song.uri.authority != "media") return null
@@ -69,8 +83,12 @@ class FileNameService(private val context: Context) {
         val (title, artist) = tags(uri)
         val base = FileNamePolicy.base(title, artist, format) ?: return@withContext null
         val parent = source.parentFile ?: return@withContext null
-        val occupied = reserved.getOrPut(parent.path) { parent.list().orEmpty().toMutableSet() }
-        val name = FileNamePolicy.available(base, source.extension, source.name, occupied)
+        val occupied = reserved.getOrPut(parent.path) { directoryNames(uri, current, parent) }
+        var name = FileNamePolicy.available(base, source.extension, source.name, occupied)
+        while (!name.equals(source.name, true) && File(parent, name).exists()) {
+            occupied += name
+            name = FileNamePolicy.available(base, source.extension, source.name, occupied)
+        }
         occupied += name
         if (name.equals(source.name, true)) return@withContext null
         if (source.length() != beforeSize || source.lastModified() != beforeModified) return@withContext null
