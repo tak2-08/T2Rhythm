@@ -131,6 +131,7 @@ class LibraryPagesTest {
         compose.onNodeWithText(base.getString(R.string.page_save)).performClick()
         compose.waitUntil(10_000) { EntityPageStore(base).read(EntityKind.ARTIST, key)?.description == "내가 보관하고 싶은 아티스트 소개" }
         compose.onNodeWithTag("page-edit").performClick()
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("page-description").assertTextContains("내가 보관하고 싶은 아티스트 소개")
     }
     @Test fun expressivePlayerShowsUppercaseGenresAndTheKnownReleaseYear() {
@@ -168,8 +169,8 @@ class LibraryPagesTest {
     }
     @Test fun folderAlbumSettingIsVisibleAndPersistsTheUsersChoice() {
         compose.setContent { CompositionLocalProvider(LocalContext provides compose.activity) { MaterialTheme { LibrarySettingsScreen {} } } }
-        compose.onNodeWithText(base.getString(R.string.folder_album_title)).assertIsDisplayed()
-        compose.onAllNodes(isToggleable()).onFirst().performClick()
+        compose.onNodeWithText(base.getString(R.string.folder_album_title)).performScrollTo().assertIsDisplayed()
+        compose.onNode(isToggleable() and hasAnyAncestor(hasText(base.getString(R.string.folder_album_title), substring = true))).performClick()
         assertTrue(AppSettings.getInstance(base).useFolderNameAsAlbum.value)
         assertTrue(base.getSharedPreferences("rhythm_preferences", 0).getBoolean("use_folder_name_as_album", false))
         capture("folder-album-setting.png")

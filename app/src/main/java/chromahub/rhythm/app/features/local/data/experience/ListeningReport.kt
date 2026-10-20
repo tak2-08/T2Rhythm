@@ -40,8 +40,10 @@ object ListeningReports {
             }
         }
         val genres = buildList {
-            db.rawQuery("SELECT genre,SUM($amount) AS ms FROM records WHERE $where AND genre IS NOT NULL AND genre<>'' GROUP BY genre ORDER BY ms DESC LIMIT 5", null).use { c -> while (c.moveToNext()) add(c.getString(0) to c.getLong(1)) }
-        }
+            db.rawQuery("SELECT genre,SUM($amount) AS ms FROM records WHERE $where AND genre IS NOT NULL AND genre<>'' GROUP BY genre", null).use { c -> while (c.moveToNext()) add(c.getString(0) to c.getLong(1)) }
+        }.map { (genre, ms) -> chromahub.rhythm.app.util.GenreUtils.splitGenres(genre).sorted().joinToString(", ") to ms }
+            .filter { it.first.isNotBlank() }.groupBy { it.first }
+            .map { (genre, rows) -> genre to rows.sumOf { it.second } }.sortedByDescending { it.second }.take(5)
         return ListeningReport(window, totals.first, totals.second, totals.third, tracks, genres)
     }
 }
