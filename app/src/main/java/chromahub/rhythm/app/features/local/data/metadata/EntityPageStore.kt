@@ -133,7 +133,11 @@ class EntityPageStore(private val context: Context) {
             }
     }
     fun image(page: EntityPage?): Uri? = page?.image?.takeIf { it.matches(Regex("[a-f0-9]{64}")) }
-        ?.let { File(cache, "$it.webp") }?.takeIf(File::isFile)?.let(Uri::fromFile)
+        ?.let { File(cache, "$it.webp") }?.let { file ->
+            file.lastModified().takeIf { it > 0L }?.let { generation ->
+                Uri.fromFile(file).buildUpon().appendQueryParameter("v", generation.toString()).build()
+            }
+        }
     private fun existingArt(page: EntityPage): ByteArray? {
         if (page.image == null) return null
         val cached = File(cache, "${page.image}.webp")

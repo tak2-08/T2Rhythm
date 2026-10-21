@@ -1879,7 +1879,7 @@ private fun EditSongSheet(
                                         type = RhythmButtonType.Filled,
                                         icon = RhythmIcons.Image,
                                         iconSize = 18.dp,
-                                        text = context.getString(chromahub.rhythm.app.R.string.ui_select_artwork)
+                                        text = stringResource(R.string.ui_select_artwork)
                                     )
                                 }
 
@@ -2396,7 +2396,7 @@ private fun EditSongSheet(
                             type = RhythmButtonType.Filled,
                             icon = RhythmIcons.Image,
                             iconSize = 18.dp,
-                            text = context.getString(chromahub.rhythm.app.R.string.ui_select_artwork)
+                            text = stringResource(R.string.ui_select_artwork)
                         )
                     }
 

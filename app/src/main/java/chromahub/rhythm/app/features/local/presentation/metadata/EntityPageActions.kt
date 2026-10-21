@@ -3,6 +3,9 @@ package chromahub.rhythm.app.features.local.presentation.metadata
 
 import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -52,15 +55,15 @@ fun EntityEditMenu(kind: EntityKind, title: String, onDismiss: () -> Unit, onDes
     onArtwork: () -> Unit, onTags: (() -> Unit)? = null) {
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(bottom = 20.dp).navigationBarsPadding().testTag("entity-edit-menu")) {
-            Text(title, Modifier.padding(horizontal = 24.dp, vertical = 8.dp), style = MaterialTheme.typography.titleLarge)
+            Text(title, Modifier.padding(horizontal = 24.dp, vertical = 8.dp), style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
             ListItem(headlineContent = { Text(stringResource(R.string.entity_edit_description)) },
-                leadingContent = { Icon(MaterialSymbolIcon("edit_note"), null) },
+                leadingContent = { Icon(MaterialSymbolIcon("edit_note"), null, modifier = Modifier.size(24.dp)) },
                 modifier = Modifier.clickable(onClick = onDescription).testTag("entity-edit-description"))
             ListItem(headlineContent = { Text(stringResource(R.string.entity_edit_artwork, kind.label(LocalContext.current))) },
-                leadingContent = { Icon(MaterialSymbolIcon("image"), null) },
+                leadingContent = { Icon(MaterialSymbolIcon("image"), null, modifier = Modifier.size(24.dp)) },
                 modifier = Modifier.clickable(onClick = onArtwork).testTag("entity-edit-artwork"))
             if (onTags != null) ListItem(headlineContent = { Text(stringResource(R.string.entity_edit_tags)) },
-                leadingContent = { Icon(MaterialSymbolIcon("library_music"), null) }, modifier = Modifier.clickable(onClick = onTags))
+                leadingContent = { Icon(MaterialSymbolIcon("library_music"), null, modifier = Modifier.size(24.dp)) }, modifier = Modifier.clickable(onClick = onTags))
         }
     }
 }
@@ -73,7 +76,7 @@ fun EntityDescriptionEditor(kind: EntityKind, key: String, title: String, artist
     var busy by remember { mutableStateOf(false) }; var failed by remember { mutableStateOf(false) }
     LaunchedEffect(kind, key) { draft = withContext(Dispatchers.IO) { store.read(kind, key)?.description } ?: description.orEmpty(); ready = true }
     AlertDialog(onDismissRequest = { if (!busy) onDismiss() }, title = { Text(stringResource(R.string.entity_edit_description)) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             OutlinedTextField(draft, onValueChange = { draft = it.take(100_000) }, enabled = ready && !busy,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp, max = 260.dp).testTag("page-description"),

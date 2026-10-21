@@ -116,9 +116,12 @@ class PageArtworkFlowTest {
     @Test fun pageArtworkRehydratesAfterCacheEvictionWithoutExposingImagesToGallery() = runBlocking {
         val ctx=isolated(); val store=EntityPageStore(ctx)
         val original=store.save(EntityKind.ARTIST,"a","가수","","소개",image(ctx))
+        File(store.image(original)!!.path!!).setLastModified(1L)
+        val oldUri=store.image(original)
         ctx.cacheDir.deleteRecursively()
         val recovered=EntityPageStore(ctx).read(EntityKind.ARTIST,"a")!!
         assertEquals(original.image,recovered.image)
+        assertNotEquals("A restored image must restart any painter holding the evicted URI",oldUri,store.image(recovered))
         val preview=File(store.image(recovered)!!.path!!)
         assertTrue(preview.isFile);assertTrue(File(preview.parentFile,".nomedia").isFile)
         assertTrue(File(ctx.filesDir,"music_metadata/pages").listFiles()!!.all { it.extension=="t2page" || it.name==".nomedia" })
@@ -190,6 +193,10 @@ class PageArtworkFlowTest {
         listOf("Melon","Bugs","Genie").forEach { compose.onNodeWithText(it).assertIsDisplayed() }
         compose.onNodeWithTag("artwork-search").assertIsNotEnabled();capture("artist-online-artwork-search.png")
     }
+    private fun field(tag: String): SemanticsNodeInteraction {
+        compose.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag))
+        return compose.onNodeWithTag(tag)
+    }
     private fun document()=CatalogDocument(EntityKind.TRACK,listOf(
         CatalogValue(CatalogField.TRACK_TITLE,"밤의 기록","https://www.melon.com/song/detail.htm?songId=1"),
         CatalogValue(CatalogField.TRACK_IMAGE,image(base).toString(),"https://www.melon.com/song/detail.htm?songId=1"),
@@ -197,12 +204,12 @@ class PageArtworkFlowTest {
     @Test fun metadataPickerPreviewsArtworkAndImportsOnlyCheckedLyrics() {
         val doc=document();var result:CatalogDocument?=null
         compose.setContent { MaterialTheme { CatalogLookupDialog("밤의 기록",onDismiss={},onApply={d,_->result=d},initialDocument=doc) } }
-        compose.onNodeWithTag("catalog-field-TRACK_LYRICS").performScrollTo().assertIsOff()
-        compose.onNodeWithTag("catalog-image-preview").performScrollTo().performClick()
+        field("catalog-field-TRACK_LYRICS").assertIsOff()
+        field("catalog-image-preview").performClick()
         compose.onNodeWithTag("catalog-full-image-preview").assertIsDisplayed();capture("catalog-artwork-preview.png")
         compose.onNodeWithContentDescription(base.getString(R.string.ui_close)).performClick()
-        compose.onNodeWithTag("catalog-field-TRACK_IMAGE").performScrollTo().performClick()
-        compose.onNodeWithTag("catalog-field-TRACK_LYRICS").performScrollTo().performClick();capture("catalog-selectable-lyrics.png")
+        field("catalog-field-TRACK_IMAGE").performClick()
+        field("catalog-field-TRACK_LYRICS").performClick();capture("catalog-selectable-lyrics.png")
         compose.onNodeWithTag("catalog-apply").performClick()
         compose.waitUntil(10000) { result!=null }
         assertTrue(result!!.has(CatalogField.TRACK_LYRICS));assertFalse(result!!.has(CatalogField.TRACK_IMAGE))
@@ -212,7 +219,7 @@ class PageArtworkFlowTest {
         val doc=document()
         compose.setContent { MaterialTheme { CatalogLookupDialog("밤의 기록",lyricsOnly=true,onDismiss={},onApply={_,_->},initialDocument=doc) } }
         compose.onNodeWithTag("catalog-field-TRACK_TITLE").assertDoesNotExist()
-        compose.onNodeWithTag("catalog-field-TRACK_LYRICS").performScrollTo().assertIsOn()
+        field("catalog-field-TRACK_LYRICS").assertIsOn()
     }
     @Test fun explicitlyImportedLyricsSurviveAutomaticFetchesAndRepositoryCacheClears() = runBlocking {
         val s=song();songs+=s
@@ -254,7 +261,7 @@ class PageArtworkFlowTest {
             }
         }
         compose.onNodeWithTag("catalog-apply").assertIsDisplayed()
-        compose.onNodeWithTag("catalog-field-TRACK_LYRICS").performScrollTo().assertIsDisplayed().assertIsOff()
+        field("catalog-field-TRACK_LYRICS").assertIsDisplayed().assertIsOff()
         capture("catalog-large-text-landscape.png")
     }
 
