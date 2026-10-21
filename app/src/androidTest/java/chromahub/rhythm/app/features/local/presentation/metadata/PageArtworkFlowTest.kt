@@ -54,7 +54,7 @@ class PageArtworkFlowTest {
             if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE)
         compose.runOnUiThread {
             Locale.setDefault(Locale.KOREAN)
-            listOf(base.resources, compose.activity.resources).forEach { r -> r.updateConfiguration(Configuration(r.configuration).apply { setLocale(Locale.KOREAN) }, r.displayMetrics) }
+            listOf(base.resources, compose.activity.resources).forEach { r -> r.updateConfiguration(Configuration(r.configuration).apply { setLocale(Locale.KOREAN); fontScale = 1f }, r.displayMetrics) }
             previousIntegrations = AppSettings.getInstance(base).integrationsEnabled.value
             AppSettings.getInstance(base).setIntegrationsEnabled(false)
         }
@@ -70,7 +70,11 @@ class PageArtworkFlowTest {
         }
         EntityPageStore.invalidate()
         compose.runOnUiThread { compose.activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
-        compose.runOnUiThread { AppSettings.getInstance(base).setIntegrationsEnabled(previousIntegrations) }
+        compose.runOnUiThread {
+            AppSettings.getInstance(base).setIntegrationsEnabled(previousIntegrations)
+            @Suppress("DEPRECATION")
+            base.resources.updateConfiguration(Configuration(base.resources.configuration).apply { fontScale = 1f },base.resources.displayMetrics)
+        }
     }
     private fun image(ctx: Context, name: String = "cover"): Uri {
         val file = File(ctx.cacheDir, "$name-$token.png")
@@ -158,7 +162,7 @@ class PageArtworkFlowTest {
         compose.onNodeWithContentDescription(base.getString(R.string.content_desc_customize_artwork)).performClick()
         compose.onNodeWithTag("entity-edit-menu").assertIsDisplayed();capture("artist-page-edit-menu.png")
         compose.onNodeWithTag("entity-edit-description").performClick()
-        compose.waitUntil(10000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().singleOrNull()?.config?.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) == false }
         compose.onNodeWithTag("page-description").performTextReplacement("직접 고친 아티스트 소개입니다.");Espresso.closeSoftKeyboard()
         compose.onNodeWithText(base.getString(R.string.page_save)).performClick()
         compose.waitUntil(10000) { EntityPageStore(base).read(EntityKind.ARTIST,key)?.description=="직접 고친 아티스트 소개입니다." }
@@ -176,7 +180,7 @@ class PageArtworkFlowTest {
         compose.onNodeWithContentDescription(base.getString(R.string.entity_edit_title,base.getString(R.string.catalog_kind_album))).performClick()
         compose.onNodeWithTag("entity-edit-artwork").assertIsDisplayed();capture("album-page-edit-menu.png")
         compose.onNodeWithTag("entity-edit-description").performClick()
-        compose.waitUntil(10000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().singleOrNull()?.config?.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) == false }
         compose.onNodeWithTag("page-description").performTextReplacement("내가 수정한 앨범 소개입니다.");Espresso.closeSoftKeyboard()
         compose.onNodeWithText(base.getString(R.string.page_save)).performClick()
         compose.waitUntil(10000) { EntityPageStore(base).read(EntityKind.ALBUM,key)?.description=="내가 수정한 앨범 소개입니다." }
@@ -253,13 +257,24 @@ class PageArtworkFlowTest {
     @Test fun metadataPickerKeepsApplyReachableWithLargeTextInLandscape() {
         compose.runOnUiThread { compose.activity.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
         compose.waitUntil(10000) { compose.activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE }
+        compose.runOnUiThread {
+            listOf(base.resources,compose.activity.resources).forEach { resources ->
+                @Suppress("DEPRECATION")
+                resources.updateConfiguration(Configuration(resources.configuration).apply { setLocale(Locale.KOREAN); fontScale=1.6f },resources.displayMetrics)
+            }
+        }
         val doc=document()
         compose.setContent {
             val density=LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(density.density,1.6f)) {
+            CompositionLocalProvider(LocalContext provides compose.activity,
+                androidx.compose.ui.platform.LocalConfiguration provides compose.activity.resources.configuration,
+                LocalDensity provides Density(density.density,1.6f)) {
                 MaterialTheme { CatalogLookupDialog("밤의 기록",onDismiss={},onApply={_,_->},initialDocument=doc) }
             }
         }
+        val layouts=mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        compose.onNodeWithText(base.getString(R.string.catalog_find_metadata)).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertTrue("The actual dialog must use large text",layouts.single().layoutInput.density.fontScale>=1.59f)
         compose.onNodeWithTag("catalog-apply").assertIsDisplayed()
         field("catalog-field-TRACK_LYRICS").assertIsDisplayed().assertIsOff()
         capture("catalog-large-text-landscape.png")

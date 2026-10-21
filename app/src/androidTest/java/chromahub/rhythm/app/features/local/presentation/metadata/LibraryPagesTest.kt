@@ -131,7 +131,7 @@ class LibraryPagesTest {
         } } }
         compose.onNodeWithTag("open-page-menu").performClick()
         compose.onNodeWithTag("entity-edit-description").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().singleOrNull()?.config?.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) == false }
         compose.onNodeWithTag("page-description").performTextReplacement("내가 보관하고 싶은 아티스트 소개")
         Espresso.closeSoftKeyboard()
         capture("page-description-editor.png")
@@ -139,7 +139,7 @@ class LibraryPagesTest {
         compose.waitUntil(10_000) { EntityPageStore(base).read(EntityKind.ARTIST, key)?.description == "내가 보관하고 싶은 아티스트 소개" }
         compose.onNodeWithTag("open-page-menu").performClick()
         compose.onNodeWithTag("entity-edit-description").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().singleOrNull()?.config?.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) == false }
         compose.onNodeWithTag("page-description").assertTextContains("내가 보관하고 싶은 아티스트 소개")
     }
     @Test fun expressivePlayerShowsUppercaseGenresAndTheKnownReleaseYear() {
