@@ -11,6 +11,7 @@ class CatalogImportChoiceTest {
         val document = CatalogDocument(EntityKind.TRACK, listOf(value(CatalogField.TRACK_TITLE, "노래"), value(CatalogField.TRACK_IMAGE, "https://example.com/a.jpg"), value(CatalogField.TRACK_LYRICS, "가사")))
         assertEquals(setOf(CatalogField.TRACK_TITLE, CatalogField.TRACK_IMAGE), CatalogSelection.defaults(document, false))
         assertTrue(CatalogSelection.selectable(CatalogField.TRACK_LYRICS, false))
+        assertFalse(CatalogSelection.selectable(CatalogField.TRACK_DURATION_MS, false))
     }
     @Test fun lyricsOnlyImportSelectsOnlyTheLyrics() {
         val document = CatalogDocument(EntityKind.TRACK, listOf(value(CatalogField.TRACK_TITLE, "노래"), value(CatalogField.TRACK_LYRICS, "가사")))

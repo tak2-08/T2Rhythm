@@ -1517,7 +1517,6 @@ private fun EditSongSheet(
     val haptics = LocalHapticFeedback.current
     var showWarningDialog by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
-    var isFetchingOnlineArt by remember { mutableStateOf(false) }
     var showCatalogLookup by remember(song.id) { mutableStateOf(false) }
     var showOnlineArtwork by remember(song.id) { mutableStateOf(false) }
     var importedLyrics by remember(song.id) { mutableStateOf<kr.co.metadata.crawler.CatalogValue?>(null) }
@@ -1563,7 +1562,7 @@ private fun EditSongSheet(
         if (lyricSaveFailed) Text(stringResource(R.string.catalog_import_failed), color = MaterialTheme.colorScheme.error)
         OutlinedButton(
             onClick = { showCatalogLookup = true },
-            enabled = !isSaving && !isFetchingOnlineArt,
+            enabled = !isSaving,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(stringResource(R.string.catalog_find_metadata)) }
     }
@@ -1884,12 +1883,11 @@ private fun EditSongSheet(
                                     )
                                 }
 
-                                if (NetworkClient.isDeezerApiEnabled() || NetworkClient.isYTMusicApiEnabled()) {
+                                Column {
                                     Spacer(modifier = Modifier.height(10.dp))
                                     RhythmDetailActionButtonFullWidth(
                                         onClick = fetchOnlineArtwork,
-                                        enabled = !isFetchingOnlineArt && title.isNotBlank() && artist.isNotBlank(),
-                                        isLoading = isFetchingOnlineArt,
+                                        enabled = !isSaving,
                                         height = 48.dp,
                                         type = RhythmButtonType.Tonal,
                                         icon = MaterialSymbolIcon("cloud_download", filled = true),
@@ -2402,11 +2400,10 @@ private fun EditSongSheet(
                         )
                     }
 
-                    if (NetworkClient.isDeezerApiEnabled() || NetworkClient.isYTMusicApiEnabled()) {
+                    Column {
                         RhythmDetailActionButtonFullWidth(
                             onClick = fetchOnlineArtwork,
-                            enabled = !isFetchingOnlineArt && title.isNotBlank() && artist.isNotBlank(),
-                            isLoading = isFetchingOnlineArt,
+                            enabled = !isSaving,
                             height = 48.dp,
                             type = RhythmButtonType.Tonal,
                             icon = MaterialSymbolIcon("cloud_download", filled = true),

@@ -51,10 +51,6 @@ import chromahub.rhythm.app.shared.presentation.components.icons.Icon
 import chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon
 import chromahub.rhythm.app.util.ImageUtils
 import chromahub.rhythm.app.util.MediaUtils
-import chromahub.rhythm.app.network.NetworkClient
-import chromahub.rhythm.app.network.YTMusicSearchRequest
-import chromahub.rhythm.app.network.YTMusicContext
-import chromahub.rhythm.app.network.YTMusicClient
 import chromahub.rhythm.app.network.extractAlbumImageUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -140,7 +136,6 @@ fun EditAlbumSheet(
 
     var isSaving by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
-    var isFetchingOnlineArt by remember { mutableStateOf(false) }
     var showCatalogArtwork by remember { mutableStateOf(false) }
     if (showCatalogArtwork) chromahub.rhythm.app.features.local.presentation.metadata.CatalogArtworkDialog(
         initialQuery = "$albumTitle $albumArtist".trim(), initialKind = kr.co.metadata.crawler.EntityKind.ALBUM,
@@ -341,7 +336,7 @@ fun EditAlbumSheet(
                                     Spacer(modifier = Modifier.height(12.dp))
                                     Button(
                                         onClick = { showCatalogArtwork = true },
-                                        enabled = !isFetchingOnlineArt && !isSaving && albumTitle.isNotBlank() && albumArtist.isNotBlank(),
+                                        enabled = !isSaving,
                                         shape = RoundedCornerShape(14.dp),
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -349,14 +344,6 @@ fun EditAlbumSheet(
                                         ),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        if (isFetchingOnlineArt) {
-                                            ActionProgressLoader(
-                                                size = 18.dp,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(stringResource(R.string.songinfobottomsheet_fetching))
-                                        } else {
                                             Icon(
                                                 imageVector = MaterialSymbolIcon("cloud_download", filled = true),
                                                 contentDescription = null,
@@ -364,7 +351,6 @@ fun EditAlbumSheet(
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(stringResource(R.string.songinfobottomsheet_fetch_online_art))
-                                        }
                                     }
                                 }
                             }
@@ -691,7 +677,7 @@ fun EditAlbumSheet(
                                 Column {
                                     Button(
                                         onClick = { showCatalogArtwork = true },
-                                        enabled = !isFetchingOnlineArt && !isSaving && albumTitle.isNotBlank() && albumArtist.isNotBlank(),
+                                        enabled = !isSaving,
                                         shape = RoundedCornerShape(14.dp),
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -699,14 +685,6 @@ fun EditAlbumSheet(
                                         ),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        if (isFetchingOnlineArt) {
-                                            ActionProgressLoader(
-                                                size = 18.dp,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(stringResource(R.string.songinfobottomsheet_fetching))
-                                        } else {
                                             Icon(
                                                 imageVector = MaterialSymbolIcon("cloud_download", filled = true),
                                                 contentDescription = null,
@@ -714,7 +692,6 @@ fun EditAlbumSheet(
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(stringResource(R.string.songinfobottomsheet_fetch_online_art))
-                                        }
                                     }
                                 }
                             }

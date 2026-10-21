@@ -77,7 +77,7 @@ class PageArtworkFlowTest {
         val bitmap = Bitmap.createBitmap(600,600,Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.shader = LinearGradient(0f,0f,600f,600f,intArrayOf(0xff122b48.toInt(),0xffae7498.toInt()),null,Shader.TileMode.CLAMP)
+        paint.shader = LinearGradient(0f,0f,600f,600f,intArrayOf(if(name=="automatic") 0xff168572.toInt() else 0xff122b48.toInt(),0xffae7498.toInt()),null,Shader.TileMode.CLAMP)
         canvas.drawRect(0f,0f,600f,600f,paint); paint.shader=null; paint.color=0xffe4d6b0.toInt();canvas.drawCircle(350f,240f,140f,paint)
         paint.color=0xff253958.toInt();canvas.drawCircle(380f,205f,130f,paint)
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) };bitmap.recycle()
@@ -106,6 +106,7 @@ class PageArtworkFlowTest {
     @Test fun changingAnotherPageDoesNotInvalidateTheOpenPage() = runBlocking {
         val store=EntityPageStore(isolated())
         val a=store.changes(EntityKind.ARTIST,"a"); val b=store.changes(EntityKind.ALBUM,"b")
+        repeat(80) { store.changes(EntityKind.ARTIST,"unused-$it") }
         val before=a.value
         store.save(EntityKind.ALBUM,"b","앨범","가수","소개")
         assertEquals(before,a.value);assertTrue(b.value>0)
@@ -159,6 +160,7 @@ class PageArtworkFlowTest {
         compose.onNodeWithText(base.getString(R.string.page_save)).performClick()
         compose.waitUntil(10000) { EntityPageStore(base).read(EntityKind.ARTIST,key)?.description=="직접 고친 아티스트 소개입니다." }
         compose.onNodeWithText("직접 고친 아티스트 소개입니다.",substring=true).assertExists()
+        Unit
     }
     @Test fun albumPageUsesItsTopEditMenuAndUpdatesTheVisibleDescription() = runBlocking {
         val s=song(); val title="고요한 밤";val key=CatalogEnrichmentService.get(base).albumKey(title,s.artist);pages+=EntityKind.ALBUM to key

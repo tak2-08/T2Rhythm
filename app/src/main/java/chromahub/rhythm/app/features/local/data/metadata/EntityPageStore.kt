@@ -40,14 +40,14 @@ class EntityPageStore(private val context: Context) {
         private val documents = LinkedHashMap<String, Cached>(64, .75f, true)
         private var documentBytes = 0
         private var lastImageTrim = 0L
-        private val observers = LinkedHashMap<String, MutableStateFlow<Long>>()
+        private val observers = LinkedHashMap<String, java.lang.ref.WeakReference<MutableStateFlow<Long>>>()
         data class ImageChange(val root: String, val kind: EntityKind, val key: String)
         val imageChanges = kotlinx.coroutines.flow.MutableSharedFlow<ImageChange>(extraBufferCapacity = 32,
             onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST)
         fun invalidate() = synchronized(lock) {
             documents.clear(); documentBytes = 0
             revision.update { it + 1 }
-            observers.values.forEach { flow -> flow.update { it + 1 } }
+            observers.values.forEach { reference -> reference.get()?.update { it + 1 } }
         }
     }
     private val gson = Gson()
@@ -62,8 +62,8 @@ class EntityPageStore(private val context: Context) {
     private fun cacheKey(kind: EntityKind, key: String) = "${context.filesDir.path}:$kind:$key"
     fun changes(kind: EntityKind, key: String): kotlinx.coroutines.flow.StateFlow<Long> = synchronized(lock) {
         val id = cacheKey(kind, key)
-        val flow = observers.getOrPut(id) { MutableStateFlow(0L) }
-        if (observers.size > 64) observers.entries.removeAll { it.key != id && it.value.subscriptionCount.value == 0 }
+        val flow = observers[id]?.get() ?: MutableStateFlow(0L).also { observers[id] = java.lang.ref.WeakReference(it) }
+        if (observers.size > 64) observers.entries.removeAll { it.value.get() == null }
         flow
     }
     private fun remember(kind: EntityKind, key: String, page: EntityPage?) {
@@ -165,7 +165,7 @@ class EntityPageStore(private val context: Context) {
         remember(EntityKind.valueOf(page.kind), page.key, page)
         if (previous?.image != page.image || (previous?.imageEdited ?: false) != page.imageEdited)
             imageChanges.tryEmit(ImageChange(context.filesDir.path, kind, page.key))
-        observers[cacheKey(EntityKind.valueOf(page.kind), page.key)]?.update { it + 1 }
+        observers[cacheKey(EntityKind.valueOf(page.kind), page.key)]?.get()?.update { it + 1 }
         revision.update { it + 1 }
         runCatching { PersonalArchive.enqueue(context) }
     }
