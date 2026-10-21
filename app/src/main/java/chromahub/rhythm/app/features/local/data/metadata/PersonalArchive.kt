@@ -460,6 +460,7 @@ class PersonalArchive(private val context: Context) {
                 }
             }
             ledger.invalidate()
+            EntityPageStore.invalidate()
             CatalogEnrichmentService.get(context).reloadStored()
             SongFileIdentity.invalidate()
             enqueue(context)

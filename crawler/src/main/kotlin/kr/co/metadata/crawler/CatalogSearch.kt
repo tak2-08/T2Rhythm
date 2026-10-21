@@ -17,6 +17,7 @@ data class SearchHit(
     val title: String,
     val detailUrl: String,
     val artists: String? = null,
+    val thumbnailUrl: String? = null,
 )
 
 /** Public web-search pages only. IDs are provider-specific; never copy an ID between catalogs. */
@@ -80,7 +81,15 @@ class CatalogSearch(private val pageClient: PageClient = PageClient()) {
                     EntityKind.TRACK -> "https://www.melon.com/song/detail.htm?songId=$id"
                 }
             }
-            hits.putIfAbsent(id, SearchHit(provider, kind, id, title, detail, artists))
+            val imageContainer = row ?: a.closest("li, .wrap_atist, .wrap_album, .artist-info, .album-info, .artist-item, .album-item") ?: a.parent()
+            val imageNode = a.selectFirst("img") ?: imageContainer?.selectFirst("img")
+            val thumbnail = imageNode?.let { image ->
+                listOf("data-original", "data-src", "src").firstNotNullOfOrNull { attribute ->
+                    image.absUrl(attribute).takeIf { it.isNotBlank() && !it.startsWith("data:") }
+                }
+            }?.replace("http://", "https://")?.takeIf { runCatching { java.net.URI(it).scheme == "https" }.getOrDefault(false) }
+            val hit = SearchHit(provider, kind, id, title, detail, artists, thumbnail)
+            if (hits[id] == null || hits[id]?.thumbnailUrl == null && thumbnail != null) hits[id] = hit
         }
         val queryLower = query.trim().lowercase()
         return hits.values.sortedWith(compareByDescending<SearchHit> { it.title.lowercase().contains(queryLower) }).take(limit)

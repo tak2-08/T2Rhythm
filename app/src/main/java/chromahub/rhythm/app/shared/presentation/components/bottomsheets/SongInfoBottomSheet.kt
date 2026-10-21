@@ -544,9 +544,6 @@ fun SongInfoBottomSheet(
                     discNumber
                 ) { success ->
                     onComplete(success)
-                    if (success) {
-                        showEditSheet = false
-                    }
                 }
             },
             onShowLyricsEditor = onShowLyricsEditor,
@@ -1522,6 +1519,9 @@ private fun EditSongSheet(
     var isSaving by remember { mutableStateOf(false) }
     var isFetchingOnlineArt by remember { mutableStateOf(false) }
     var showCatalogLookup by remember(song.id) { mutableStateOf(false) }
+    var showOnlineArtwork by remember(song.id) { mutableStateOf(false) }
+    var importedLyrics by remember(song.id) { mutableStateOf<kr.co.metadata.crawler.CatalogValue?>(null) }
+    var lyricSaveFailed by remember(song.id) { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     var resolvedSongArtworkUri by remember(song.id, song.artworkUri, song.uri) {
         mutableStateOf(song.artworkUri)
@@ -1547,11 +1547,20 @@ private fun EditSongSheet(
                 (imported[CatalogField.TRACK_RELEASE_DATE] ?: imported[CatalogField.ALBUM_RELEASE_DATE])
                     .yearOrNull()?.let { year = it.toString() }
                 if (artwork != null) { selectedImageUri = artwork; removeArtwork = false }
+                importedLyrics = imported.values.firstOrNull { it.field == CatalogField.TRACK_LYRICS }
                 showCatalogLookup = false
             },
         )
     }
+    if (showOnlineArtwork) chromahub.rhythm.app.features.local.presentation.metadata.CatalogArtworkDialog(
+        initialQuery = "$title $artist".trim(), initialKind = kr.co.metadata.crawler.EntityKind.TRACK, allowAlbums = true,
+        onDismiss = { showOnlineArtwork = false }, onSelect = { uri -> selectedImageUri = uri; removeArtwork = false; showOnlineArtwork = false })
     val catalogImportButton: @Composable () -> Unit = {
+        if (importedLyrics != null) {
+            Text(stringResource(R.string.catalog_lyrics_staged), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { importedLyrics = null }) { Text(stringResource(R.string.catalog_lyrics_remove)) }
+        }
+        if (lyricSaveFailed) Text(stringResource(R.string.catalog_import_failed), color = MaterialTheme.colorScheme.error)
         OutlinedButton(
             onClick = { showCatalogLookup = true },
             enabled = !isSaving && !isFetchingOnlineArt,
@@ -1571,101 +1580,20 @@ private fun EditSongSheet(
         discNumber = originalDiscNumber
         selectedImageUri = null
         removeArtwork = false
+        importedLyrics = null
+        lyricSaveFailed = false
         HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
     }
 
-    val fetchOnlineArtwork: () -> Unit = {
-        if (!isFetchingOnlineArt && title.isNotBlank() && artist.isNotBlank()) {
-            isFetchingOnlineArt = true
-            coroutineScope.launch(Dispatchers.IO) {
-                try {
-                    var imageUrl: String? = null
+    val fetchOnlineArtwork: () -> Unit = { showOnlineArtwork = true }
 
-                    if (NetworkClient.isDeezerApiEnabled()) {
-                        val deezerApi = NetworkClient.deezerApiService
-                        if (deezerApi != null) {
-                            try {
-                                val query = if (artist.isNotBlank() && !artist.equals("Unknown", ignoreCase = true)) {
-                                    "${title.trim()} ${artist.trim()}"
-                                } else title.trim()
-                                val response = deezerApi.searchAlbums(query)
-                                val albumList = response.data
-                                if (!albumList.isNullOrEmpty()) {
-                                    val best = albumList.firstOrNull { albumItem ->
-                                        (album.isNotBlank() && albumItem.title.contains(album, ignoreCase = true)) ||
-                                        albumItem.artist?.name?.contains(artist, ignoreCase = true) == true
-                                    } ?: albumList.firstOrNull()
-                                    imageUrl = best?.coverXl ?: best?.coverBig ?: best?.coverMedium ?: best?.cover
-                                }
-                            } catch (e: Exception) {
-                                Log.w("SongInfoBottomSheet", "Deezer album search failed: ${e.message}")
-                            }
-                        }
-                    }
-
-                    if (imageUrl.isNullOrEmpty() && NetworkClient.isYTMusicApiEnabled()) {
-                        val apiService = NetworkClient.ytmusicApiService
-                        if (apiService != null) {
-                            try {
-                                val searchQuery = "${title.trim()} ${artist.trim()}"
-                                val searchRequest = YTMusicSearchRequest(
-                                    context = YTMusicContext(YTMusicClient()),
-                                    query = searchQuery,
-                                    params = "EgWKAQIIAWoKEAoQAxAEEAkQBQ%3D%3D"
-                                )
-                                val response = apiService.search(request = searchRequest)
-                                if (response.isSuccessful) {
-                                    imageUrl = response.body()?.extractAlbumImageUrl()
-                                } else {
-                                    Log.w("SongInfoBottomSheet", "YTMusic search unsuccessful: ${response.code()}")
-                                }
-                            } catch (e: Exception) {
-                                Log.w("SongInfoBottomSheet", "YTMusic album search failed: ${e.message}")
-                            }
-                        }
-                    }
-
-                    if (!imageUrl.isNullOrEmpty()) {
-                        val okRequest = okhttp3.Request.Builder().url(imageUrl).build()
-                        val okResponse = NetworkClient.genericHttpClient.newCall(okRequest).execute()
-                        if (okResponse.isSuccessful) {
-                            val bytes = okResponse.body.bytes()
-                            val tempFile = File(context.cacheDir, "temp_artwork_fetched_${song.id}.jpg")
-                            tempFile.writeBytes(bytes)
-                            withContext(Dispatchers.Main) {
-                                selectedImageUri = Uri.fromFile(tempFile)
-                                removeArtwork = false
-                                Toast.makeText(context, R.string.songinfobottomsheet_artwork_fetched_successfully_click, Toast.LENGTH_SHORT).show()
-                            }
-                        } else {
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(context, R.string.songinfobottomsheet_failed_to_download_artwork_1, Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    } else {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, R.string.songinfobottomsheet_no_artwork_found_for, Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, context.getString(R.string.error_fetching_artwork, e.message ?: ""), Toast.LENGTH_LONG).show()
-                    }
-                } finally {
-                    withContext(Dispatchers.Main) {
-                        isFetchingOnlineArt = false
-                    }
-                }
-            }
-        }
-    }
-    
     val proceedWithSave = { 
         val yearInt = year.toIntOrNull() ?: 0
         val trackInt = trackNumber.toIntOrNull() ?: 0
         val discInt = discNumber.toIntOrNull() ?: 1
         
         isSaving = true
+        lyricSaveFailed = false
             onSave(
             title.trim(),
             artist.trim(),
@@ -1679,9 +1607,17 @@ private fun EditSongSheet(
             composer.trim(),
             discInt
         ) { success ->
-            isSaving = false
-            if (success) {
-                onDismiss()
+            if (!success) isSaving = false
+            else coroutineScope.launch {
+                try {
+                    importedLyrics?.let { lyrics ->
+                        chromahub.rhythm.app.features.local.data.metadata.CatalogLyricImport.save(context,
+                            song.copy(title = title.trim(), artist = artist.trim(), album = album.trim()), lyrics)
+                    }
+                    isSaving = false
+                    onDismiss()
+                } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                catch (_: Exception) { isSaving = false; lyricSaveFailed = true }
             }
         }
     }

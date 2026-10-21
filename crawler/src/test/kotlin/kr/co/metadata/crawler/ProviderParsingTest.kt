@@ -78,4 +78,34 @@ class ProviderParsingTest {
         assertNull(document[CatalogField.TRACK_TITLE])
         assertEquals("Album", document[CatalogField.ALBUM_TITLE])
     }
+    @Test fun `artist search thumbnails stay with their own result across all sources`() = runBlocking {
+        val fixtures = listOf(
+            Triple(Provider.BUGS_MOBILE, "<ul><li><a href='/artist/1'><img src='//image.bugsm.co.kr/first.jpg'></a><a href='/artist/1' title='첫 가수'>첫 가수</a></li><li><a href='/artist/2'>다른 가수</a><img src='//image.bugsm.co.kr/second.jpg'></li></ul>", "https://image.bugsm.co.kr/first.jpg"),
+            Triple(Provider.MELON, """<ul><li><div class='wrap_atist12'><a title='첫 가수 - 페이지 이동' href="javascript:melon.link.goArtistDetail('1');"><img src='https://cdnimg.melon.co.kr/first.jpg'></a></div></li><li><a href="javascript:melon.link.goArtistDetail('2');">다른 가수</a><img src='https://cdnimg.melon.co.kr/second.jpg'></li></ul>""", "https://cdnimg.melon.co.kr/first.jpg"),
+            Triple(Provider.GENIE, """<div class='artist-item'><a onclick="fnViewArtist('1');" href='#'><img src='//image.genie.co.kr/first.jpg'></a><p><span class='artist'><a onclick="fnViewArtist('1');" href='#'>첫 가수</a></span></p></div><div class='artist-item'><a onclick="fnViewArtist('2');" href='#'>다른 가수</a><img src='//image.genie.co.kr/second.jpg'></div>""", "https://image.genie.co.kr/first.jpg"),
+        )
+        fixtures.forEach { (provider, html, expected) ->
+            val hits = CatalogSearch(fixture(html)).search(provider, EntityKind.ARTIST, "가수")
+            assertEquals(expected, hits.first { it.providerId == "1" }.thumbnailUrl)
+            assertTrue(hits.first { it.providerId == "2" }.thumbnailUrl!!.contains("second.jpg"))
+        }
+    }
+
+    @Test fun `Genie artist uses the linked full image rather than the small social card`() = runBlocking {
+        val html = """<meta property='og:title' content='가수 - genie'><meta property='og:image' content='http://image.genie.co.kr/small.jpg'>
+            <div class='artist-main-infos'><div class='photo-zone'><a image-view='true' href='//image.genie.co.kr/large.jpg'><img src='//image.genie.co.kr/small.jpg'></a></div></div>"""
+        val artist = assertNotNull(GenieProvider(fixture(html)).artist("1"))
+        assertEquals("https://image.genie.co.kr/large.jpg", artist.profileImageUrl?.value)
+        assertEquals("가수", artist.name?.value)
+    }
+
+    @Test fun `Melon and Bugs artist portraits preserve provider identity and source`() = runBlocking {
+        val html = """<meta property='og:title' content='가수'><meta property='og:image' content='https://images.example.com/portrait.jpg'>"""
+        val melon = assertNotNull(MelonProvider(fixture(html)).artist("11"))
+        val bugs = assertNotNull(BugsMobileProvider(fixture(html)).artist("22"))
+        assertEquals("https://images.example.com/portrait.jpg", melon.profileImageUrl?.value)
+        assertEquals(Provider.MELON, melon.profileImageUrl?.provider)
+        assertEquals("https://m.bugs.co.kr/artist/22", bugs.profileImageUrl?.pageUrl)
+    }
+
 }

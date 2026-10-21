@@ -6,7 +6,7 @@ collect_evidence() {
     local evidence_dir="app/build/outputs/experience-screenshots"
     mkdir -p "$evidence_dir"
     adb logcat -d > "$evidence_dir/logcat.txt" 2>&1 || true
-    for screenshot in insights-download-search.png insights-algorithms.png insights-listening-report.png lyrics-ai-entry.png lyrics-ai-options.png lyrics-ai-material.png lyrics-ai-fullscreen.png lyrics-ai-review.png recommendation-settings.png app-updates-clean.png manual-lyrics-editor.png manual-lyrics-save-failed.png genre-multiple-selection.png genre-manual-teaching.png genre-service-with-training-hidden.png genre-library-teaching.png lyrics-manual-in-edit.png page-description-editor.png player-genre-date.png folder-album-setting.png learning-battery-range.png file-name-settings.png file-name-preview.png; do
+    for screenshot in insights-download-search.png insights-algorithms.png insights-listening-report.png lyrics-ai-entry.png lyrics-ai-options.png lyrics-ai-material.png lyrics-ai-fullscreen.png lyrics-ai-review.png recommendation-settings.png app-updates-clean.png manual-lyrics-editor.png manual-lyrics-save-failed.png genre-multiple-selection.png genre-manual-teaching.png genre-service-with-training-hidden.png genre-library-teaching.png lyrics-manual-in-edit.png page-description-editor.png player-genre-date.png folder-album-setting.png learning-battery-range.png file-name-settings.png file-name-preview.png artist-page-clean.png artist-page-edit-menu.png album-page-clean.png album-page-edit-menu.png artist-online-artwork-search.png catalog-artwork-preview.png catalog-selectable-lyrics.png song-editor-online-artwork.png catalog-large-text-landscape.png; do
         local remote_file="/sdcard/Android/data/chromahub.rhythm.app.debug/files/$screenshot"
         if adb shell test -f "$remote_file"; then
             adb pull "$remote_file" "$evidence_dir/$screenshot" || true
@@ -18,6 +18,7 @@ adb shell dumpsys battery set ac 1
 
 # Separate invocations avoid silently running only the first comma-separated class on AGP 9.
 classes=(
+    chromahub.rhythm.app.features.local.presentation.metadata.PageArtworkFlowTest
     chromahub.rhythm.app.features.local.presentation.metadata.LearningFileNamesTest
     chromahub.rhythm.app.features.local.presentation.metadata.LibraryPagesTest
     chromahub.rhythm.app.features.local.presentation.metadata.GenreControlsTest
@@ -30,10 +31,10 @@ classes=(
     chromahub.rhythm.app.features.local.presentation.metadata.LyricsEntryAndUpdatesTest
     chromahub.rhythm.app.features.local.presentation.metadata.UsabilityBehaviorTest
 )
-expected_counts=(9 9 14 8 4 1 4 1 1 8 7)
+expected_counts=(13 9 9 14 8 4 1 4 1 1 8 7)
 if [[ "${FILE_NAME_COMPAT_ONLY:-0}" == 1 ]]; then
-    classes=(chromahub.rhythm.app.features.local.presentation.metadata.LearningFileNamesTest)
-    expected_counts=(9)
+    classes=(chromahub.rhythm.app.features.local.presentation.metadata.PageArtworkFlowTest chromahub.rhythm.app.features.local.presentation.metadata.LearningFileNamesTest)
+    expected_counts=(13 9)
 fi
 for index in "${!classes[@]}"; do
     class_name="${classes[$index]}"

@@ -18,9 +18,9 @@ class EntityPageMaterializer(private val context: Context) {
     private fun tracks(songs: List<Song>) = songs.map { PageTrack(it.title, it.artist, it.album, it.duration,
         it.year, GenreUtils.splitGenres(it.genre).joinToString(", ").ifEmpty { null }, catalog.songKey(it)) }
     private suspend fun art(page: EntityPage, uri: Uri?) {
-        if (uri == null || page.imageEdited || page.imageSource == uri.toString() || pages.image(page) == uri) return
+        if (uri == null || page.image != null || page.imageEdited) return
         try { withTimeout(12_000) { pages.save(EntityKind.valueOf(page.kind), page.key, page.title, page.artist,
-            page.description, uri, edited = page.edited, customImage = false) } }
+            page.description, uri, edited = false, customImage = false) } }
         catch (_: TimeoutCancellationException) { /* Preserve text and retry the image on a later pass. */ }
         catch (cancel: CancellationException) { throw cancel }
         catch (_: Exception) { /* A missing image never prevents storing the rest of the page. */ }

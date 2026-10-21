@@ -1247,6 +1247,21 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        viewModelScope.launch {
+            chromahub.rhythm.app.features.local.data.metadata.EntityPageStore.imageChanges.collect { change ->
+                if (change.root != application.filesDir.path) return@collect
+                val uri = withContext(Dispatchers.IO) {
+                    val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(application)
+                    pages.image(pages.read(change.kind, change.key))
+                }
+                if (change.kind == kr.co.metadata.crawler.EntityKind.ARTIST) _artists.value = _artists.value.map {
+                    if (catalog.artistKey(it.name) == change.key) it.copy(artworkUri = uri) else it
+                } else if (change.kind == kr.co.metadata.crawler.EntityKind.ALBUM) _albums.value = _albums.value.map {
+                    if (catalog.albumKey(it.title, it.artist) == change.key) it.copy(artworkUri = uri) else it
+                }
+            }
+        }
+
         // Updating the URI as well as clearing caches restarts existing Compose painters.
         viewModelScope.launch {
             chromahub.rhythm.app.util.ArtworkInvalidation.changes.drop(1).collectLatest { generation ->
@@ -3066,6 +3081,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun updateArtistArtwork(artist: Artist, newUri: Uri?, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
+          try {
             val updatedUri = repository.saveArtistArtwork(artist.name, newUri)
             
             // Now, update our in-memory list _artists
@@ -3078,6 +3094,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
             chromahub.rhythm.app.util.ArtworkInvalidation.request(getApplication<Application>())
             onComplete()
+          } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+          catch (error: Exception) {
+              Log.e(TAG, "Artist image could not be saved", error)
+              android.widget.Toast.makeText(getApplication(), R.string.page_operation_failed, android.widget.Toast.LENGTH_LONG).show()
+          }
         }
     }
 

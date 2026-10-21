@@ -49,7 +49,7 @@ class CatalogImportRepository(context: Context) {
             ?: error("Artwork could not be downloaded")
         val file = File(context.cacheDir, "catalog-artwork-${UUID.randomUUID()}.webp")
         file.outputStream().use {
-            check(result.drawable.toBitmap().compress(chromahub.rhythm.app.util.ArtworkStorage.format(), 86, it))
+            check(result.drawable.toBitmap().compress(chromahub.rhythm.app.util.ArtworkStorage.format(), 100, it))
         }
         Uri.fromFile(file)
     }

@@ -27,6 +27,7 @@ class AutomaticLyricsStore private constructor(private val context: Context) {
         val file = File(root, "${key(song)}.data.json")
         if (!file.isFile || file.length() > 2_000_000) null else Gson().fromJson(file.readText(), LyricsData::class.java)
     }.getOrNull()
+    fun readReviewed(song: Song): LyricsData? = if (prefs.getBoolean("reviewed:${key(song)}", false)) read(song) else null
     /** Preserve a filename-based sidecar before renaming its audio; do not embed or change review flags. */
     suspend fun preserveForRename(song: Song, data: LyricsData) = withContext(Dispatchers.IO) {
         if (!data.hasLyrics() || data.isErrorMessage()) return@withContext

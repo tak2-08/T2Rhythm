@@ -36,15 +36,48 @@ class EntityPageStore(private val context: Context) {
         private val lock = Any()
         private const val META_LIMIT = 8_000_000
         private const val IMAGE_LIMIT = 12_000_000
+        private data class Cached(val page: EntityPage?, val bytes: Int)
+        private val documents = LinkedHashMap<String, Cached>(64, .75f, true)
+        private var documentBytes = 0
+        private var lastImageTrim = 0L
+        private val observers = LinkedHashMap<String, MutableStateFlow<Long>>()
+        data class ImageChange(val root: String, val kind: EntityKind, val key: String)
+        val imageChanges = kotlinx.coroutines.flow.MutableSharedFlow<ImageChange>(extraBufferCapacity = 32,
+            onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST)
+        fun invalidate() = synchronized(lock) {
+            documents.clear(); documentBytes = 0
+            revision.update { it + 1 }
+            observers.values.forEach { flow -> flow.update { it + 1 } }
+        }
     }
     private val gson = Gson()
     private val root get() = File(context.filesDir, "music_metadata/pages").apply {
         mkdirs(); File(this, ".nomedia").takeUnless(File::exists)?.writeText("")
     }
-    private val cache get() = File(context.cacheDir, "page-images").apply {
+    private val cache = File(context.cacheDir, "page-images")
+    private fun ensureImageCache() = cache.apply {
         mkdirs(); File(this, ".nomedia").takeUnless(File::exists)?.writeText("")
     }
     fun file(kind: EntityKind, key: String) = File(root, CatalogFileStore.hash("$kind:$key") + ".t2page")
+    private fun cacheKey(kind: EntityKind, key: String) = "${context.filesDir.path}:$kind:$key"
+    fun changes(kind: EntityKind, key: String): kotlinx.coroutines.flow.StateFlow<Long> = synchronized(lock) {
+        val id = cacheKey(kind, key)
+        val flow = observers.getOrPut(id) { MutableStateFlow(0L) }
+        if (observers.size > 64) observers.entries.removeAll { it.key != id && it.value.subscriptionCount.value == 0 }
+        flow
+    }
+    private fun remember(kind: EntityKind, key: String, page: EntityPage?) {
+        val id = cacheKey(kind, key)
+        documentBytes -= documents.remove(id)?.bytes ?: 0
+        val bytes = page?.let { gson.toJson(it).toByteArray(Charsets.UTF_8).size * 2 } ?: 32
+        if (bytes > 8_000_000) return
+        documents[id] = Cached(page, bytes); documentBytes += bytes
+        while (documents.size > 64 || documentBytes > 8_000_000) {
+            val oldest = documents.entries.iterator(); val entry = oldest.next()
+            documentBytes -= entry.value.bytes; oldest.remove()
+        }
+    }
+    private fun imageCached(page: EntityPage?) = page?.image == null || File(cache, "${page.image}.webp").isFile
     private fun hash(bytes: ByteArray) = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
         .joinToString("") { "%02x".format(it.toInt() and 255) }
     private fun bounded(input: InputStream, limit: Int): ByteArray {
@@ -57,8 +90,11 @@ class EntityPageStore(private val context: Context) {
         require(page.title.length <= 400 && page.artist.length <= 400 && page.description.length <= 100_000)
         require(page.image == null || page.image.matches(Regex("[a-f0-9]{64}")))
     }
-    fun read(kind: EntityKind, key: String): EntityPage? = synchronized(lock) { runCatching {
+    fun read(kind: EntityKind, key: String): EntityPage? = synchronized(lock) {
+        documents[cacheKey(kind, key)]?.let { if (imageCached(it.page)) return@synchronized it.page }
+        val page = runCatching {
         val f = file(kind, key)
+        var extracted = false
         AtomicFile(f).openRead().close() // Also restores a committed backup after an interrupted write.
         require(f.length() in 1..22_000_000)
         ZipFile(f).use { zip ->
@@ -72,15 +108,23 @@ class EntityPageStore(private val context: Context) {
                 if (!target.isFile) {
                     val bytes = zip.getInputStream(requireNotNull(zip.getEntry("artwork.webp"))).use { bounded(it, IMAGE_LIMIT) }
                     require(hash(bytes) == id)
+                    ensureImageCache()
                     PersonalArchive.atomicWrite(target, bytes)
+                    extracted = true
                 }
             }
             page.image?.let { File(cache, "$it.webp").setLastModified(System.currentTimeMillis()) }
-            trimCache()
+            trimCache(extracted)
             page
         }
-    }.getOrNull() }
-    private fun trimCache() {
+        }.getOrNull()
+        remember(kind, key, page)
+        page
+    }
+    private fun trimCache(force: Boolean = false) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!force && now - lastImageTrim in 0..10_000 && lastImageTrim != 0L) return
+        lastImageTrim = now
         var bytes = 0L
         cache.listFiles().orEmpty().filter { it.extension == "webp" }.sortedByDescending { it.lastModified() }
             .forEachIndexed { index, file ->
@@ -115,15 +159,24 @@ class EntityPageStore(private val context: Context) {
         validate(page, EntityKind.valueOf(page.kind), page.key)
         require((page.image == null) == (artwork == null))
         val bytes = ByteArrayOutputStream().use { out -> pack(page, artwork, out); out.toByteArray() }
-        PersonalArchive.atomicWrite(file(EntityKind.valueOf(page.kind), page.key), bytes)
+        val kind = EntityKind.valueOf(page.kind)
+        val previous = documents[cacheKey(kind, page.key)]?.page
+        PersonalArchive.atomicWrite(file(kind, page.key), bytes)
+        remember(EntityKind.valueOf(page.kind), page.key, page)
+        if (previous?.image != page.image || (previous?.imageEdited ?: false) != page.imageEdited)
+            imageChanges.tryEmit(ImageChange(context.filesDir.path, kind, page.key))
+        observers[cacheKey(EntityKind.valueOf(page.kind), page.key)]?.update { it + 1 }
         revision.update { it + 1 }
         runCatching { PersonalArchive.enqueue(context) }
     }
     fun capture(kind: EntityKind, key: String, title: String, artist: String, description: String): EntityPage = synchronized(lock) {
         val old = read(kind, key)
-        if (old?.edited == true || old != null && old.description == description) return@synchronized old!!
+        if (old?.edited == true || !old?.description.isNullOrBlank() || old != null && old.description == description) return@synchronized old!!
         (old ?: EntityPage(kind = kind.name, key = key, title = title.take(400), artist = artist.take(400)))
             .copy(description = description.take(100_000), updatedAt = System.currentTimeMillis()).also { write(it) }
+    }
+    fun resetImage(kind: EntityKind, key: String) = synchronized(lock) {
+        read(kind, key)?.copy(image = null, imageEdited = false, imageSource = null, updatedAt = System.currentTimeMillis())?.also { write(it, null) }
     }
     fun snapshot(kind: EntityKind, key: String, title: String, artist: String, description: String,
                  tracks: List<PageTrack>, albums: List<PageAlbum> = emptyList(), details: Map<String, String> = emptyMap()): EntityPage = synchronized(lock) {
@@ -145,15 +198,17 @@ class EntityPageStore(private val context: Context) {
         }
         synchronized(lock) {
             val old = read(kind, key)
-            val art = if (removeImage) null else bytes ?: old?.let(::existingArt)
+            val keepImage = !customImage && old != null && (old.imageEdited || old.image != null)
+            val art = if (keepImage) old?.let(::existingArt) else if (removeImage) null else bytes ?: old?.let(::existingArt)
             val imageId = art?.let(::hash)
             val page = (old ?: EntityPage(kind = kind.name, key = key, title = title.take(400), artist = artist.take(400)))
-                .copy(description = description, edited = edited, image = imageId, updatedAt = System.currentTimeMillis(),
-                    imageEdited = removeImage || bytes != null && customImage || old?.imageEdited == true,
-                    imageSource = artwork?.toString() ?: old?.imageSource)
-            imageId?.let { PersonalArchive.atomicWrite(File(cache, "$it.webp"), requireNotNull(art)) }
+                .copy(description = if (!edited && old != null && (old.edited || old.description.isNotBlank())) old.description else description,
+                    edited = edited || old?.edited == true, image = imageId, updatedAt = System.currentTimeMillis(),
+                    imageEdited = if (keepImage) old?.imageEdited == true else removeImage || bytes != null && customImage || old?.imageEdited == true,
+                    imageSource = if (keepImage) old?.imageSource else artwork?.toString() ?: old?.imageSource)
+            imageId?.let { if (!File(cache, "$it.webp").isFile) { ensureImageCache(); PersonalArchive.atomicWrite(File(cache, "$it.webp"), requireNotNull(art)) } }
             write(page, art)
-            trimCache()
+            trimCache(force = bytes != null)
             page
         }
     }

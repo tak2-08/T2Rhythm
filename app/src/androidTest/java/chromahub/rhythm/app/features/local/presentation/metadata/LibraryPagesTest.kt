@@ -8,8 +8,9 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -121,16 +122,23 @@ class LibraryPagesTest {
     @Test fun pageEditorStoresChangesAndReopensTheSavedDescription() {
         val key = "page-editor-$token"; publicPages += EntityKind.ARTIST to key
         compose.setContent { CompositionLocalProvider(LocalContext provides compose.activity) { MaterialTheme {
-            EntityPageActions(EntityKind.ARTIST, key, "직접 고치는 아티스트 페이지", description = "기존 소개글", artwork = null)
+            var menu by remember { mutableStateOf(false) }
+            var editor by remember { mutableStateOf(false) }
+            androidx.compose.material3.Button(onClick = { menu = true }, modifier = androidx.compose.ui.Modifier.testTag("open-page-menu")) { androidx.compose.material3.Text("수정") }
+            if (menu) EntityEditMenu(EntityKind.ARTIST, "직접 고치는 아티스트 페이지", { menu = false },
+                { menu = false; editor = true }, { menu = false })
+            if (editor) EntityDescriptionEditor(EntityKind.ARTIST, key, "직접 고치는 아티스트 페이지", description = "기존 소개글", onDismiss = { editor = false })
         } } }
-        compose.onNodeWithTag("page-edit").performClick()
+        compose.onNodeWithTag("open-page-menu").performClick()
+        compose.onNodeWithTag("entity-edit-description").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("page-description").performTextReplacement("내가 보관하고 싶은 아티스트 소개")
         Espresso.closeSoftKeyboard()
         capture("page-description-editor.png")
         compose.onNodeWithText(base.getString(R.string.page_save)).performClick()
         compose.waitUntil(10_000) { EntityPageStore(base).read(EntityKind.ARTIST, key)?.description == "내가 보관하고 싶은 아티스트 소개" }
-        compose.onNodeWithTag("page-edit").performClick()
+        compose.onNodeWithTag("open-page-menu").performClick()
+        compose.onNodeWithTag("entity-edit-description").performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("page-description").assertTextContains("내가 보관하고 싶은 아티스트 소개")
     }

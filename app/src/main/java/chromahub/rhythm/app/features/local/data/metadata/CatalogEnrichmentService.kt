@@ -255,6 +255,7 @@ class CatalogEnrichmentService private constructor(private val context: Context)
         return record?.document?.values?.filter { it.field in wanted }?.joinToString("\n\n") { it.value }?.takeIf(String::isNotBlank)
     }
     fun preferredArtwork(current: Uri?, owned: Uri?): Uri? {
+        if (current?.scheme == "file" && current.path?.startsWith(File(context.cacheDir, "page-images").path + "/") == true) return current
         if (current?.scheme == "file" && current.path?.let { File(it).isFile && !it.contains("/cache/") } == true) return current
         if (current?.scheme == "content" && !current.toString().startsWith("content://media/")) return current
         return owned ?: current

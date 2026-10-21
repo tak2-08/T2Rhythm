@@ -319,7 +319,9 @@ class GenieProvider(private val http: PageClient = PageClient()) : MusicProvider
         val (_, doc) = load(url) ?: return null
         val name = doc.meta("og:title")?.substringBefore(" - genie")
             ?: doc.selectFirst(".artist-name, .artist_name, h2, h3")?.textClean()
-        val image = (doc.meta("og:image") ?: doc.selectFirst(".artist-img img, .artistImage img")?.absUrl("src"))?.toAbsoluteImage(url)
+        val image = (doc.selectFirst(".artist-main-infos .photo-zone a[image-view]")?.absUrl("href")
+            ?: doc.selectFirst(".artist-img img, .artistImage img")?.absUrl("src")
+            ?: doc.meta("og:image:secure_url") ?: doc.meta("og:image"))?.toAbsoluteImage(url)
         val debut = doc.labelValue("데뷔")
         val genres = splitGenres(doc.labelValue("장르/스타일") ?: doc.labelValue("장르"))
         val intro = doc.labelValue("소개") ?: doc.selectFirst(".artist-intro, .artist_desc, .desc_area")?.textClean()

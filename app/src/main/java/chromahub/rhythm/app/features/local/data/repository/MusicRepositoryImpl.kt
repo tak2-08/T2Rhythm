@@ -2562,6 +2562,10 @@ class MusicRepository(context: Context) {
         if (appSettings.artistArtworkSource.value == chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.DISABLED) return@withContext artists
         artists.map { artist ->
             val key = catalog.artistKey(artist.name)
+            val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context)
+            val page = pages.read(kr.co.metadata.crawler.EntityKind.ARTIST, key)
+            if (page?.imageEdited == true && page.image == null) return@map artist.copy(artworkUri = null)
+            pages.image(page)?.let { return@map artist.copy(artworkUri = it) }
             var uri = artist.artworkUri?.takeIf(catalog::usableArtwork) ?: artistImageCache[artist.name]?.takeIf(catalog::usableArtwork)
                 ?: catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ARTIST, key))
             if (uri == null && appSettings.artistArtworkSource.value != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY) {
@@ -2581,6 +2585,10 @@ class MusicRepository(context: Context) {
     suspend fun fetchAlbumArtwork(albums: List<Album>): List<Album> = withContext(Dispatchers.IO) {
         albums.map { album ->
             val key = catalog.albumKey(album.title, album.artist)
+            val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context)
+            val page = pages.read(kr.co.metadata.crawler.EntityKind.ALBUM, key)
+            if (page?.imageEdited == true && page.image == null) return@map album.copy(artworkUri = null)
+            pages.image(page)?.let { return@map album.copy(artworkUri = it) }
             var uri = album.artworkUri?.takeIf(catalog::usableArtwork) ?: albumImageCache["${album.artist}:${album.title}"]?.takeIf(catalog::usableArtwork)
                 ?: catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ALBUM, key))
             if (uri == null && catalog.preferences.options.value.artwork) uri = catalog.fetchedImage(kr.co.metadata.crawler.EntityKind.ALBUM, key, album.title, album.artist)
@@ -2608,7 +2616,7 @@ class MusicRepository(context: Context) {
         val key = catalog.artistKey(name)
         val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context)
         val page = pages.read(kind, key)
-        if (page?.edited == true) return@withContext page.description.takeIf(String::isNotBlank)
+        if (page?.edited == true || !page?.description.isNullOrBlank()) return@withContext page!!.description.takeIf(String::isNotBlank)
         val fields = setOf(kr.co.metadata.crawler.CatalogField.ARTIST_DESCRIPTION, kr.co.metadata.crawler.CatalogField.ARTIST_DEBUT_DATE, kr.co.metadata.crawler.CatalogField.ARTIST_GENRES)
         val record = if (fetch && catalog.preferences.options.value.profiles) catalog.collect(kind, key, name, null, fields) else catalog.read(kind, key)
         var description = record?.document?.get(kr.co.metadata.crawler.CatalogField.ARTIST_DESCRIPTION)
@@ -2629,7 +2637,7 @@ class MusicRepository(context: Context) {
         val key = catalog.albumKey(name, artist.orEmpty())
         val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context)
         val page = pages.read(kind, key)
-        if (page?.edited == true) return@withContext page.description.takeIf(String::isNotBlank)
+        if (page?.edited == true || !page?.description.isNullOrBlank()) return@withContext page!!.description.takeIf(String::isNotBlank)
         fun stored(text: String?) = text?.let { pages.capture(kind, key, name, artist.orEmpty(), it).description }
             ?: page?.description?.takeIf(String::isNotBlank)
         catalog.read(kind, key)?.document?.get(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION)?.let { return@withContext stored(it) }
@@ -4615,6 +4623,18 @@ class MusicRepository(context: Context) {
             Log.d(TAG, "===== FORCE REFRESH - BYPASSING IN-MEMORY CACHE =====")
         }
 
+        // Explicitly selected lyrics remain authoritative across restarts and source preferences.
+        if (!forceOnline) {
+            val localSong = cachedSongs?.firstOrNull { it.id == songId || (songUri != null && it.uri == songUri) }
+                ?: songUri?.let { Song(songId.orEmpty(), title, artist, "", duration = 0, uri = it) }
+            val reviewed = localSong?.let(autoLyrics::readReviewed)
+                ?: localSong?.takeIf { it.path == null && it.uri.scheme == "file" }?.copy(path = localSong.uri.path)?.let(autoLyrics::readReviewed)
+            reviewed?.let {
+                lyricsCache[cacheKey] = reviewed
+                return@withContext reviewed
+            }
+        }
+
         // Define source fetchers
         val fetchFromLocal: suspend () -> LyricsData? = {
             cachedSongs?.firstOrNull { it.id == songId || (songUri != null && it.uri == songUri) }?.let(autoLyrics::read)
@@ -5999,36 +6019,18 @@ class MusicRepository(context: Context) {
      * If artworkUri is null, removes custom image and updates database.
      */
     suspend fun saveArtistArtwork(artistName: String, artworkUri: Uri?): Uri? = withContext(Dispatchers.IO) {
-        try {
-            val fileName = kr.co.metadata.crawler.CatalogFileStore.hash(catalog.artistKey(artistName)) + ".jpg"
-            val imageDir = File(context.filesDir, "artist_images")
-            if (!imageDir.exists()) {
-                imageDir.mkdirs()
-            }
-            val file = File(imageDir, fileName)
-
-            if (artworkUri == null) {
-                if (file.exists()) {
-                    file.delete()
-                }
-                artistImageCache.remove(artistName)
-                roomDb.artistDao().updateArtworkForArtist(artistName, null)
-                null
-            } else {
-                context.contentResolver.openInputStream(artworkUri)?.use { inputStream ->
-                    file.outputStream().use { outputStream ->
-                        inputStream.copyTo(outputStream)
-                    }
-                }
-                val newUri = Uri.fromFile(file).buildUpon().appendQueryParameter("t", System.currentTimeMillis().toString()).build()
-                artistImageCache[artistName] = newUri
-                roomDb.artistDao().updateArtworkForArtist(artistName, newUri.toString())
-                newUri
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to save artist artwork", e)
+        val kind = kr.co.metadata.crawler.EntityKind.ARTIST
+        val key = catalog.artistKey(artistName)
+        val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context)
+        val old = pages.read(kind, key)
+        val updated = if (artworkUri == null) {
+            pages.resetImage(kind, key)
+            File(context.filesDir, "artist_images/${kr.co.metadata.crawler.CatalogFileStore.hash(key)}.jpg").delete()
             null
-        }
+        } else pages.save(kind, key, artistName, "", old?.description.orEmpty(), artworkUri, edited = false).let(pages::image)
+        if (updated == null) artistImageCache.remove(artistName) else artistImageCache[artistName] = updated
+        roomDb.artistDao().updateArtworkForArtist(artistName, updated?.toString())
+        updated
     }
 
     /**
