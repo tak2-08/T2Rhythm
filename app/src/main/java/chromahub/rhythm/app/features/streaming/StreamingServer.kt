@@ -29,7 +29,9 @@ class StreamingServer(
     private var pairingCount = 0
     private val handshakeLock = Any()
     private val handshakeSocket = AtomicReference<Socket?>()
-    val pendingTlsHandshake: Boolean get() = handshakeSocket.get() != null
+    // Newer Conscrypt versions defer TLS until the worker reads; older versions
+    // start it in the accept loop. Both must be owned by server shutdown.
+    val trackedConnections: Int get() = runner.size + if (handshakeSocket.get() != null) 1 else 0
     init {
         makeSecure(ssl.serverSocketFactory, arrayOf("TLSv1.2", "TLSv1.3").filter { it in ssl.supportedSSLParameters.protocols }.toTypedArray())
         val secureFactory = getServerSocketFactory()
@@ -133,6 +135,7 @@ class StreamingServer(
     /** Bounded sockets leave room for playback and controls without an unbounded thread backlog. */
     private class BoundedRunner : AsyncRunner {
         private val clients = ConcurrentHashMap.newKeySet<ClientHandler>()
+        val size: Int get() = clients.size
         private val pool = ThreadPoolExecutor(0, 12, 30, TimeUnit.SECONDS, SynchronousQueue(), { task -> Thread(task, "T2-private-stream").apply { isDaemon = true } })
         override fun exec(code: ClientHandler) {
             clients.add(code)

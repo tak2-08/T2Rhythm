@@ -252,8 +252,8 @@ class PrivateStreamingTransportTest {
     @Test fun stoppingTheServerClosesAnUnfinishedTlsHandshakeWithoutBlockingTheMainThread() {
         java.net.Socket("127.0.0.1", server.listeningPort).use {
             val deadline = android.os.SystemClock.elapsedRealtime() + 3000
-            while (!server.pendingTlsHandshake && android.os.SystemClock.elapsedRealtime() < deadline) android.os.SystemClock.sleep(10)
-            assertTrue("The test must hold a real unfinished TLS handshake", server.pendingTlsHandshake)
+            while (server.trackedConnections == 0 && android.os.SystemClock.elapsedRealtime() < deadline) android.os.SystemClock.sleep(10)
+            assertTrue("The server must own the connected client before shutdown", server.trackedConnections > 0)
             var elapsed = Long.MAX_VALUE
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
                 val started = android.os.SystemClock.elapsedRealtime(); server.stop(); elapsed = android.os.SystemClock.elapsedRealtime() - started
