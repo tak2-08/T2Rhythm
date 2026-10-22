@@ -25,7 +25,7 @@ class StreamingHostService : Service() {
             val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, 100)
             val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
             val plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
-            if (!plugged && level * 100 / scale < 15) {
+            if (!plugged && level >= 0 && level * 100 / scale < 15) {
                 ready = false
                 manager.fail(getString(R.string.streaming_low_battery)); stopSelf()
             }

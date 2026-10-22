@@ -84,11 +84,13 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     var forget by remember { mutableStateOf<StreamConnection?>(null) }
     var editAddress by remember { mutableStateOf<StreamConnection?>(null) }
     var checkingAddress by remember { mutableStateOf(false) }
+    var networkAccess by remember { mutableStateOf(Build.VERSION.SDK_INT < 37 || ContextCompat.checkSelfPermission(context, "android.permission.ACCESS_LOCAL_NETWORK") == PackageManager.PERMISSION_GRANTED) }
     val local = remember(songs) { songs.filter { it.uri.scheme in setOf("file", "content") } }
     val chosen = playlists.firstOrNull { it.id == selectedPlaylist }
     val sharedCount = if (selectedPlaylist == null) local.size else chosen?.songs?.count { it.uri.scheme in setOf("file", "content") } ?: 0
     var afterPermission by remember { mutableStateOf<(() -> Unit)?>(null) }
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        networkAccess = Build.VERSION.SDK_INT < 37 || ContextCompat.checkSelfPermission(context, "android.permission.ACCESS_LOCAL_NETWORK") == PackageManager.PERMISSION_GRANTED
         val required = grants.filterKeys { it != Manifest.permission.POST_NOTIFICATIONS }
         val action = afterPermission; afterPermission = null
         if (required.values.all { it }) action?.invoke() else error = context.getString(R.string.streaming_permission)
@@ -99,12 +101,12 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
             if (hosting) add(if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE)
             if (hosting && Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
         }.filter { ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED }
-        if (missing.isEmpty()) action() else { afterPermission = action; permissions.launch(missing.toTypedArray()) }
+        if (missing.isEmpty()) { networkAccess = true; action() } else { afterPermission = action; permissions.launch(missing.toTypedArray()) }
     }
-    LaunchedEffect(host.running) { while (host.running) { manager.refresh(); delay(3000) } }
+    LaunchedEffect(host.running) { if (!host.running) { invitation = null; addressDialog = false }; while (host.running) { manager.refresh(); delay(3000) } }
     LaunchedEffect(invitation) { invitation?.let { delay((it.expires - System.currentTimeMillis()).coerceAtLeast(0)); invitation = null } }
     LaunchedEffect(connections) { if (selectedServer !in connections.map { it.server }) selectedServer = connections.firstOrNull()?.server }
-    val activeConnection = connections.firstOrNull { it.server == selectedServer }
+    val activeConnection = if (!hostTab && networkAccess) connections.firstOrNull { it.server == selectedServer } else null
     val browser = activeConnection?.let { rememberStreamBrowser(it) }
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.streaming_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = { IconButton(onClick = onBackClick) { StreamIcon("arrow_back", stringResource(R.string.streaming_done)) } }) },
@@ -185,7 +187,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                             Text(stringResource(R.string.streaming_waiting), style = MaterialTheme.typography.titleMedium)
                             Text(StreamingProtocol.code(pending!!.token), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                             Text(stringResource(R.string.streaming_verify_code, StreamingProtocol.code(pending!!.token)))
-                            TextButton({ pairJob?.cancel(); pending = null; busy = false }) { Text(stringResource(R.string.streaming_cancel)) }
+                            TextButton({ pairJob?.cancel() }) { Text(stringResource(R.string.streaming_cancel)) }
                         } else Button(onClick = { permitted(false) {
                             val invite = runCatching { StreamingProtocol.Invite.decode(inviteText) }.getOrNull()
                             if (invite == null) error = context.getString(R.string.streaming_invalid_invite) else {
@@ -206,10 +208,17 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                                 }
                             }
                         } }, enabled = inviteText.isNotBlank() && deviceName.isNotBlank() && !busy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.streaming_request)) }
+                        if (busy && pending == null) TextButton({ pairJob?.cancel() }) { Text(stringResource(R.string.streaming_cancel)) }
                     }
                 }
                 item { Text(stringResource(R.string.streaming_servers), style = MaterialTheme.typography.titleLarge) }
                 if (connections.isEmpty()) item { Text(stringResource(R.string.streaming_no_servers), style = MaterialTheme.typography.bodyMedium) }
+                if (!networkAccess && connections.isNotEmpty()) item {
+                    StreamCard {
+                        Text(stringResource(R.string.streaming_permission))
+                        Button({ permitted(false) { networkAccess = true } }) { Text(stringResource(R.string.streaming_allow_network)) }
+                    }
+                }
                 items(connections, key = { "server:${it.server}" }) { connection ->
                     StreamCard {
                         Row(Modifier.fillMaxWidth().clickable { selectedServer = connection.server }, verticalAlignment = Alignment.CenterVertically) {
@@ -234,7 +243,9 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
         } }
     }, confirmButton = { TextButton({ choosePlaylist = false }) { Text(stringResource(R.string.streaming_cancel)) } })
     if (addressDialog) StreamAddressDialog(host.addresses.firstOrNull().orEmpty(), host.addresses, R.string.streaming_invite_address_hint, R.string.streaming_create_invite,
-        onDismiss = { addressDialog = false }, onSave = { address -> invitation = manager.invite(address); addressDialog = false })
+        onDismiss = { addressDialog = false }, onSave = { address ->
+            runCatching { manager.invite(address) }.onSuccess { invitation = it }.onFailure { error = context.getString(R.string.streaming_start_error) }; addressDialog = false
+        })
     invitation?.let { invite -> AlertDialog(onDismissRequest = { invitation = null }, title = { Text(stringResource(R.string.streaming_invite_ready)) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(stringResource(R.string.streaming_invite_private)); SelectionContainer { Text(invite.endpoint, style = MaterialTheme.typography.bodyMedium) }
@@ -249,8 +260,12 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
         scope.launch { try { withContext(Dispatchers.IO) { manager.revoke(peer.id) }; revoke = null } catch (_: Exception) { error = context.getString(R.string.streaming_start_error) } }
     } }
     forget?.let { connection -> ConfirmStreamAction(connection.name, R.string.streaming_forget_confirm, R.string.streaming_forget, { forget = null }) {
-        scope.launch { withContext(Dispatchers.IO) { manager.store.forget(connection.server) }; onDisconnect(connection.server); forget = null
-            runCatching { StreamingClient.disconnect(connection) } }
+        scope.launch {
+            try { withContext(Dispatchers.IO) { manager.store.forget(connection.server) }; onDisconnect(connection.server); forget = null
+                runCatching { StreamingClient.disconnect(connection) } }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { error = context.getString(R.string.streaming_start_error); forget = null }
+        }
     } }
     editAddress?.let { connection -> StreamAddressDialog(connection.endpoint, emptyList(), R.string.streaming_address_check, R.string.streaming_save,
         onDismiss = { if (!checkingAddress) editAddress = null }, busy = checkingAddress, onSave = { address ->

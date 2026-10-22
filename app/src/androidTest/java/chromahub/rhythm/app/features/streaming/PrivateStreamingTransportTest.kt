@@ -202,6 +202,7 @@ class PrivateStreamingTransportTest {
         val lookalike = song.copy(title = remote.title, artist = remote.artist, album = remote.album)
         val disconnected = chromahub.rhythm.app.features.local.data.experience.ReportLibraryProjection(listOf(lookalike))
         assertNull(disconnected.resolve(track))
+        assertNull(chromahub.rhythm.app.features.local.data.experience.ReportLibraryProjection(listOf(remote)).resolve(track))
         assertNull(connected.resolve(track.copy(songId = "wrong")))
     }
 }

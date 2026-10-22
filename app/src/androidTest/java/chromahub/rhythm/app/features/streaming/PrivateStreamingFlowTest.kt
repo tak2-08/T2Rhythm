@@ -8,6 +8,11 @@ import android.os.Build
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
@@ -56,7 +61,12 @@ class PrivateStreamingFlowTest {
         return Song("stream-ui-$unique", "달빛 아래 걷는 밤", "밤의 정원", "우리의 계절", duration = 90_000, uri = Uri.fromFile(file), path = file.path, genre = "INDIE, POP", year = 2026)
     }
     private fun screen(songs: List<Song> = listOf(song()), playlists: List<Playlist> = emptyList(), onPlay: (List<Song>, Int, Boolean) -> Unit = { _, _, _ -> }) {
-        compose.setContent { MaterialTheme { StreamingContent({}, songs, playlists, onPlay) } }
+        compose.setContent {
+            CompositionLocalProvider(LocalContext provides compose.activity, LocalConfiguration provides compose.activity.resources.configuration,
+                LocalDensity provides Density(compose.activity.resources.displayMetrics.density, compose.activity.resources.configuration.fontScale)) {
+                MaterialTheme { StreamingContent({}, songs, playlists, onPlay) }
+            }
+        }
     }
     private fun scroll(text: String) { compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(text)) }
     private fun screenshot(name: String) {
@@ -127,6 +137,9 @@ class PrivateStreamingFlowTest {
         screen(emptyList())
         scroll("집 밖에서도 듣기"); compose.onNodeWithText("집 밖에서도 듣기").performClick()
         compose.onNodeWithText("이동통신망", substring = true).performScrollTo().assertExists()
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText("이동통신망", substring = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertTrue(layouts.single().layoutInput.density.fontScale >= 1.59f)
         screenshot("streaming-large-text-help")
         compose.onNodeWithText("완료").performClick(); Unit
     }

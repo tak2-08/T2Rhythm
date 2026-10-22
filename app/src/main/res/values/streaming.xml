@@ -59,6 +59,7 @@
     <string name="streaming_retry">Retry</string>
     <string name="streaming_clear_search">Clear search</string>
     <string name="streaming_permission">Allow local network access to connect these phones. Music permission is also needed when hosting.</string>
+    <string name="streaming_allow_network">Allow network access</string>
     <string name="streaming_outside_title">Listen away from home</string>
     <string name="streaming_outside_steps">1. Run the server on the phone with your music.\n2. Put both phones on the same private VPN (for example WireGuard or Tailscale), or configure a reachable address yourself.\n3. Create an invitation using the host’s VPN address. Already paired? Change the saved server address.\n4. Keep the host powered and the VPN connected.\n\nT2Rhythm provides no central relay and does not open router ports automatically. Cellular networks may block direct incoming connections.</string>
     <string name="streaming_power_hint">Sharing keeps this phone awake. Keep a spare phone plugged in. Below 15% battery, an unplugged server stops automatically. Device battery-saving rules may also interrupt hosting.</string>
