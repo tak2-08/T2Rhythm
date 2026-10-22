@@ -48,6 +48,8 @@ class MetadataConsistencyTest {
             val key = catalog.songKey(song)
             val hash = CatalogFileStore.hash(key)
             File(context.filesDir, "music_metadata/manual_tags/$hash.json").delete()
+            File(context.filesDir, "music_metadata/lyrics").listFiles().orEmpty().filter { it.name.startsWith("$hash.") }.forEach(File::delete)
+            context.getSharedPreferences("catalog_lyrics_writes", 0).edit().remove("reviewed:$hash").remove("stale:$hash").remove("metadata:$hash").commit()
             File(catalog.root, "records/track-$hash.json").delete()
             File(catalog.root, "records/track-${CatalogFileStore.hash("manual:$key")}.json").delete()
             RhythmDatabase.getInstance(context).songDao().deleteByIds(listOf(song.id))
@@ -69,9 +71,18 @@ class MetadataConsistencyTest {
     @Test fun explicitCatalogSelectionWinsWarmAutomaticCacheAndReload() {
         val original = song(); automatic(original)
         assertEquals("자동 제목", catalog.apply(original).title)
+        val guessedSong = catalog.apply(original)
+        val lyrics = AutomaticLyricsStore.get(context)
+        runBlocking { lyrics.saveFetched(guessedSong, LyricsData("이전 자동 가사", null), embed = false) }
+        val lyricFile = File(lyrics.root, CatalogFileStore.hash(catalog.songKey(original)) + ".data.json")
+        val priorBytes = lyricFile.readBytes()
         val edited = original.copy(title = "내가 선택한 제목", artist = "새 가수", album = "새 앨범", genre = "r&b, jazz", year = 2025,
             albumArtist = "새 앨범 가수", trackNumber = 7, discNumber = 2)
         catalog.recordManualSong(edited)
+        lyrics.invalidateUnreviewedForMetadata(edited)
+        assertNull(lyrics.read(edited))
+        runBlocking { lyrics.saveFetched(guessedSong, LyricsData("늦게 도착한 잘못된 가사", null), embed = false) }
+        assertNull(lyrics.read(edited)); assertArrayEquals(priorBytes, lyricFile.readBytes())
         fun verify() { assertEquals(edited.copy(genre = "R&B, JAZZ"), catalog.apply(original)) }
         verify(); catalog.reloadStored(); verify()
         ManualSongMetadata.invalidate(); verify()
@@ -122,6 +133,10 @@ class MetadataConsistencyTest {
         val original = fixture()
         val repo = LocalMusicModule.provideMusicRepository(context)
         repo.persistEditedSongs(listOf(original))
+        val preserved = LyricsData("내가 보관한 가사", null)
+        AutomaticLyricsStore.get(context).saveFetched(original, preserved, embed = false, reviewed = true)
+        val legacy = File(context.filesDir, "lyrics/" + chromahub.rhythm.app.util.LyricsCacheFiles.name(original.artist, original.title))
+        legacy.parentFile!!.mkdirs(); legacy.writeText(com.google.gson.Gson().toJson(preserved))
         val edited = original.copy(title = "연결된 새 제목", artist = "새 가수-$token", album = "새 앨범", genre = "JAZZ", year = 2025,
             albumArtist = "새 앨범 가수-$token", trackNumber = 4, discNumber = 2)
         val store = EntityPageStore(context)
@@ -150,6 +165,9 @@ class MetadataConsistencyTest {
         }
         compose.waitUntil(60_000) { completed || error != null }
         assertNull(error); assertTrue(completed)
+        assertTrue("Tag refresh must not delete saved lyric files", legacy.isFile)
+        assertEquals(preserved, AutomaticLyricsStore.get(context).readReviewed(edited))
+        legacy.delete()
         val row = RhythmDatabase.getInstance(context).songDao().getSongById(original.id)!!.toSong()
         assertEquals(edited.title, row.title); assertEquals(edited.artist, row.artist); assertEquals(edited.album, row.album)
         assertEquals(edited.genre, row.genre); assertEquals(edited.year, row.year); assertEquals(edited.discNumber, row.discNumber)

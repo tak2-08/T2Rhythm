@@ -23,11 +23,18 @@ class AutomaticLyricsStore private constructor(private val context: Context) {
     private val prefs = context.getSharedPreferences("catalog_lyrics_writes", Context.MODE_PRIVATE)
     private val locks = ConcurrentHashMap<String, Mutex>()
     private fun key(song: Song) = CatalogFileStore.hash(catalog.songKey(song))
+    private fun metadata(song: Song) = "${song.title.trim()}|${song.artist.trim()}"
     fun read(song: Song): LyricsData? = runCatching {
+        if (prefs.getBoolean("stale:${key(song)}", false) && !prefs.getBoolean("reviewed:${key(song)}", false)) return@runCatching null
         val file = File(root, "${key(song)}.data.json")
         if (!file.isFile || file.length() > 2_000_000) null else Gson().fromJson(file.readText(), LyricsData::class.java)
     }.getOrNull()
     fun readReviewed(song: Song): LyricsData? = if (prefs.getBoolean("reviewed:${key(song)}", false)) read(song) else null
+    fun invalidateUnreviewedForMetadata(song: Song) {
+        val id = key(song)
+        if (!prefs.getBoolean("reviewed:$id", false) && prefs.getString("metadata:$id", null) != metadata(song))
+            prefs.edit(commit = true) { putBoolean("stale:$id", true) }
+    }
     /** Preserve a filename-based sidecar before renaming its audio; do not embed or change review flags. */
     suspend fun preserveForRename(song: Song, data: LyricsData) = withContext(Dispatchers.IO) {
         if (!data.hasLyrics() || data.isErrorMessage()) return@withContext
@@ -42,12 +49,15 @@ class AutomaticLyricsStore private constructor(private val context: Context) {
         if ((!reviewed && !catalog.preferences.options.value.autoLyrics) || !data.hasLyrics() || data.isErrorMessage()) return@withContext
         locks.computeIfAbsent(key(song)) { Mutex() }.withLock {
             if (!reviewed && prefs.getBoolean("reviewed:${key(song)}", false)) return@withLock
+            // A response started before an explicit tag correction must not become current again.
+            if (!reviewed && metadata(catalog.apply(song)) != metadata(song)) return@withLock
             root.mkdirs()
             write(File(root, "${key(song)}.data.json"), Gson().toJson(data))
             saveFormat(File(root, "${key(song)}.lrc"), data.syncedLyrics)
             saveFormat(File(root, "${key(song)}.txt"), data.plainLyrics)
             saveFormat(File(root, "${key(song)}.json"), data.wordByWordLyrics)
             if (reviewed) prefs.edit(commit = true) { putBoolean("reviewed:${key(song)}", true) }
+            prefs.edit(commit = true) { putBoolean("stale:${key(song)}", false); putString("metadata:${key(song)}", metadata(song)) }
             if (embed && catalog.preferences.options.value.embedLyrics) {
                 prefs.edit(commit = true) { putString("pending:${key(song)}", CatalogSongCodec.encode(song)) }
                 attemptEmbedding(song, data)

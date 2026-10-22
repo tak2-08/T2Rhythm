@@ -3000,7 +3000,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         val previousCurrent = _currentSong.value
         val previousArt = before.associate { it.id to it.artworkUri }
         repository.persistEditedSongs(updatedSongs)
-        withContext(Dispatchers.IO) { refreshEditedPageReferences(before, updatedSongs, replacements.keys) }
+        withContext(Dispatchers.IO) {
+            refreshEditedPageReferences(before, updatedSongs, replacements.keys)
+            val latest = updatedSongs.associateBy { it.id }
+            before.forEach { old -> latest[old.id]?.takeIf { it.title != old.title || it.artist != old.artist }?.let {
+                repository.refreshLyricsForMetadataChange(old, it)
+            } }
+        }
         val (albums, artists, folders) = withContext(Dispatchers.IO) {
             Triple(repository.loadAlbums(), repository.loadArtists(), repository.buildFolderTree(updatedSongs))
         }
@@ -3038,7 +3044,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         val current = _currentSong.value
         if (previousCurrent != null && current?.id == previousCurrent.id &&
             (current.title != previousCurrent.title || current.artist != previousCurrent.artist || current.album != previousCurrent.album)) {
-            repository.clearLyricsCacheForSong(previousCurrent.artist, previousCurrent.title, previousCurrent.id)
             currentFetchingSongId = null
             currentLoadedLyricsSongId = null
             fetchLyricsForCurrentSong()

@@ -246,7 +246,11 @@ private fun StatsPageContent(
                     M3CircularLoader(modifier = Modifier.size(48.dp), strokeWidth = 4f)
                 }
             } else if (statsSummary == null || statsSummary!!.totalPlayCount == 0) {
-                EmptyStatsView()
+                // The recap has its own calendar controls and remains useful when this legacy
+                // statistics filter is empty (for example, no listening today).
+                Column(Modifier.fillMaxSize().verticalScroll(pageScrollState).padding(horizontal = 20.dp)) {
+                    chromahub.rhythm.app.features.local.presentation.metadata.ListeningReportPanel(viewModel)
+                }
             } else {
                 val stats = statsSummary!!
                 val isTablet = windowScreenWidthDp() >= 600

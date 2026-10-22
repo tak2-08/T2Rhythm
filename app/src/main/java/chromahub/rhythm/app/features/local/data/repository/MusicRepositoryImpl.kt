@@ -6303,6 +6303,16 @@ class MusicRepository(context: Context) {
     /**
      * Clears cached lyrics for a specific song (both in-memory and on-disk)
      */
+    fun refreshLyricsForMetadataChange(before: Song, after: Song) {
+        synchronized(lyricsCache) {
+            listOf(before, after).forEach { song ->
+                lyricsCache.remove("${song.id}:${song.artist}:${song.title}".lowercase())
+                lyricsCache.remove("${song.artist}:${song.title}".lowercase())
+            }
+        }
+        autoLyrics.invalidateUnreviewedForMetadata(after)
+    }
+
     fun clearLyricsCacheForSong(artist: String, title: String, songId: String?) {
         try {
             val keysToRemove = mutableListOf<String>()
