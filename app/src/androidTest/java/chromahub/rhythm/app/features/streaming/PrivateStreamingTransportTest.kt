@@ -261,4 +261,22 @@ class PrivateStreamingTransportTest {
             assertTrue("Stopping must not wait for the ten-second handshake timeout: $elapsed ms", elapsed < 1000)
         }
     }
+    @Test fun ordinaryOnlineStreamsKeepTheRedirectedPlaylistUrlAndReceiveNoPrivateCredential() {
+        val authorization = java.util.concurrent.atomic.AtomicReference<String?>()
+        val publicServer = object : fi.iki.elonen.NanoHTTPD(0) {
+            override fun serve(session: IHTTPSession): Response {
+                authorization.set(session.headers["authorization"])
+                return if (session.uri == "/old") newFixedLengthResponse(Response.Status.REDIRECT, "text/plain", "").apply {
+                    addHeader("Location", "http://127.0.0.1:$listeningPort/new/playlist.m3u8")
+                } else newFixedLengthResponse(Response.Status.OK, "application/vnd.apple.mpegurl", "#EXTM3U\ntrack.m4a\n")
+            }
+        }
+        publicServer.start(10_000, true)
+        val source = PrivateStreamDataSource(store, androidx.media3.datasource.DefaultHttpDataSource.Factory())
+        try {
+            source.open(DataSpec.Builder().setUri("http://127.0.0.1:${publicServer.listeningPort}/old").build())
+            assertEquals(Uri.parse("http://127.0.0.1:${publicServer.listeningPort}/new/playlist.m3u8"), source.uri)
+            assertNull(authorization.get()); assertTrue(source.read(ByteArray(100), 0, 100) > 0)
+        } finally { source.close(); publicServer.stop() }
+    }
 }

@@ -37,7 +37,9 @@ class PrivateStreamDataSource(private val store: StreamingStore, private val fal
         credential?.let { if (store.connection(it.server)?.token != it.token) throw IOException("This music server was disconnected") }
         return delegate?.read(buffer, offset, length) ?: throw IOException("Data source is closed")
     }
-    override fun getUri(): Uri? = original
+    // HLS playlists need the final upstream URL after redirects to resolve relative segments.
+    // Only a private route hides its authenticated endpoint behind the stable queue URI.
+    override fun getUri(): Uri? = if (credential != null) original else delegate?.uri
     override fun getResponseHeaders(): Map<String, List<String>> = delegate?.responseHeaders ?: emptyMap()
     override fun close() { try { delegate?.close() } finally { delegate = null; credential = null; original = null } }
     class Factory(context: Context, private val fallback: DataSource.Factory) : DataSource.Factory {
