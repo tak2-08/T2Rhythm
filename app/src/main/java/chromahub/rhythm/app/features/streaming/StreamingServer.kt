@@ -5,11 +5,16 @@ import fi.iki.elonen.NanoHTTPD
 import java.io.ByteArrayInputStream
 import java.io.FilterInputStream
 import java.io.IOException
+import java.io.InputStream
+import java.net.ServerSocket
+import java.net.Socket
+import java.net.SocketAddress
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import javax.net.ssl.SSLContext
 import org.json.JSONObject
 
@@ -22,9 +27,41 @@ class StreamingServer(
     val bytesSent = AtomicLong()
     private var pairingWindow = 0L
     private var pairingCount = 0
+    private val handshakeLock = Any()
+    private val handshakeSocket = AtomicReference<Socket?>()
+    val pendingTlsHandshake: Boolean get() = handshakeSocket.get() != null
     init {
         makeSecure(ssl.serverSocketFactory, arrayOf("TLSv1.2", "TLSv1.3").filter { it in ssl.supportedSSLParameters.protocols }.toTypedArray())
+        val secureFactory = getServerSocketFactory()
+        setServerSocketFactory { TrackedListener(secureFactory.create()) }
         setAsyncRunner(runner)
+    }
+    override fun createClientHandler(socket: Socket, input: InputStream): ClientHandler {
+        handshakeSocket.compareAndSet(socket, null)
+        return super.createClientHandler(socket, input)
+    }
+    /** Conscrypt can begin TLS inside getInputStream, before NanoHTTPD assigns a worker.
+     * Closing that pending socket prevents stop/join from blocking the service's main thread. */
+    private inner class TrackedListener(private val delegate: ServerSocket) : ServerSocket() {
+        override fun bind(endpoint: SocketAddress?) = delegate.bind(endpoint)
+        override fun bind(endpoint: SocketAddress?, backlog: Int) = delegate.bind(endpoint, backlog)
+        override fun setReuseAddress(on: Boolean) { delegate.reuseAddress = on }
+        override fun getLocalPort() = delegate.localPort
+        override fun isClosed() = delegate.isClosed
+        override fun accept(): Socket {
+            val accepted = delegate.accept()
+            synchronized(handshakeLock) {
+                if (delegate.isClosed) { accepted.close(); throw java.net.SocketException("Server closed") }
+                // Failed/timed-out handshakes never reach createClientHandler. Retain at most one.
+                runCatching { handshakeSocket.getAndSet(accepted)?.close() }
+            }
+            return accepted
+        }
+        override fun close() {
+            synchronized(handshakeLock) {
+                try { delegate.close() } finally { runCatching { handshakeSocket.getAndSet(null)?.close() } }
+            }
+        }
     }
     override fun serve(session: IHTTPSession): Response {
         return try { handle(session) } catch (_: Exception) { reply(Response.Status.SERVICE_UNAVAILABLE) }

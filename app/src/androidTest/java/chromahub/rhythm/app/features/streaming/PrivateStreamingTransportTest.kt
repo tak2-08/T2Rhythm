@@ -249,4 +249,16 @@ class PrivateStreamingTransportTest {
             assertTrue(android.graphics.Color.red(blue) < 50)
         } finally { loader.shutdown(); cover.delete() }; Unit
     }
+    @Test fun stoppingTheServerClosesAnUnfinishedTlsHandshakeWithoutBlockingTheMainThread() {
+        java.net.Socket("127.0.0.1", server.listeningPort).use {
+            val deadline = android.os.SystemClock.elapsedRealtime() + 3000
+            while (!server.pendingTlsHandshake && android.os.SystemClock.elapsedRealtime() < deadline) android.os.SystemClock.sleep(10)
+            assertTrue("The test must hold a real unfinished TLS handshake", server.pendingTlsHandshake)
+            var elapsed = Long.MAX_VALUE
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                val started = android.os.SystemClock.elapsedRealtime(); server.stop(); elapsed = android.os.SystemClock.elapsedRealtime() - started
+            }
+            assertTrue("Stopping must not wait for the ten-second handshake timeout: $elapsed ms", elapsed < 1000)
+        }
+    }
 }

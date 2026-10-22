@@ -12,7 +12,7 @@ collect() {
 trap collect EXIT
 adb shell dumpsys battery set ac 1
 classes=(PrivateStreamingTransportTest PrivateStreamingFlowTest)
-counts=(15 7)
+counts=(16 7)
 failed=0
 for index in "${!classes[@]}"; do
   name="${classes[$index]}"
