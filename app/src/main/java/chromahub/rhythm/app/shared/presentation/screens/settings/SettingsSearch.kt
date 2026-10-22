@@ -122,6 +122,9 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
         add(SearchableSettingItem("hybrid_scan", context.getString(R.string.catalog_hybrid_mode), context.getString(R.string.catalog_hybrid_hint),
             listOf("hybrid", "whitelist", "blacklist", "include", "exclude", "하이브리드", "화이트리스트", "블랙리스트", "포함", "제외"),
             RhythmIcons.FilterList, SettingsRoutes.MEDIA_SCAN, context.getString(R.string.settings_media_scan)))
+        add(SearchableSettingItem("private_streaming", context.getString(R.string.streaming_title), context.getString(R.string.streaming_hint),
+            listOf("streaming", "server", "Rhythm Go", "share", "VPN", "스트리밍", "서버", "공유", "친구", "서브폰"),
+            MaterialSymbolIcon("phonelink_lock"), SettingsRoutes.PRIVATE_STREAMING, context.getString(R.string.settings_section_notifications_services)))
         // ======================== MAIN SETTINGS SCREEN ========================
 
         // Look & Feel Section

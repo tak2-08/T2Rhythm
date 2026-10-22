@@ -161,6 +161,7 @@ import chromahub.rhythm.app.shared.presentation.components.SettingsPalettes
 
 // Define routes for navigation
 object SettingsRoutes {
+    const val PRIVATE_STREAMING = "private_streaming"
     const val ALGORITHM_MANAGEMENT = "algorithm_management"
     const val LEARNING_POWER = "learning_power"
     const val FILE_NAMES = "file_names"
@@ -434,6 +435,7 @@ fun SettingsScreen(
                     // API Management/Integrations is available in both LOCAL and STREAMING modes
                     add(SettingItem(MaterialSymbolIcon("library_music"), context.getString(R.string.catalog_library_title), context.getString(R.string.catalog_library_hint), palette = SettingsPalettes.Emerald, onClick = { onNavigateTo(SettingsRoutes.CATALOG_LIBRARY) }))
                     add(SettingItem(MaterialSymbolIcon("hub"), context.getString(R.string.settings_api_management), context.getString(R.string.settings_api_management_desc), palette = SettingsPalettes.Slate, onClick = { onNavigateTo(SettingsRoutes.API_MANAGEMENT) }))
+                    add(SettingItem(MaterialSymbolIcon("phonelink_lock"), context.getString(R.string.streaming_title), context.getString(R.string.streaming_hint), palette = SettingsPalettes.Teal, onClick = { onNavigateTo(SettingsRoutes.PRIVATE_STREAMING) }))
                 }
             ),
             // 7. Data & Storage - split into shared and local-only items
@@ -1192,6 +1194,7 @@ fun SettingsScreenWrapper(
                         SettingsRoutes.DEFAULT_PLAYLISTS -> DefaultPlaylistsSettingsScreen(
                             onBackClick = handleBack
                         )
+                        SettingsRoutes.PRIVATE_STREAMING -> chromahub.rhythm.app.features.streaming.StreamingScreen(onBackClick = handleBack, musicViewModel = musicViewModel)
                         SettingsRoutes.CATALOG_LIBRARY -> chromahub.rhythm.app.features.local.presentation.metadata.CatalogLibrarySettingsScreen(onBackClick = handleBack)
                         SettingsRoutes.MEDIA_SCAN -> MediaScanSettingsScreen(onBackClick = handleBack)
                         SettingsRoutes.ARTIST_SEPARATORS -> ArtistSeparatorsSettingsScreen(onBackClick = handleBack)
@@ -1339,6 +1342,7 @@ fun SettingsScreenWrapper(
                 SettingsRoutes.DEFAULT_PLAYLISTS -> DefaultPlaylistsSettingsScreen(
                     onBackClick = handleBack
                 )
+                SettingsRoutes.PRIVATE_STREAMING -> chromahub.rhythm.app.features.streaming.StreamingScreen(onBackClick = handleBack, musicViewModel = musicViewModel)
                 SettingsRoutes.CATALOG_LIBRARY -> chromahub.rhythm.app.features.local.presentation.metadata.CatalogLibrarySettingsScreen(onBackClick = handleBack)
                         SettingsRoutes.MEDIA_SCAN -> MediaScanSettingsScreen(onBackClick = handleBack)
                 SettingsRoutes.ARTIST_SEPARATORS -> ArtistSeparatorsSettingsScreen(onBackClick = handleBack)

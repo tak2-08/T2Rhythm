@@ -46,7 +46,7 @@ class PreloadController(
             targetPreloadStatusControl.preloadLimit = limit
 
             val resolvingDataSourceFactory = ResolvingDataSource.Factory(
-                DefaultDataSource.Factory(context, DefaultHttpDataSource.Factory()),
+                chromahub.rhythm.app.features.streaming.PrivateStreamDataSource.Factory(context, DefaultDataSource.Factory(context, DefaultHttpDataSource.Factory())),
                 object : ResolvingDataSource.Resolver {
                     override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
                     return chromahub.rhythm.app.features.local.data.discovery.StreamingAudio.resolve(dataSpec)

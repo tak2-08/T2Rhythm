@@ -78,8 +78,10 @@ fun ListeningReportPanel(viewModel: MusicViewModel,
         catch (cancel: CancellationException) { throw cancel }
         catch (_: Exception) { loaded = ReportLoad(window, previous, loading = false, failed = true) }
     }
-    val projection by produceState<ReportLibraryProjection?>(null, songs) {
-        value = withContext(Dispatchers.Default) { ReportLibraryProjection(songs) }
+    val streamingConnections by remember { chromahub.rhythm.app.features.streaming.PrivateStreaming.get(context).store.connections }.collectAsState()
+    val connectedServers = remember(streamingConnections) { streamingConnections.map { it.server }.toSet() }
+    val projection by produceState<ReportLibraryProjection?>(null, songs, connectedServers) {
+        value = withContext(Dispatchers.Default) { ReportLibraryProjection(songs, connectedServers) }
     }
     val report by produceState(current?.report, current?.report, projection) {
         value = current?.report?.let { source -> withContext(Dispatchers.Default) { projection?.project(source) ?: source } }
