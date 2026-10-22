@@ -115,7 +115,7 @@ fun ListeningReportPanel(viewModel: MusicViewModel,
                     Text(stringResource(R.string.report_empty), Modifier.testTag("report-empty"))
                     Text(stringResource(R.string.report_empty_detail), style = MaterialTheme.typography.bodySmall)
                 } else {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilledTonalButton(enabled = !busy && queue.isNotEmpty(), onClick = { viewModel.playQueue(queue, enableShuffle = false) }, modifier = Modifier.testTag("report-play")) {
                             Icon(MaterialSymbolIcon("play_arrow"), null, Modifier.size(20.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.download_listen))
                         }
@@ -135,6 +135,7 @@ fun ListeningReportPanel(viewModel: MusicViewModel,
                     if (data.plays < 3) Text(stringResource(R.string.report_gathering), style = MaterialTheme.typography.bodySmall)
                     if (data.days.any { it.listenedMs > 0 }) ReportTimeline(data.days)
                     if (data.artists.isNotEmpty()) {
+                        Column(Modifier.testTag("report-artists"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(stringResource(R.string.report_artists), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         data.artists.take(3).forEachIndexed { index, artist ->
                             val art = resolved.firstOrNull { it.first.artist == artist.name }?.second?.artworkUri
@@ -146,6 +147,7 @@ fun ListeningReportPanel(viewModel: MusicViewModel,
                                 }
                                 Text("%02d".format(index + 1), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
                             }
+                        }
                         }
                     }
                     if (data.genres.isNotEmpty()) {

@@ -17,6 +17,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import chromahub.rhythm.app.R
 import chromahub.rhythm.app.features.local.data.experience.*
@@ -111,7 +112,8 @@ class ListeningRecapFlowTest {
             val start = window.first.plusDays(day.toLong()).atStartOfDay(window.zone).toInstant().toEpochMilli()
             repeat(4 - i) { play -> record(track, start + play * 180_000, start + (play + 1) * 180_000) }
         }
-        tracks.forEach { track -> record(track, window.startMs - 86_400_000, window.startMs - 86_400_000 + 180_000) }
+        tracks.forEach { track -> repeat(3) { i -> record(track, window.startMs - 7 * 86_400_000L + i * 180_000,
+            window.startMs - 7 * 86_400_000L + (i + 1) * 180_000) } }
         runBlocking { LocalMusicModule.provideMusicRepository(base).persistEditedSongs(tracks) }
         return tracks
     }
@@ -138,7 +140,7 @@ class ListeningRecapFlowTest {
         compose.onAllNodesWithText(base.getString(R.string.report_save_playlist)).onLast().performClick()
         compose.waitUntil(10_000) { vm.playlists.value.any { it.name == "나의 음악 이야기-$token" } }
         assertEquals(tracks.map { it.uri }.toSet(), vm.playlists.value.single { it.name == "나의 음악 이야기-$token" }.songs.map { it.uri }.toSet())
-        compose.onNodeWithTag("report-timeline").performScrollTo()
+        compose.onNodeWithTag("report-artists").performScrollTo()
         capture("recap-highlights.png")
         compose.onNodeWithText(base.getString(R.string.report_genres)).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(base.getString(R.string.report_month)).performScrollTo().performClick()
@@ -152,6 +154,12 @@ class ListeningRecapFlowTest {
         val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
         compose.onNodeWithText(base.getString(R.string.report_title)).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         assertTrue(layouts.single().layoutInput.density.fontScale >= 1.59f)
+        val glyphs = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        compose.onNodeWithText("info", useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(glyphs) }
+        val glyph = glyphs.single()
+        assertTrue("Font icons must stay inside their 24 dp slot at large text", with(glyph.layoutInput.density) {
+            glyph.layoutInput.style.fontSize.toPx() <= 24.dp.toPx()
+        })
         capture("recap-large-text.png")
         compose.onNodeWithTag("report-timeline").performScrollTo().assertIsDisplayed()
         compose.onNodeWithContentDescription(base.getString(R.string.report_how)).performScrollTo().performClick()
