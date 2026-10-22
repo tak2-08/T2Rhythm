@@ -1214,14 +1214,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 val changed = updated.filterIndexed { index, song -> song != baseline[index] }.associateBy { it.id }
                 if (changed.isNotEmpty()) commitSongMetadata(changed)
                 val artwork = withContext(Dispatchers.IO) {
-                    _albums.value.associate { album -> album.id to catalog.preferredArtwork(album.artworkUri,
-                        catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ALBUM, catalog.albumKey(album.title, album.artist)))) } to
-                    _artists.value.associate { artist -> artist.id to catalog.preferredArtwork(artist.artworkUri,
-                        catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ARTIST, catalog.artistKey(artist.name)))) }
+                    _albums.value.associate { album -> album.id to (album.artworkUri to catalog.preferredArtwork(album.artworkUri,
+                        catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ALBUM, catalog.albumKey(album.title, album.artist))))) } to
+                    _artists.value.associate { artist -> artist.id to (artist.artworkUri to catalog.preferredArtwork(artist.artworkUri,
+                        catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ARTIST, catalog.artistKey(artist.name))))) }
                 }
                 // Only images are projected here; never restore an old list after a suspended lookup.
-                _albums.value = _albums.value.map { if (artwork.first.containsKey(it.id)) it.copy(artworkUri = artwork.first[it.id]) else it }
-                _artists.value = _artists.value.map { if (artwork.second.containsKey(it.id)) it.copy(artworkUri = artwork.second[it.id]) else it }
+                _albums.value = _albums.value.map { album ->
+                    artwork.first[album.id]?.takeIf { it.first == album.artworkUri }?.let { album.copy(artworkUri = it.second) } ?: album
+                }
+                _artists.value = _artists.value.map { artist ->
+                    artwork.second[artist.id]?.takeIf { it.first == artist.artworkUri }?.let { artist.copy(artworkUri = it.second) } ?: artist
+                }
                 _currentSong.value?.let { song ->
                     val saved = withContext(Dispatchers.IO) { chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(application).read(song) }
                     if (_currentSong.value?.id == song.id && saved != null && saved.hasLyrics() && saved != _currentLyrics.value) {

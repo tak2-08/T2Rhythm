@@ -200,7 +200,8 @@ class EntityPageStore(private val context: Context) {
             val tags = track.source?.let(manual::read)
             tags == null || (tags.title == track.title && tags.artist == track.artist && tags.album == track.album)
         }
-        val next = old.copy(tracks = (currentTracks + old.tracks.orEmpty()).distinctBy { it.source ?: "${it.artist}:${it.album}:${it.title}:${it.duration}" }, albums = (albums + old.albums.orEmpty()).distinctBy { "${it.artist}:${it.title}:${it.year}" },
+        val currentAlbums = if (tracks.size != currentTracks.size) albums.filter { album -> currentTracks.any { it.album == album.title } } else albums
+        val next = old.copy(tracks = (currentTracks + old.tracks.orEmpty()).distinctBy { it.source ?: "${it.artist}:${it.album}:${it.title}:${it.duration}" }, albums = (currentAlbums + old.albums.orEmpty()).distinctBy { "${it.artist}:${it.title}" },
             details = details.ifEmpty { old.details.orEmpty() })
         if (next != old) write(next)
         next

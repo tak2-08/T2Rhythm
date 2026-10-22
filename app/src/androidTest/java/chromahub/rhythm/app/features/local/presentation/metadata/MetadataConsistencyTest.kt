@@ -145,6 +145,10 @@ class MetadataConsistencyTest {
             store.snapshot(EntityKind.ALBUM, key, song.album, song.albumArtist.orEmpty(), "직접 보관한 설명", listOf(PageTrack(original.title, original.artist, original.album, original.duration, original.year, original.genre, catalog.songKey(original))))
         }
         page(original); page(edited)
+        val oldArtistKey = catalog.artistKey(original.artist); pages += EntityKind.ARTIST to oldArtistKey
+        store.snapshot(EntityKind.ARTIST, oldArtistKey, original.artist, "", "아티스트 소개",
+            listOf(PageTrack(original.title, original.artist, original.album, original.duration, original.year, original.genre, catalog.songKey(original))),
+            listOf(PageAlbum(original.album, original.artist, original.year)))
         lateinit var vm: MusicViewModel
         compose.setContent { vm = androidx.lifecycle.viewmodel.compose.viewModel(); MaterialTheme {} }
         compose.waitUntil(30_000) { vm.isInitialized.value && vm.songs.value.any { it.id == original.id } }
@@ -179,6 +183,11 @@ class MetadataConsistencyTest {
         store.snapshot(EntityKind.ALBUM, oldKey, original.album, original.albumArtist.orEmpty(), "늦은 자동 설명",
             listOf(PageTrack(original.title, original.artist, original.album, original.duration, original.year, original.genre, catalog.songKey(original))))
         assertTrue(store.read(EntityKind.ALBUM, oldKey)!!.tracks.orEmpty().isEmpty())
+        store.snapshot(EntityKind.ARTIST, oldArtistKey, original.artist, "", "늦은 소개",
+            listOf(PageTrack(original.title, original.artist, original.album, original.duration, original.year, original.genre, catalog.songKey(original))),
+            listOf(PageAlbum(original.album, original.artist, original.year)))
+        assertTrue(store.read(EntityKind.ARTIST, oldArtistKey)!!.tracks.orEmpty().isEmpty())
+        assertTrue(store.read(EntityKind.ARTIST, oldArtistKey)!!.albums.orEmpty().isEmpty())
         // Reusing an old song object for a cover edit must not restore its old tags.
         vm.updateCurrentSongMetadata(original.copy(artworkUri = null))
         compose.waitUntil(10_000) { vm.songs.value.single { it.id == original.id }.title == edited.title }
