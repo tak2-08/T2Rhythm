@@ -60,8 +60,14 @@ data class StreamSaveRequest(val name: String, val songs: List<Song>)
                     }
                     itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
                         val resolved = resolve(song)
+                        val origin = song.uri.pathSegments.firstOrNull()
+                        val originName = if (origin == manager.store.serverId) stringResource(R.string.network_this_device)
+                            else connections.firstOrNull { it.server == origin }?.name
                         ListItem(headlineContent = { Text(song.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                            supportingContent = { Text(song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            supportingContent = { Column {
+                                Text(song.artist, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                originName?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
+                            } },
                             trailingContent = { NetworkIcon(if (resolved == null) "link_off" else "play_arrow") }, modifier = Modifier.clickable(enabled = resolved != null) {
                                 onPlay(playable, playable.indexOfFirst { it.id == resolved?.id }.coerceAtLeast(0), false); onDismiss()
                             })

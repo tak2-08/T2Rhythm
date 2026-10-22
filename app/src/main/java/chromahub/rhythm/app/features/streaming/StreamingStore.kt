@@ -17,8 +17,12 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
+import javax.net.ssl.X509ExtendedKeyManager
+import javax.net.ssl.SSLEngine
+import java.net.Socket
+import java.security.Principal
+import java.security.PrivateKey
 import javax.security.auth.x500.X500Principal
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -137,7 +141,21 @@ class StreamingIdentity(private val alias: String = "t2-stream-tls-v2") {
     }
     val pin: String get() = StreamingProtocol.hash(store.getCertificate(alias).encoded)
     fun serverContext(): SSLContext {
-        val factory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm()); factory.init(store, null)
-        return SSLContext.getInstance("TLS").apply { init(factory.keyManagers, null, null) }
+        val privateKey = store.getKey(alias, null) as PrivateKey
+        val chain = store.getCertificateChain(alias).map { it as X509Certificate }.toTypedArray()
+        // A factory over the whole Android Keystore may select a different EC identity.
+        // Bind both certificate and non-exportable signing key to this server's exact alias.
+        val manager = object : X509ExtendedKeyManager() {
+            private fun select(type: String?) = alias.takeIf { type?.substringBefore('_') == chain[0].publicKey.algorithm }
+            override fun getPrivateKey(requested: String?): PrivateKey? = privateKey.takeIf { requested == alias }
+            override fun getCertificateChain(requested: String?): Array<X509Certificate>? = chain.copyOf().takeIf { requested == alias }
+            override fun getServerAliases(type: String?, issuers: Array<out Principal>?): Array<String>? = select(type)?.let { arrayOf(it) }
+            override fun chooseServerAlias(type: String?, issuers: Array<out Principal>?, socket: Socket?): String? = select(type)
+            override fun chooseEngineServerAlias(type: String?, issuers: Array<out Principal>?, engine: SSLEngine?): String? = select(type)
+            override fun getClientAliases(type: String?, issuers: Array<out Principal>?): Array<String>? = null
+            override fun chooseClientAlias(types: Array<out String>?, issuers: Array<out Principal>?, socket: Socket?): String? = null
+            override fun chooseEngineClientAlias(types: Array<out String>?, issuers: Array<out Principal>?, engine: SSLEngine?): String? = null
+        }
+        return SSLContext.getInstance("TLS").apply { init(arrayOf(manager), null, null) }
     }
 }

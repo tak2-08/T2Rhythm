@@ -60,6 +60,9 @@ class PeerNetworkFlowTest {
         } }
     }
     private fun scroll(text: String) { compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(text)) }
+    private fun awaitText(text: String) {
+        compose.waitUntil(20_000) { runCatching { scroll(text); compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false) }
+    }
     private fun connectTab() { compose.onNodeWithText("연결하기").performClick() }
     private fun screenshot(name: String) {
         compose.waitForIdle(); InstrumentationRegistry.getInstrumentation().waitForIdleSync(); android.os.SystemClock.sleep(200)
@@ -71,7 +74,7 @@ class PeerNetworkFlowTest {
         var played = emptyList<Song>(); var index = -1
         screen(play = { list, chosen, _ -> played = list; index = chosen }); connectTab()
         scroll("노래 · 아티스트 · 앨범 검색")
-        compose.waitUntil(20_000) { compose.onAllNodesWithText("서재의 아침").fetchSemanticsNodes().isNotEmpty() }
+        awaitText("서재의 아침")
         scroll("서재의 아침"); screenshot("streaming-all-devices")
         compose.onNodeWithText("서재의 아침").performClick()
         assertEquals(2, played.size); assertEquals(setOf(a.connection.server, b.connection.server), played.map { it.uri.pathSegments[0] }.toSet())
@@ -84,7 +87,7 @@ class PeerNetworkFlowTest {
         var saved = emptyList<Song>(); var name = ""
         screen(save = { title, songs -> name = title; saved = songs }); connectTab()
         scroll("플레이리스트"); compose.onNodeWithText("플레이리스트").performClick()
-        compose.waitUntil(20_000) { compose.onAllNodesWithText("서로의 음악").fetchSemanticsNodes().isNotEmpty() }
+        awaitText("서로의 음악")
         scroll("서로의 음악"); compose.onNodeWithText("서로의 음악").performClick()
         compose.waitUntil(20_000) { compose.onAllNodes(hasText("플레이리스트 재생") and isEnabled()).fetchSemanticsNodes().isNotEmpty() }
         screenshot("streaming-shared-playlist")
@@ -99,7 +102,7 @@ class PeerNetworkFlowTest {
         var saved = emptyList<Song>()
         screen(save = { _, songs -> saved = songs }); connectTab()
         scroll("플레이리스트"); compose.onNodeWithText("플레이리스트").performClick()
-        compose.waitUntil(20_000) { compose.onAllNodesWithText("나중에 듣기").fetchSemanticsNodes().isNotEmpty() }
+        awaitText("나중에 듣기")
         scroll("나중에 듣기"); compose.onNodeWithText("나중에 듣기").performClick()
         compose.waitUntil(20_000) { compose.onAllNodesWithText("1곡은 음악을", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("플레이리스트 재생").assertIsNotEnabled(); screenshot("streaming-origin-needed")

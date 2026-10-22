@@ -125,7 +125,7 @@ class PrivateStreamingFlowTest {
         screen(emptyList()) { list, index, _ -> played = list; chosen = index }
         compose.onNodeWithText("연결하기").performClick()
         scroll("노래 · 아티스트 · 앨범 검색")
-        compose.waitUntil(20_000) { compose.onAllNodesWithText(song.title).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(20_000) { runCatching { scroll(song.title); compose.onAllNodesWithText(song.title).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false) }
         scroll(song.title); screenshot("streaming-remote-library")
         compose.onNodeWithText("T2Rhythm Streaming").assertIsDisplayed()
         compose.onNodeWithText(song.title).performClick()
@@ -133,7 +133,7 @@ class PrivateStreamingFlowTest {
         assertEquals(StreamingProtocol.MEDIA_HOST, played.single().uri.host); assertFalse(played.single().uri.toString().contains(token))
         catalog.replace(listOf(song.copy(title = "새로 고친 노래", artist = "새 아티스트", genre = "ROCK")), null)
         scroll("라이브러리 새로고침"); compose.onNodeWithText("라이브러리 새로고침").performClick()
-        compose.waitUntil(20_000) { compose.onAllNodesWithText("새로 고친 노래").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(20_000) { runCatching { scroll("새로 고친 노래"); compose.onAllNodesWithText("새로 고친 노래").fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false) }
         scroll("새로 고친 노래"); compose.onNodeWithText("새 아티스트", substring = true).assertExists(); Unit
     }
     @Test @Suppress("DEPRECATION") fun largeTextConnectionHelpAndAddressInstructionsRemainScrollable() {
