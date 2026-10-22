@@ -1,0 +1,28 @@
+name: Publish verified original-key 1323 APKs
+on:
+  push:
+    branches: [codex/apk-release-1323-20261022]
+    paths: [release-1323/ready.json]
+permissions:
+  contents: write
+concurrency:
+  group: publish-verified-1323
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - name: Validate prepared signed assets and publish stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 release-1323/publish-verified.py
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: publisher-result-1323
+          path: publisher-result.json
+          if-no-files-found: warn
