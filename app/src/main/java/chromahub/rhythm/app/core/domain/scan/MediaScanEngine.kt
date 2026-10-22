@@ -14,6 +14,9 @@ import android.util.Log
 import androidx.room.withTransaction
 import chromahub.rhythm.app.features.local.data.database.RhythmDatabase
 import chromahub.rhythm.app.features.local.data.database.entity.SongEntity
+import chromahub.rhythm.app.features.local.data.database.entity.toSong
+import chromahub.rhythm.app.features.local.data.database.entity.toEntity
+import chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService
 import chromahub.rhythm.app.shared.data.model.AppSettings
 import chromahub.rhythm.app.shared.data.model.MediaScanMode
 import chromahub.rhythm.app.shared.data.model.ScanPhase
@@ -394,6 +397,15 @@ class MediaScanEngine(
             // Sync with Room DB atomically
             _scanProgress.value = ScanProgress(scannedSongs.size, scannedSongs.size, ScanPhase.SavingDb, 0)
             database.withTransaction {
+                // Project explicit edits after acquiring the DB writer. A scan that started
+                // before the edit must not publish old MediaStore tags after that edit commits.
+                val catalog = CatalogEnrichmentService.get(context)
+                val projected = scannedSongs.map { catalog.apply(it.toSong()).toEntity() }
+                scannedSongs.clear(); scannedSongs.addAll(projected)
+                val oldById = allExistingSongs.associateBy { it.id }
+                val groupingChanged = scannedSongs.any { song -> oldById[song.id]?.let {
+                    it.artist != song.artist || it.albumArtist != song.albumArtist || it.album != song.album
+                } ?: true }
                 if (forceRefresh) {
                     database.songDao().replaceAll(scannedSongs)
                     database.artistDao().deleteAll()
@@ -406,7 +418,7 @@ class MediaScanEngine(
                         database.songArtistDao().deleteBySongIds(staleSongIds.toList())
                     }
                     database.songDao().upsertAll(scannedSongs)
-                    if (staleSongIds.isNotEmpty() || newSongIds.isNotEmpty()) {
+                    if (staleSongIds.isNotEmpty() || newSongIds.isNotEmpty() || groupingChanged) {
                         database.artistDao().deleteAll()
                         database.songArtistDao().deleteAll()
                     }

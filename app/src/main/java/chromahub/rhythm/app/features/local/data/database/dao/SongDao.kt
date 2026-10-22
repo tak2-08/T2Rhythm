@@ -41,6 +41,10 @@ interface SongDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(songs: List<SongEntity>)
 
+    /** Playlist snapshots may introduce missing tracks, but never own existing library tags. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertMissing(songs: List<SongEntity>)
+
     @Query("UPDATE songs SET bitrate = :bitrate, sampleRate = :sampleRate, channels = :channels, codec = :codec WHERE id = :id AND uri = :uri")
     suspend fun updateAudioMetadata(id: String, uri: String, bitrate: Int?, sampleRate: Int?, channels: Int?, codec: String?): Int
 

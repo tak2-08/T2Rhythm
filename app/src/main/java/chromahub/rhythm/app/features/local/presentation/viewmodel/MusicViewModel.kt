@@ -3913,7 +3913,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
                     if (distinctDbSongEntities.isNotEmpty()) {
                         distinctDbSongEntities.chunked(500).forEach { chunk ->
-                            repository.songDao.upsertAll(chunk)
+                            repository.songDao.insertMissing(chunk)
                         }
                     }
                 }

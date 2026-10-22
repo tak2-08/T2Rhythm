@@ -5286,7 +5286,7 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
                             
                             if (songEntitiesToInsert.isNotEmpty()) {
                                 val distinctSongs = songEntitiesToInsert.distinctBy { it.id }
-                                songDao.insertAll(distinctSongs)
+                                songDao.insertMissing(distinctSongs)
                                 Log.d("AppSettings", "Restored ${distinctSongs.size} unique song metadata records directly to Room database")
                             }
                         }

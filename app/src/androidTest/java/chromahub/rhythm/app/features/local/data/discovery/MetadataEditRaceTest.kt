@@ -102,6 +102,11 @@ class MetadataEditRaceTest {
                 dao.updateDetectedGenre(original.id, original.uri.toString(), null, "Pop"),
             )
             assertEquals("Rock", dao.getSongById(original.id)?.genre)
+            // A delayed playlist snapshot can add missing rows but cannot undo a library edit.
+            dao.insertMissing(listOf(original.toEntity(), added.toEntity()))
+            assertEquals(edited.title, dao.getSongById(original.id)?.title)
+            assertEquals("Rock", dao.getSongById(original.id)?.genre)
+            assertEquals(2, dao.getCount())
         } finally {
             db.close()
         }
