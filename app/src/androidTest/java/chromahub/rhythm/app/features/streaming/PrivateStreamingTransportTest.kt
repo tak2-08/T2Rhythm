@@ -33,6 +33,7 @@ class PrivateStreamingTransportTest {
     private lateinit var token: String
     private lateinit var connection: StreamConnection
     private lateinit var peer: StreamPeer
+    @Volatile private var artPayload = byteArrayOf(1, 2, 3)
     @Before fun setup() {
         if (android.os.Build.VERSION.SDK_INT >= 37) InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(base.packageName, "android.permission.ACCESS_LOCAL_NETWORK")
         store = StreamingStore(base, namespace); access = StreamingAccess(store.peers()) { store.savePeers(it) }
@@ -41,7 +42,7 @@ class PrivateStreamingTransportTest {
         InstrumentationRegistry.getInstrumentation().context.assets.open("audio-test.m4a").use { input -> audio.outputStream().use { input.copyTo(it) } }
         song = Song("test-$unique", "밤의 정원", "노을", "우리의 계절", duration = 90_000, uri = Uri.fromFile(audio), genre = "INDIE, POP", year = 2026, path = audio.path)
         catalog.replace(listOf(song), null)
-        server = StreamingServer(0, identity.serverContext(), access, catalog, artwork = { byteArrayOf(1, 2, 3) }); server.start(10_000, true)
+        server = StreamingServer(0, identity.serverContext(), access, catalog, artwork = { artPayload }); server.start(10_000, true)
         token = StreamingProtocol.token()
         peer = access.pair(access.invite().first, token, "메인폰")!!.peer; access.approve(peer.id)
         connection = StreamConnection(store.serverId, "서브폰", "https://127.0.0.1:${server.listeningPort}", identity.pin, token)
@@ -52,7 +53,7 @@ class PrivateStreamingTransportTest {
         File(base.noBackupFilesDir, namespace).deleteRecursively()
         KeyStore.getInstance("AndroidKeyStore").apply { load(null); if (containsAlias(alias)) deleteEntry(alias) }
     }
-    private fun request(path: String) = StreamingClient.request(connection, path)
+    private fun request(path: String) = Request.Builder().url(connection.endpoint + path).header("Authorization", "Bearer ${connection.token}")
     private fun response(path: String, range: String? = null, head: Boolean = false) = StreamingClient.http(connection).newCall(request(path).apply {
         if (range != null) header("Range", range); if (head) head()
     }.build()).execute()
@@ -204,5 +205,45 @@ class PrivateStreamingTransportTest {
         assertNull(disconnected.resolve(track))
         assertNull(chromahub.rhythm.app.features.local.data.experience.ReportLibraryProjection(listOf(remote)).resolve(track))
         assertNull(connected.resolve(track.copy(songId = "wrong")))
+    }
+    @Test fun corruptedSharingConfigurationFailsClosedAndAtomicBackupRecoversSelection() {
+        store.select(setOf(song.uri.toString()))
+        val host = File(base.noBackupFilesDir, "$namespace/host.json")
+        val valid = host.readBytes(); host.writeText("broken configuration")
+        val closed = StreamingStore(base, namespace)
+        assertEquals(emptySet<String>(), closed.selection()); assertTrue(closed.peers().isEmpty())
+        File(host.path + ".bak").writeBytes(valid); host.writeText("interrupted replacement")
+        val restored = StreamingStore(base, namespace)
+        assertEquals(setOf(song.uri.toString()), restored.selection()); assertEquals(store.serverId, restored.serverId)
+    }
+    @Test fun privateArtworkLoadsThroughPinnedTlsAndAChangedCoverCannotReuseTheOldImage() = runBlocking {
+        store.save(connection)
+        fun picture(color: Int): ByteArray {
+            val bitmap = android.graphics.Bitmap.createBitmap(32, 32, android.graphics.Bitmap.Config.ARGB_8888).apply { eraseColor(color) }
+            return java.io.ByteArrayOutputStream().also { bitmap.compress(android.graphics.Bitmap.CompressFormat.WEBP, 100, it); bitmap.recycle() }.toByteArray()
+        }
+        val loader = coil.ImageLoader.Builder(base).components { add(PrivateArtworkFetcher.Factory(base, store)) }.build()
+        val cover = File(base.cacheDir, "$namespace-cover.webp")
+        try {
+            artPayload = picture(android.graphics.Color.RED)
+            cover.writeBytes(artPayload); assertTrue(cover.setLastModified(100_000))
+            val decorated = song.copy(artworkUri = Uri.fromFile(cover))
+            catalog.replace(listOf(decorated), null)
+            val first = catalog.snapshot.entries.values.single().track.song(store.serverId).artworkUri!!
+            suspend fun load(uri: Uri): android.graphics.Bitmap {
+                val result = loader.execute(coil.request.ImageRequest.Builder(base).data(uri).size(32).allowHardware(false).build())
+                assertTrue("Private artwork must load without public DNS or relaxed TLS", result is coil.request.SuccessResult)
+                return (result.drawable as android.graphics.drawable.BitmapDrawable).bitmap
+            }
+            val red = load(first).getPixel(16, 16)
+            artPayload = picture(android.graphics.Color.BLUE)
+            cover.writeBytes(artPayload); assertTrue(cover.setLastModified(200_000))
+            catalog.replace(listOf(decorated), null)
+            val second = catalog.snapshot.entries.values.single().track.song(store.serverId).artworkUri!!
+            assertNotEquals(first, second)
+            val blue = load(second).getPixel(16, 16)
+            assertTrue(android.graphics.Color.red(red) > 200); assertTrue(android.graphics.Color.blue(blue) > 200)
+            assertTrue(android.graphics.Color.red(blue) < 50)
+        } finally { loader.shutdown(); cover.delete() }; Unit
     }
 }

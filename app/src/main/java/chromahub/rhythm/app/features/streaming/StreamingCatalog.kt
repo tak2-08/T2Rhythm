@@ -6,6 +6,7 @@ import android.net.Uri
 import chromahub.rhythm.app.shared.data.model.Song
 import java.io.Closeable
 import java.io.FileInputStream
+import java.io.File
 import java.io.IOException
 import java.util.Locale
 import org.json.JSONArray
@@ -43,9 +44,13 @@ class StreamingCatalog(private val context: Context, private val server: String)
             .distinctBy { it.uri.toString() }.map { song ->
                 val id = StreamingProtocol.hash("$server|${song.uri}")
                 val suffix = song.path?.substringAfterLast('.')?.lowercase(Locale.ROOT)?.takeIf { Regex("[a-z0-9]{1,8}").matches(it) } ?: "audio"
+                val artworkSignature = song.artworkUri?.let { uri ->
+                    val physical = if (uri.scheme == "file") uri.path?.let(::File) else null
+                    "$uri|${song.dateModified}|${physical?.lastModified() ?: 0}|${physical?.length() ?: 0}"
+                }
                 val track = StreamTrack(id, song.title.take(2048), song.artist.take(2048), song.album.take(2048), song.duration,
                     song.genre.orEmpty().take(2048), song.year, song.albumArtist.orEmpty().take(2048), song.trackNumber, song.discNumber, suffix,
-                    song.artworkUri?.let { StreamingProtocol.hash("$it|${song.dateModified}") }.orEmpty())
+                    artworkSignature?.let(StreamingProtocol::hash).orEmpty())
                 Entry(song, track, "${track.title}\n${track.artist}\n${track.album}\n${track.genre}".lowercase(Locale.ROOT))
             }.sortedWith(compareBy<Entry> { it.track.title.lowercase(Locale.ROOT) }.thenBy { it.track.id }).toList()
         val revision = StreamingProtocol.hash(entries.joinToString("\n") { it.track.json().toString() + ":" + it.source.dateModified })

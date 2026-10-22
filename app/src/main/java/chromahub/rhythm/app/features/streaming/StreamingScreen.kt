@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,6 +87,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     var checkingAddress by remember { mutableStateOf(false) }
     var networkAccess by remember { mutableStateOf(Build.VERSION.SDK_INT < 37 || ContextCompat.checkSelfPermission(context, "android.permission.ACCESS_LOCAL_NETWORK") == PackageManager.PERMISSION_GRANTED) }
     val local = remember(songs) { songs.filter { it.uri.scheme in setOf("file", "content") } }
+    var scrubPosition by remember(current?.id) { mutableStateOf<Float?>(null) }
     val chosen = playlists.firstOrNull { it.id == selectedPlaylist }
     val sharedCount = if (selectedPlaylist == null) local.size else chosen?.songs?.count { it.uri.scheme in setOf("file", "content") } ?: 0
     var afterPermission by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -119,7 +121,8 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                         IconButton(onClick = onToggle) { StreamIcon(if (playing) "pause" else "play_arrow", stringResource(R.string.streaming_play_pause)) }
                         IconButton(onClick = onNext) { StreamIcon("skip_next", stringResource(R.string.streaming_next)) }
                     }
-                    Slider(value = progress.coerceIn(0f, 1f), onValueChange = onSeek, modifier = Modifier.fillMaxWidth())
+                    Slider(value = (scrubPosition ?: progress).coerceIn(0f, 1f), onValueChange = { scrubPosition = it },
+                        onValueChangeFinished = { scrubPosition?.let(onSeek); scrubPosition = null }, modifier = Modifier.fillMaxWidth().testTag("streaming-seek"))
                 }
             }
         }) { padding ->

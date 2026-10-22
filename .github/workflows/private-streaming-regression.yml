@@ -18,7 +18,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: [29, 35, 37]
+        include:
+          - api: 29
+            platform: "29"
+          - api: 35
+            platform: "35"
+          - api: 37
+            platform: "37.0"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
@@ -36,7 +42,8 @@ jobs:
       - name: Verify encrypted hosting, playback and native flows
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: ${{ matrix.api }}
+          api-level: ${{ matrix.platform }}
+          system-image-api-level: ${{ matrix.platform }}
           arch: x86_64
           target: google_apis
           profile: pixel_2

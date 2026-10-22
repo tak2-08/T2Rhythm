@@ -7,7 +7,7 @@
     <string name="streaming_start">음악 서버 시작</string>
     <string name="streaming_stop">서버 중지</string>
     <string name="streaming_notification">승인한 기기에 음악을 공유 중입니다. 중지를 누르면 공유가 종료됩니다.</string>
-    <string name="streaming_low_battery">배터리가 15% 미만이어서 음악 서버를 중지했습니다.</string>
+    <string name="streaming_low_battery" formatted="false">배터리가 15% 미만이어서 음악 서버를 중지했습니다.</string>
     <string name="streaming_start_error">서버를 시작하지 못했습니다. 앱 권한을 확인하고 앱을 연 상태에서 다시 시도해 주세요.</string>
     <string name="streaming_host_intro">서브폰에 음악을 보관하고, 내가 승인한 기기에서 들어 보세요. 음악을 외부 서버에 올릴 필요가 없습니다.</string>
     <string name="streaming_client_intro">음악을 보관한 폰에서 초대를 받아 연결하세요. 서버에서 내 기기를 승인하면 재생할 수 있습니다.</string>
@@ -62,7 +62,7 @@
     <string name="streaming_allow_network">네트워크 접근 허용</string>
     <string name="streaming_outside_title">집 밖에서도 듣기</string>
     <string name="streaming_outside_steps">1. 음악이 있는 폰에서 서버를 실행하세요.\n2. 두 폰을 같은 개인 VPN에 연결하세요. WireGuard나 Tailscale 등을 사용할 수 있습니다. 직접 연결 가능한 주소를 설정해도 됩니다.\n3. 서버의 VPN 주소로 초대를 만드세요. 이미 연결했다면 저장한 서버의 주소를 바꾸세요.\n4. 서버 폰의 전원과 VPN 연결을 유지하세요.\n\nT2Rhythm은 중앙 중계 서버를 제공하거나 공유기의 포트를 자동으로 열지 않습니다. 이동통신망에서는 직접 들어오는 연결이 차단될 수 있습니다.</string>
-    <string name="streaming_power_hint">공유 중에는 폰이 잠들지 않도록 유지합니다. 서브폰은 충전기에 연결해 두세요. 충전하지 않는 상태에서 배터리가 15% 미만이면 서버가 중지됩니다. 기기의 절전 정책으로 실행이 끊길 수도 있습니다.</string>
+    <string name="streaming_power_hint" formatted="false">공유 중에는 폰이 잠들지 않도록 유지합니다. 서브폰은 충전기에 연결해 두세요. 충전하지 않는 상태에서 배터리가 15% 미만이면 서버가 중지됩니다. 기기의 절전 정책으로 실행이 끊길 수도 있습니다.</string>
     <string name="streaming_privacy_hint">TLS 암호화 · 기기별 승인 · 접근 취소. 공유받은 음원은 이 폰의 음원 캐시에 저장하지 않습니다.</string>
     <string name="streaming_session_data">이번 실행에서 전송: %1$s</string>
     <string name="streaming_cancel">취소</string>

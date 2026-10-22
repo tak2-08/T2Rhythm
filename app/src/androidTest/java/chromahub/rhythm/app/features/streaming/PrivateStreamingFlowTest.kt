@@ -143,4 +143,18 @@ class PrivateStreamingFlowTest {
         screenshot("streaming-large-text-help")
         compose.onNodeWithText("완료").performClick(); Unit
     }
+    @Test fun remotePlaybackControlsCommitOneSeekWhenTheDragEnds() {
+        val current = song().copy(uri = Uri.parse("https://${StreamingProtocol.MEDIA_HOST}/server/audio/${"a".repeat(64)}"))
+        var seeks = 0; var position = 0f; var toggles = 0; var next = 0
+        compose.setContent { MaterialTheme { StreamingContent({}, emptyList(), emptyList(), { _, _, _ -> }, current = current,
+            onSeek = { seeks++; position = it }, onToggle = { toggles++ }, onNext = { next++ }) } }
+        compose.onNodeWithTag("streaming-seek").performTouchInput {
+            down(androidx.compose.ui.geometry.Offset(width * .2f, height / 2f))
+            moveTo(androidx.compose.ui.geometry.Offset(width * .5f, height / 2f))
+            moveTo(androidx.compose.ui.geometry.Offset(width * .8f, height / 2f)); up()
+        }
+        assertEquals(1, seeks); assertTrue(position > .6f)
+        compose.onNodeWithContentDescription("재생 또는 일시 정지").performClick(); compose.onNodeWithContentDescription("다음 곡").performClick()
+        assertEquals(1, toggles); assertEquals(1, next); screenshot("streaming-playback-controls")
+    }
 }

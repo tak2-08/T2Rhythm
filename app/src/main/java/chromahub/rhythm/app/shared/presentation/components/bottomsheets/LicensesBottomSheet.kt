@@ -59,6 +59,8 @@ fun LicensesBottomSheet(
     val haptic = LocalHapticFeedback.current
 
     val licenseItems = listOf(
+        licenseItem(name = "NanoHTTPD", description = context.getString(R.string.streaming_title), license = "BSD-3-Clause",
+            url = "https://github.com/NanoHttpd/nanohttpd/blob/nanohttpd-project-2.3.1/core/src/main/java/fi/iki/elonen/NanoHTTPD.java", icon = RhythmIcons.Connectivity.OpenInNew, context = context, haptic = haptic),
         licenseItem(name = "Vosk Android / Korean model", description = context.getString(R.string.discovery_license_vosk), license = "Apache-2.0",
             url = "https://github.com/alphacep/vosk-api", icon = RhythmIcons.Connectivity.OpenInNew, context = context, haptic = haptic),
         licenseItem(name = "JNA", description = context.getString(R.string.discovery_license_jna), license = "Apache-2.0 / LGPL-2.1-or-later",

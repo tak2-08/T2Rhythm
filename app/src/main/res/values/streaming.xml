@@ -7,7 +7,7 @@
     <string name="streaming_start">Start music server</string>
     <string name="streaming_stop">Stop server</string>
     <string name="streaming_notification">Sharing with approved devices. Tap Stop to end sharing.</string>
-    <string name="streaming_low_battery">Music server stopped to protect battery (below 15%).</string>
+    <string name="streaming_low_battery" formatted="false">Music server stopped to protect battery (below 15%).</string>
     <string name="streaming_start_error">Could not start the server. Check app permissions and try again with the app open.</string>
     <string name="streaming_host_intro">Keep your music on a spare phone. Listen here or on a device you approve, without uploading your library.</string>
     <string name="streaming_client_intro">Get an invitation from the phone hosting your music. The host approves your device before playback.</string>
@@ -62,7 +62,7 @@
     <string name="streaming_allow_network">Allow network access</string>
     <string name="streaming_outside_title">Listen away from home</string>
     <string name="streaming_outside_steps">1. Run the server on the phone with your music.\n2. Put both phones on the same private VPN (for example WireGuard or Tailscale), or configure a reachable address yourself.\n3. Create an invitation using the host’s VPN address. Already paired? Change the saved server address.\n4. Keep the host powered and the VPN connected.\n\nT2Rhythm provides no central relay and does not open router ports automatically. Cellular networks may block direct incoming connections.</string>
-    <string name="streaming_power_hint">Sharing keeps this phone awake. Keep a spare phone plugged in. Below 15% battery, an unplugged server stops automatically. Device battery-saving rules may also interrupt hosting.</string>
+    <string name="streaming_power_hint" formatted="false">Sharing keeps this phone awake. Keep a spare phone plugged in. Below 15% battery, an unplugged server stops automatically. Device battery-saving rules may also interrupt hosting.</string>
     <string name="streaming_privacy_hint">TLS encryption · explicit device approval · revocable access. Shared audio is not saved in the client’s audio cache.</string>
     <string name="streaming_session_data">Sent this session: %1$s</string>
     <string name="streaming_cancel">Cancel</string>

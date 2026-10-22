@@ -50,7 +50,7 @@ class PrivateStreaming private constructor(private val context: Context) {
                 _state.update { it.copy(running = true, starting = false, tracks = catalog.snapshot.entries.size, addresses = addresses(), error = null) }
             }
             updates = scope.launch(Dispatchers.IO) {
-                dao.getAllSongsFlow().debounce(300).collect { songs ->
+                dao.getAllSongsFlow().combine(chromahub.rhythm.app.util.ArtworkInvalidation.changes) { songs, _ -> songs }.debounce(300).collect { songs ->
                     val before = catalog.snapshot.revision
                     catalog.replace(songs.map { it.toSong() }, store.selection())
                     if (before != catalog.snapshot.revision) synchronized(thumbs) { thumbs.clear() }

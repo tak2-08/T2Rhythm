@@ -112,14 +112,16 @@ internal fun java.io.InputStream.readBytesLimited(limit: Int): ByteArray {
 }
 
 /** Non-exportable server identity. A client must pin this exact certificate from its invitation. */
-class StreamingIdentity(private val alias: String = "t2-stream-tls-v1") {
+class StreamingIdentity(private val alias: String = "t2-stream-tls-v2") {
     private val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
     init {
         if (!store.containsAlias(alias)) {
             KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore").apply {
                 initialize(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY)
                     .setAlgorithmParameterSpec(java.security.spec.ECGenParameterSpec("secp256r1"))
-                    .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA384, KeyProperties.DIGEST_SHA512)
+                    // Conscrypt signs the TLS transcript digest using NONEwithECDSA. Hashing is
+                    // already performed by TLS; Keystore must permit that standard raw operation.
+                    .setDigests(KeyProperties.DIGEST_NONE, KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA384, KeyProperties.DIGEST_SHA512)
                     .setCertificateSubject(X500Principal("CN=T2Rhythm Streaming"))
                     .setCertificateSerialNumber(BigInteger.valueOf(System.currentTimeMillis()))
                     .setCertificateNotBefore(Date(System.currentTimeMillis() - 86_400_000))
