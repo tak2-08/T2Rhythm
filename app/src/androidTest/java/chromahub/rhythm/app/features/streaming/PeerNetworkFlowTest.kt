@@ -109,12 +109,17 @@ class PeerNetworkFlowTest {
         compose.onNodeWithText("보관함에 담기").performClick(); compose.onNodeWithText("담기", substring = false).performClick()
         assertEquals(b.connection.server, saved.single().uri.pathSegments[0]); assertNull(manager.store.connection(b.connection.server))
     }
-    @Test fun sharingSelectionAllowsSeveralPlaylistsAtOnce() {
+    @Test fun sharingSelectionAllowsSeveralPlaylistsAtOnceAndPreservesTheSavedScope() {
         val a = song("첫 곡"); val b = song("두 번째 곡")
-        screen(listOf(a, b), listOf(Playlist("first-$unique", "아침 목록", listOf(a)), Playlist("second-$unique", "저녁 목록", listOf(b))))
-        scroll("플레이리스트 선택"); compose.onNodeWithText("플레이리스트 선택").performClick()
-        compose.onNodeWithText("아침 목록").performClick(); compose.onNodeWithText("저녁 목록").performClick(); compose.onNodeWithText("적용").performClick()
-        compose.onNodeWithText("플레이리스트 2개 선택됨").assertExists(); compose.onNodeWithText("음악 서버 시작").assertIsEnabled()
-        screenshot("streaming-multiple-playlists")
+        val oldSelection = manager.store.selection(); val oldLists = manager.store.sharedPlaylists()
+        try {
+            manager.store.select(setOf(a.uri.toString()), setOf("first-$unique"))
+            screen(listOf(a, b), listOf(Playlist("first-$unique", "아침 목록", listOf(a)), Playlist("second-$unique", "저녁 목록", listOf(b))))
+            scroll("기기의 모든 음악"); compose.onNodeWithText("기기의 모든 음악").assertIsNotSelected()
+            scroll("아침 목록"); compose.onNodeWithText("아침 목록").performClick()
+            compose.onNodeWithText("저녁 목록").performClick(); compose.onNodeWithText("적용").performClick()
+            compose.onNodeWithText("플레이리스트 2개 선택됨").assertExists(); compose.onNodeWithText("음악 서버 시작").assertIsEnabled()
+            screenshot("streaming-multiple-playlists")
+        } finally { manager.store.select(oldSelection, oldLists) }
     }
 }

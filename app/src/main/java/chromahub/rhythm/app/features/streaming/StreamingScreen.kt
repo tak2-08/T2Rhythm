@@ -73,7 +73,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     val host by manager.state.collectAsState()
     val connections by manager.store.connections.collectAsState()
     var hostTab by rememberSaveable { mutableStateOf(true) }
-    var shareAll by rememberSaveable { mutableStateOf(true) }
+    var shareAll by rememberSaveable { mutableStateOf(manager.store.selection().let { it == null || (it.isEmpty() && manager.store.sharedPlaylists().isEmpty()) }) }
     var selectedPlaylists by rememberSaveable { mutableStateOf(manager.store.sharedPlaylists()) }
     var choosePlaylist by remember { mutableStateOf(false) }
     var invitation by remember { mutableStateOf<StreamingProtocol.Invite?>(null) }
