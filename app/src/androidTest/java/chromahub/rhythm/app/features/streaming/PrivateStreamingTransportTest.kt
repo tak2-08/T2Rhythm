@@ -159,6 +159,9 @@ class PrivateStreamingTransportTest {
         val host = java.net.URI(address).host
         val lan = connection.at("https://$host:${server.listeningPort}")
         assertEquals(song.title, StreamingClient.page(lan).tracks.single().title); Unit
+        // The TLS stack compresses IPv6 addresses. Expanded invitation addresses must still match.
+        val ipv6 = connection.at("https://[0:0:0:0:0:0:0:1]:${server.listeningPort}")
+        assertEquals(song.title, StreamingClient.page(ipv6).tracks.single().title); Unit
     }
     @Test fun paginationAndGenreQueriesDoNotMixRevisions() = runBlocking {
         val many = (0..146).map { i -> song.copy(id = "song-$i", title = "Song ${i.toString().padStart(3, '0')}", uri = Uri.parse("file:///page-$i.m4a"), genre = if (i % 2 == 0) "POP" else "ROCK") }

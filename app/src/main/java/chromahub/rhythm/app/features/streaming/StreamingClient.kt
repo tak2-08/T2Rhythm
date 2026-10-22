@@ -15,6 +15,7 @@ import kotlin.coroutines.resumeWithException
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.Response
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -41,7 +42,7 @@ object StreamingClient {
             }
             val ssl = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trust), null) }
             OkHttpClient.Builder().sslSocketFactory(ssl.socketFactory, trust)
-                .hostnameVerifier { host, session -> host == java.net.URI(connection.endpoint).host.removePrefix("[").removeSuffix("]") &&
+                .hostnameVerifier { host, session -> host == connection.endpoint.toHttpUrl().host &&
                     runCatching { StreamingProtocol.equal(StreamingProtocol.hash(session.peerCertificates[0].encoded), connection.pin) }.getOrDefault(false) }
                 .followRedirects(false).followSslRedirects(false).proxy(Proxy.NO_PROXY)
                 .connectTimeout(8, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).writeTimeout(8, TimeUnit.SECONDS)
