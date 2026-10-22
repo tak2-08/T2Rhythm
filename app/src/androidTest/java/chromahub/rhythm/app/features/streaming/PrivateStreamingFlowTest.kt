@@ -80,6 +80,7 @@ class PrivateStreamingFlowTest {
         val song = song(); screen(listOf(song), listOf(Playlist("test-$unique", "친구와 듣는 밤", listOf(song))))
         scroll("플레이리스트 선택"); compose.onNodeWithText("플레이리스트 선택").performClick()
         compose.onNodeWithText("친구와 듣는 밤").performClick()
+        compose.onNodeWithText("적용").performClick()
         compose.onNodeWithText("친구와 듣는 밤").assertExists(); compose.onNodeWithText("음악 서버 시작").assertIsEnabled()
         screenshot("streaming-host-ready")
     }

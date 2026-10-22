@@ -22,7 +22,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
-data class StreamPage(val revision: String, val total: Int, val matched: Int, val offset: Int, val tracks: List<StreamTrack>, val genres: List<String>)
+data class StreamPage(val revision: String, val total: Int, val matched: Int, val offset: Int, val tracks: List<StreamTrack>, val genres: List<String>, val features: Set<String> = emptySet())
+class StreamLibraryChangedException : IOException("플레이리스트가 바뀌었습니다. 새로고침한 뒤 다시 시도해 주세요.")
 
 object StreamingClient {
     private val clients = object : LinkedHashMap<String, OkHttpClient>(8, .75f, true) {
@@ -86,19 +87,48 @@ object StreamingClient {
         val encodedQuery = java.net.URLEncoder.encode(query.take(100), "UTF-8")
         val encodedGenre = java.net.URLEncoder.encode(genre.take(100), "UTF-8")
         val j = json(connection, request(connection, "/v1/library?offset=$offset&limit=100&q=$encodedQuery&genre=$encodedGenre").build())
+        return parsePage(connection, j, offset)
+    }
+    private fun parsePage(connection: StreamConnection, j: JSONObject, offset: Int): StreamPage {
         require(j.getInt("version") == 1 && j.getString("server") == connection.server)
+        require(j.getInt("offset") == offset)
         val tracks = j.getJSONArray("tracks"); require(tracks.length() <= 100)
         val genres = j.optJSONArray("genres")
         return StreamPage(j.getString("revision"), j.getInt("total").coerceAtLeast(0), j.getInt("matched").coerceAtLeast(0), j.getInt("offset"),
             (0 until tracks.length()).map { StreamTrack.parse(tracks.getJSONObject(it)) },
-            genres?.let { a -> (0 until minOf(a.length(), 16)).map { a.getString(it).take(100) } } ?: emptyList())
+            genres?.let { a -> (0 until minOf(a.length(), 16)).map { a.getString(it).take(100) } } ?: emptyList(),
+            j.optJSONArray("features")?.let { a -> (0 until minOf(a.length(), 8)).map { a.getString(it).take(48) }.toSet() }.orEmpty())
+    }
+    suspend fun playlists(connection: StreamConnection): List<StreamPlaylist> {
+        val j = json(connection, request(connection, "/v1/playlists").build())
+        require(j.getInt("version") == 1 && j.getString("server") == connection.server)
+        val a = j.getJSONArray("playlists"); require(a.length() <= 100)
+        return (0 until a.length()).map { StreamPlaylist.parse(a.getJSONObject(it)) }.distinctBy { it.id }
+    }
+    suspend fun playlistPage(connection: StreamConnection, id: String, offset: Int = 0): StreamPage {
+        require(StreamingProtocol.validId(id) && offset in 0..5000)
+        val j = json(connection, request(connection, "/v1/playlists/$id?offset=$offset").build())
+        require(j.getString("playlist") == id)
+        return parsePage(connection, j, offset).also { require(it.matched in 0..5000) }
+    }
+    suspend fun playlistSongs(connection: StreamConnection, id: String): List<chromahub.rhythm.app.shared.data.model.Song> {
+        val first = playlistPage(connection, id); val tracks = first.tracks.toMutableList()
+        while (tracks.size < first.matched) {
+            val next = playlistPage(connection, id, tracks.size)
+            if (next.revision != first.revision) throw StreamLibraryChangedException()
+            require(next.tracks.isNotEmpty() && tracks.size + next.tracks.size <= 5000)
+            tracks += next.tracks
+        }
+        require(tracks.size == first.matched && tracks.distinctBy { "${it.origin ?: connection.server}:${it.id}" }.size == tracks.size)
+        return tracks.map { it.song(connection.server) }
     }
     suspend fun disconnect(connection: StreamConnection) {
         json(connection, request(connection, "/v1/disconnect").post(byteArrayOf().toRequestBody()).build())
     }
     fun friendlyError(error: Throwable): String = when {
+        error is StreamLibraryChangedException -> error.message!!
         generateSequence(error) { it.cause }.any { it is javax.net.ssl.SSLException } -> "서버의 인증서를 확인할 수 없습니다. 주소와 초대를 확인하고, 서버를 초기화했다면 다시 연결해 주세요."
-        error is java.net.SocketTimeoutException || error is java.net.ConnectException || error is java.net.UnknownHostException || error is java.net.NoRouteToHostException -> "음악 서버에 닿지 않습니다. 서버 실행 상태와 같은 Wi-Fi 또는 개인 VPN 연결을 확인해 주세요."
+        error is kotlinx.coroutines.TimeoutCancellationException || error is java.net.SocketTimeoutException || error is java.net.ConnectException || error is java.net.UnknownHostException || error is java.net.NoRouteToHostException -> "음악 서버에 닿지 않습니다. 서버 실행 상태와 같은 Wi-Fi 또는 개인 VPN 연결을 확인해 주세요."
         error is IOException && error.message?.contains("연결 승인") == true -> error.message!!
         else -> "연결을 완료하지 못했습니다. 서버와 네트워크를 확인한 뒤 다시 시도해 주세요."
     }

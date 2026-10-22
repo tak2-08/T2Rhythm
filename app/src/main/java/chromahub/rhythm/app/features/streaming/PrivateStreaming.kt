@@ -4,6 +4,7 @@ package chromahub.rhythm.app.features.streaming
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
+import androidx.room.withTransaction
 import chromahub.rhythm.app.features.local.data.database.RhythmDatabase
 import chromahub.rhythm.app.features.local.data.database.entity.toSong
 import coil.imageLoader
@@ -38,8 +39,8 @@ class PrivateStreaming private constructor(private val context: Context) {
         var candidate: StreamingServer? = null
         try {
             val tls = StreamingIdentity(); identity = tls
-            val dao = RhythmDatabase.getInstance(context).songDao()
-            catalog.replace(dao.getAllSongs().map { it.toSong() }, store.selection())
+            val database = RhythmDatabase.getInstance(context)
+            rebuildCatalog(database)
             currentCoroutineContext().ensureActive()
             candidate = StreamingServer(StreamingProtocol.PORT, tls.serverContext(), access, catalog, ::refresh, ::artwork)
             candidate.start(10_000, true)
@@ -47,12 +48,13 @@ class PrivateStreaming private constructor(private val context: Context) {
             synchronized(lifecycle) {
                 if (attempt != generation) throw CancellationException("Hosting was stopped")
                 server = candidate
-                _state.update { it.copy(running = true, starting = false, tracks = catalog.snapshot.entries.size, addresses = addresses(), error = null) }
+                _state.update { it.copy(running = true, starting = false, tracks = catalog.snapshot.sharedCount, addresses = addresses(), error = null) }
             }
             updates = scope.launch(Dispatchers.IO) {
-                dao.getAllSongsFlow().combine(chromahub.rhythm.app.util.ArtworkInvalidation.changes) { songs, _ -> songs }.debounce(300).collect { songs ->
+                merge(database.invalidationTracker.createFlow("songs", "playlists", "playlist_songs").map { Unit },
+                    chromahub.rhythm.app.util.ArtworkInvalidation.changes.map { Unit }).debounce(300).collect {
                     val before = catalog.snapshot.revision
-                    catalog.replace(songs.map { it.toSong() }, store.selection())
+                    rebuildCatalog(database)
                     if (before != catalog.snapshot.revision) synchronized(thumbs) { thumbs.clear() }
                     refresh()
                 }
@@ -62,6 +64,14 @@ class PrivateStreaming private constructor(private val context: Context) {
             candidate?.stop(); _state.update { it.copy(starting = false, running = false, error = "서버를 시작하지 못했습니다. 음악 접근 권한과 네트워크를 확인해 주세요. 다른 앱이 8898 포트를 쓰고 있는지도 확인해 주세요.") }
         }
     }
+    private suspend fun rebuildCatalog(database: RhythmDatabase) {
+        val (songs, rows) = database.withTransaction {
+            database.songDao().getAllSongs().map { it.toSong() } to database.playlistDao().getSharedPlaylistRows(store.sharedPlaylists().toList())
+        }
+        val playlists = rows.groupBy { it.playlistId }.map { (id, items) -> SharePlaylist(id, items.first().name, items.map { it.uri }) }
+        val selection = store.selection()?.let { fixed -> if (store.sharedPlaylists().isEmpty()) fixed else rows.map { it.uri }.toSet() }
+        catalog.replace(songs, selection, playlists)
+    }
     fun stop() {
         updates?.cancel(); updates = null
         val previous = synchronized(lifecycle) { generation++; server.also { server = null }
@@ -70,7 +80,7 @@ class PrivateStreaming private constructor(private val context: Context) {
         access.closePairing(); synchronized(thumbs) { thumbs.clear() }
     }
     fun fail(message: String) { _state.update { it.copy(error = message, starting = false) } }
-    fun refresh() { _state.update { it.copy(peers = access.peers(), pending = access.requests(), tracks = catalog.snapshot.entries.size,
+    fun refresh() { _state.update { it.copy(peers = access.peers(), pending = access.requests(), tracks = catalog.snapshot.sharedCount,
         bytes = server?.bytesSent?.get() ?: it.bytes, addresses = if (it.running) addresses() else emptyList()) } }
     fun invite(endpoint: String): StreamingProtocol.Invite {
         check(_state.value.running)

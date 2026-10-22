@@ -11,7 +11,7 @@
     <string name="streaming_low_battery" formatted="false">Music server stopped to protect battery (below 15%).</string>
     <string name="streaming_start_error">Could not start the server. Check app permissions and try again with the app open.</string>
     <string name="streaming_host_intro">Keep your music on a spare phone. Listen here or on a device you approve, without uploading your library.</string>
-    <string name="streaming_client_intro">Get an invitation from the phone hosting your music. The host approves your device before playback.</string>
+    <string name="streaming_client_intro">Search and listen across your connected phones. Each phone can share its own music at the same time.</string>
     <string name="streaming_all_music">Entire device library</string>
     <string name="streaming_choose_playlist">Choose a playlist</string>
     <string name="streaming_scope">Music to share</string>

@@ -11,7 +11,7 @@
     <string name="streaming_low_battery" formatted="false">배터리가 15% 미만이어서 음악 서버를 중지했습니다.</string>
     <string name="streaming_start_error">서버를 시작하지 못했습니다. 앱 권한을 확인하고 앱을 연 상태에서 다시 시도해 주세요.</string>
     <string name="streaming_host_intro">서브폰에 음악을 보관하고, 내가 승인한 기기에서 들어 보세요. 음악을 외부 서버에 올릴 필요가 없습니다.</string>
-    <string name="streaming_client_intro">음악을 보관한 폰에서 초대를 받아 연결하세요. 서버에서 내 기기를 승인하면 재생할 수 있습니다.</string>
+    <string name="streaming_client_intro">연결한 여러 폰의 음악을 함께 찾고 들어 보세요. 내 폰에서도 음악을 공유하면서 다른 기기의 음악을 들을 수 있습니다.</string>
     <string name="streaming_all_music">기기의 모든 음악</string>
     <string name="streaming_choose_playlist">플레이리스트 선택</string>
     <string name="streaming_scope">공유할 음악</string>

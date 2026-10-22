@@ -2,7 +2,7 @@ name: Private phone streaming
 on:
   pull_request:
     branches: ["main"]
-    paths: ["app/**", "gradle/**", "scripts/run_private_streaming_regression.sh", ".github/workflows/private-streaming-regression.yml"]
+    paths: ["app/**", "gradle/**", "scripts/run_private_streaming_regression.sh", "scripts/run_update_install_lifecycle.sh", ".github/workflows/private-streaming-regression.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -14,7 +14,7 @@ env:
 jobs:
   streaming:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:

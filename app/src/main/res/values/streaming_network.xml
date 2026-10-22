@@ -1,0 +1,35 @@
+<resources>
+    <string name="network_songs">Songs</string>
+    <string name="network_playlists">Playlists</string>
+    <string name="network_all_devices">All devices</string>
+    <string name="network_all_genres">All genres</string>
+    <string name="network_devices_title">Connected devices</string>
+    <string name="network_add_device">Add device</string>
+    <string name="network_share_mine">Share my music too</string>
+    <string name="network_reciprocal_hint">Each phone can share and listen at the same time. To share both ways, start sharing on each phone and exchange invitations.</string>
+    <string name="network_manage_devices">Manage %1$d connected devices</string>
+    <string name="network_selected_playlists">%1$d playlists selected</string>
+    <string name="network_share_playlists_hint">Select playlists to share their names, song order and local music. Other devices’ music stays with its original owner.</string>
+    <string name="network_share_playlist_limit">Choose up to 100 playlists. Each shares up to 5,000 local songs. You can choose all device music again after selecting playlists.</string>
+    <string name="network_apply">Apply</string>
+    <string name="network_self_invite">This invitation belongs to this phone. Use it on another device.</string>
+    <string name="network_already_connected">This device is already connected. Use device management to change its address.</string>
+    <string name="network_visible_tracks">%1$d songs loaded</string>
+    <string name="network_save_visible">Save loaded songs to a playlist</string>
+    <string name="network_save_song">Add to playlist</string>
+    <string name="network_playlist_source">%1$s · %2$d songs</string>
+    <string name="network_more_from">Load more from %1$s</string>
+    <string name="network_no_playlists">No shared playlists here yet. Select playlists on the sharing phone. Both phones need version 1324 or later.</string>
+    <string name="network_playlist_truncated">The first 5,000 local songs are shared from this playlist.</string>
+    <string name="network_save_hint">Save a playlist to your library and stream its music directly from the original devices. Those devices must be online and keep your access approved.</string>
+    <string name="network_play_playlist">Play playlist</string>
+    <string name="network_save_playlist">Save to library</string>
+    <string name="network_new_playlist">Create a new playlist</string>
+    <string name="network_playlist_name">Playlist name</string>
+    <string name="network_default_playlist">Music together</string>
+    <string name="network_existing_playlist">Add to an existing playlist</string>
+    <string name="network_save">Save</string>
+    <string name="network_saved">Added to playlist</string>
+    <string name="network_missing_origins">%1$d songs need a connection to their original devices. You can save the playlist now and connect those devices later.</string>
+    <string name="network_playlist_error">Could not load playlists from %1$s. Refresh the library to retry.</string>
+</resources>

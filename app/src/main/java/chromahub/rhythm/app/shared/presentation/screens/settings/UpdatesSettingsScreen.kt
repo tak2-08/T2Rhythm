@@ -1065,6 +1065,8 @@ fun UpdatesSettingsScreen(onBackClick: () -> Unit) {
                 }
             }
 
+            item { chromahub.rhythm.app.features.updates.UpdateHistoryPanel() }
+
             // 5. Settings Section below
             item {
                 Spacer(modifier = Modifier.height(24.dp))

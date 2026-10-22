@@ -56,11 +56,17 @@ class StreamingStore(context: Context, namespace: String = "private_streaming") 
     }
     @Synchronized fun selection(): Set<String>? = if (host.optBoolean("all", true)) null else
         host.optJSONArray("uris")?.let { j -> (0 until minOf(j.length(), 50_000)).map { j.getString(it) }.toSet() } ?: emptySet()
-    @Synchronized fun select(uris: Set<String>?) {
+    @Synchronized fun sharedPlaylists(): Set<String> = host.optJSONArray("playlists")?.let { a ->
+        (0 until minOf(a.length(), 100)).map { a.getString(it).take(100) }.toSet()
+    } ?: emptySet()
+    @Synchronized fun select(uris: Set<String>?, playlists: Set<String> = emptySet()) {
         require(uris == null || uris.size <= 50_000)
+        require(playlists.size <= 100 && playlists.all { it.isNotBlank() && it.length <= 100 })
         val oldAll = host.optBoolean("all", false); val oldUris = host.optJSONArray("uris")
+        val oldPlaylists = host.optJSONArray("playlists")
         host.put("all", uris == null).put("uris", JSONArray(uris?.toList() ?: emptyList<String>()))
-        try { writeHost() } catch (e: Exception) { host.put("all", oldAll).put("uris", oldUris); throw e }
+            .put("playlists", JSONArray(playlists.toList()))
+        try { writeHost() } catch (e: Exception) { host.put("all", oldAll).put("uris", oldUris).put("playlists", oldPlaylists); throw e }
     }
     @Synchronized fun connection(server: String) = _connections.value.firstOrNull { it.server == server }
     @Synchronized fun save(connection: StreamConnection) {

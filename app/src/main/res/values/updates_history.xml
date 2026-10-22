@@ -1,0 +1,18 @@
+<resources>
+    <string name="update_history_title">Update history</string>
+    <string name="update_history_summary">Review installed updates and release notes. APKs downloaded by this app are removed after a successful update is confirmed.</string>
+    <string name="update_history_manage">Manage update history</string>
+    <string name="update_history_tracking">Shows updates observed on this device since tracking began. Up to 100 records are kept. Cancelling installation keeps the APK available to retry.</string>
+    <string name="update_history_empty">No update records.</string>
+    <string name="update_history_from">Previous version: %1$s</string>
+    <string name="update_history_ready">Downloaded · ready to install</string>
+    <string name="update_history_requested">Installer opened · awaiting confirmation</string>
+    <string name="update_history_installed">Installed</string>
+    <string name="update_history_superseded">Replaced by a newer version</string>
+    <string name="update_history_apk_removed">Installation APK removed</string>
+    <string name="update_history_clear">Clear history</string>
+    <string name="update_history_remove">Delete record</string>
+    <string name="update_history_delete_hint">Only the history record will be deleted. Your installed version and music stay as they are. Completed installation APKs will still be cleaned up automatically.</string>
+    <string name="update_history_no_notes">No release notes were saved for this update.</string>
+    <string name="update_history_error">Could not save the history change. Please try again.</string>
+</resources>

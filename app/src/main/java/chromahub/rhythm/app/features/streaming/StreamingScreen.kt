@@ -47,6 +47,7 @@ import kotlinx.coroutines.*
 
 @Composable
 fun StreamingScreen(onBackClick: () -> Unit, musicViewModel: MusicViewModel) {
+    val context = LocalContext.current
     val songs by musicViewModel.songs.collectAsState()
     val playlists by musicViewModel.playlists.collectAsState()
     val current by musicViewModel.currentSong.collectAsState()
@@ -56,20 +57,24 @@ fun StreamingScreen(onBackClick: () -> Unit, musicViewModel: MusicViewModel) {
         onPlay = { list, index, shuffle -> musicViewModel.playQueue(list, enableShuffle = shuffle, startIndex = index, pinStartIndex = !shuffle) },
         current = current, playing = playing, progress = progress, onToggle = musicViewModel::togglePlayPause,
         onNext = musicViewModel::skipToNext, onSeek = { musicViewModel.seekTo(it) },
-        onDisconnect = { server -> if (current?.uri?.pathSegments?.firstOrNull() == server && current?.uri?.host == StreamingProtocol.MEDIA_HOST) musicViewModel.pauseMusic() })
+        onDisconnect = { server -> if (current?.uri?.pathSegments?.firstOrNull() == server && current?.uri?.host == StreamingProtocol.MEDIA_HOST) musicViewModel.pauseMusic() },
+        onCreatePlaylist = { name, list -> musicViewModel.createPlaylist(name, list) { Toast.makeText(context, R.string.network_saved, Toast.LENGTH_SHORT).show() } },
+        onAddToPlaylist = { id, list -> musicViewModel.addSongsToPlaylist(list, id); Toast.makeText(context, R.string.network_saved, Toast.LENGTH_SHORT).show() })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List<Playlist>, onPlay: (List<Song>, Int, Boolean) -> Unit,
     manager: PrivateStreaming = PrivateStreaming.get(LocalContext.current), current: Song? = null, playing: Boolean = false,
-    progress: Float = 0f, onToggle: () -> Unit = {}, onNext: () -> Unit = {}, onSeek: (Float) -> Unit = {}, onDisconnect: (String) -> Unit = {}) {
+    progress: Float = 0f, onToggle: () -> Unit = {}, onNext: () -> Unit = {}, onSeek: (Float) -> Unit = {}, onDisconnect: (String) -> Unit = {},
+    onCreatePlaylist: (String, List<Song>) -> Unit = { _, _ -> }, onAddToPlaylist: (String, List<Song>) -> Unit = { _, _ -> }) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val host by manager.state.collectAsState()
     val connections by manager.store.connections.collectAsState()
     var hostTab by rememberSaveable { mutableStateOf(true) }
-    var selectedPlaylist by rememberSaveable { mutableStateOf<String?>(null) }
+    var shareAll by rememberSaveable { mutableStateOf(true) }
+    var selectedPlaylists by rememberSaveable { mutableStateOf(manager.store.sharedPlaylists()) }
     var choosePlaylist by remember { mutableStateOf(false) }
     var invitation by remember { mutableStateOf<StreamingProtocol.Invite?>(null) }
     var addressDialog by remember { mutableStateOf(false) }
@@ -81,6 +86,11 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     var pending by remember { mutableStateOf<StreamConnection?>(null) }
     var pairJob by remember { mutableStateOf<Job?>(null) }
     var selectedServer by rememberSaveable { mutableStateOf<String?>(null) }
+    var showPairing by remember { mutableStateOf(connections.isEmpty()) }
+    var manageDevices by remember { mutableStateOf(false) }
+    var playlistsTab by rememberSaveable { mutableStateOf(false) }
+    var openedPlaylist by remember { mutableStateOf<NetworkPlaylist?>(null) }
+    var saveSongs by remember { mutableStateOf<StreamSaveRequest?>(null) }
     var revoke by remember { mutableStateOf<StreamPeer?>(null) }
     var forget by remember { mutableStateOf<StreamConnection?>(null) }
     var editAddress by remember { mutableStateOf<StreamConnection?>(null) }
@@ -88,8 +98,9 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     var networkAccess by remember { mutableStateOf(Build.VERSION.SDK_INT < 37 || ContextCompat.checkSelfPermission(context, "android.permission.ACCESS_LOCAL_NETWORK") == PackageManager.PERMISSION_GRANTED) }
     val local = remember(songs) { songs.filter { it.uri.scheme in setOf("file", "content") } }
     var scrubPosition by remember(current?.id) { mutableStateOf<Float?>(null) }
-    val chosen = playlists.firstOrNull { it.id == selectedPlaylist }
-    val sharedCount = if (selectedPlaylist == null) local.size else chosen?.songs?.count { it.uri.scheme in setOf("file", "content") } ?: 0
+    val chosen = playlists.filter { it.id in selectedPlaylists }
+    val sharedSongs = chosen.flatMap { it.songs }.filter { it.uri.scheme in setOf("file", "content") }.distinctBy { it.uri.toString() }
+    val sharedCount = if (shareAll) local.size + chosen.flatMap { it.songs }.count { StreamOrigins.reference(it) != null } else sharedSongs.size + chosen.flatMap { it.songs }.count { StreamOrigins.reference(it) != null }
     var afterPermission by remember { mutableStateOf<(() -> Unit)?>(null) }
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         networkAccess = Build.VERSION.SDK_INT < 37 || ContextCompat.checkSelfPermission(context, "android.permission.ACCESS_LOCAL_NETWORK") == PackageManager.PERMISSION_GRANTED
@@ -107,9 +118,12 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     }
     LaunchedEffect(host.running) { if (!host.running) { invitation = null; addressDialog = false }; while (host.running) { manager.refresh(); delay(3000) } }
     LaunchedEffect(invitation) { invitation?.let { delay((it.expires - System.currentTimeMillis()).coerceAtLeast(0)); invitation = null } }
-    LaunchedEffect(connections) { if (selectedServer !in connections.map { it.server }) selectedServer = connections.firstOrNull()?.server }
-    val activeConnection = if (!hostTab && networkAccess) connections.firstOrNull { it.server == selectedServer } else null
-    val browser = activeConnection?.let { rememberStreamBrowser(it) }
+    LaunchedEffect(connections) {
+        if (selectedServer != null && selectedServer !in connections.map { it.server }) selectedServer = null
+        if (openedPlaylist?.source?.server !in connections.map { it.server }) openedPlaylist = null
+    }
+    val activeConnections = if (hostTab || !networkAccess) emptyList() else connections.filter { selectedServer == null || it.server == selectedServer }
+    val browser = rememberStreamNetworkBrowser(activeConnections)
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.streaming_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
         navigationIcon = { IconButton(onClick = onBackClick) { StreamIcon("arrow_back", stringResource(R.string.streaming_done)) } }) },
         bottomBar = {
@@ -151,11 +165,14 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                         if (host.starting) LinearProgressIndicator(Modifier.fillMaxWidth())
                         if (!host.running && !host.starting) {
                             Text(stringResource(R.string.streaming_scope), style = MaterialTheme.typography.labelLarge)
-                            FilterChip(selectedPlaylist == null, { selectedPlaylist = null }, { Text(stringResource(R.string.streaming_all_music)) })
-                            OutlinedButton({ choosePlaylist = true }, Modifier.fillMaxWidth()) { Text(chosen?.name ?: stringResource(R.string.streaming_choose_playlist)) }
+                            FilterChip(shareAll, { shareAll = true }, { Text(stringResource(R.string.streaming_all_music)) })
+                            OutlinedButton({ choosePlaylist = true }, Modifier.fillMaxWidth()) {
+                                Text(if (chosen.size == 1) chosen.single().name else if (chosen.isNotEmpty()) stringResource(R.string.network_selected_playlists, chosen.size) else stringResource(R.string.streaming_choose_playlist))
+                            }
+                            Text(stringResource(R.string.network_share_playlists_hint), style = MaterialTheme.typography.bodySmall)
                             if (sharedCount == 0) Text(stringResource(R.string.streaming_empty_local), style = MaterialTheme.typography.bodySmall)
                             Button(onClick = { permitted(true) { scope.launch {
-                                try { withContext(Dispatchers.IO) { manager.store.select(chosen?.songs?.map { it.uri.toString() }?.toSet()) }; StreamingHostService.start(context) }
+                                try { withContext(Dispatchers.IO) { manager.store.select(if (shareAll) null else sharedSongs.map { it.uri.toString() }.toSet(), chosen.map { it.id }.toSet()) }; StreamingHostService.start(context) }
                                 catch (_: Exception) { error = context.getString(R.string.streaming_start_error) }
                             } } }, enabled = sharedCount > 0, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.streaming_start)) }
                         } else if (host.running) {
@@ -184,6 +201,13 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                 item { Text(stringResource(R.string.streaming_power_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             } else {
                 item {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalButton({ showPairing = !showPairing }, enabled = !busy && connections.size < StreamingProtocol.MAX_PEERS) { Text(stringResource(R.string.network_add_device)) }
+                        OutlinedButton({ hostTab = true }) { Text(stringResource(R.string.network_share_mine)) }
+                    }
+                    Text(stringResource(R.string.network_reciprocal_hint), style = MaterialTheme.typography.bodySmall)
+                }
+                if (showPairing || busy) item {
                     StreamCard {
                         OutlinedTextField(inviteText, { if (it.length <= 8192) inviteText = it }, label = { Text(stringResource(R.string.streaming_invite_input)) }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, enabled = !busy)
                         OutlinedTextField(deviceName, { deviceName = it.take(48) }, label = { Text(stringResource(R.string.streaming_device_name)) }, modifier = Modifier.fillMaxWidth(), singleLine = true, enabled = !busy)
@@ -195,20 +219,26 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                             TextButton({ pairJob?.cancel() }) { Text(stringResource(R.string.streaming_cancel)) }
                         } else Button(onClick = { permitted(false) {
                             val invite = runCatching { StreamingProtocol.Invite.decode(inviteText) }.getOrNull()
-                            if (invite == null) error = context.getString(R.string.streaming_invalid_invite) else {
+                            if (invite == null) error = context.getString(R.string.streaming_invalid_invite)
+                            else if (invite.server == manager.store.serverId) error = context.getString(R.string.network_self_invite)
+                            else if (connections.any { it.server == invite.server }) error = context.getString(R.string.network_already_connected)
+                            else {
                                 error = null; busy = true
                                 pairJob = scope.launch {
+                                    var saved = false
                                     try {
                                         val connection = StreamingClient.pair(invite, deviceName, StreamingProtocol.token()); pending = connection
                                         withTimeout(5 * 60_000L) { while (StreamingClient.status(connection) != "approved") delay(2000) }
                                         StreamingClient.page(connection)
                                         withContext(Dispatchers.IO) { manager.store.save(connection) }
-                                        selectedServer = connection.server; inviteText = ""
+                                        saved = true; selectedServer = null; inviteText = ""; showPairing = false
                                     } catch (e: TimeoutCancellationException) { error = context.getString(R.string.streaming_pair_timeout) }
                                     catch (e: CancellationException) { throw e }
                                     catch (e: Exception) { error = StreamingClient.friendlyError(e) }
                                     finally { val abandoned = pending; busy = false; pending = null
-                                        if (abandoned != null) withContext(NonCancellable + Dispatchers.IO) { runCatching { StreamingClient.cancelPairing(abandoned) } }
+                                        if (abandoned != null && !saved) withContext(NonCancellable + Dispatchers.IO) {
+                                            try { withTimeout(3000) { runCatching { StreamingClient.disconnect(abandoned) }; StreamingClient.cancelPairing(abandoned) } } catch (_: Exception) { }
+                                        }
                                     }
                                 }
                             }
@@ -224,29 +254,53 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                         Button({ permitted(false) { networkAccess = true } }) { Text(stringResource(R.string.streaming_allow_network)) }
                     }
                 }
-                items(connections, key = { "server:${it.server}" }) { connection ->
-                    StreamCard {
-                        Row(Modifier.fillMaxWidth().clickable { selectedServer = connection.server }, verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selectedServer == connection.server, { selectedServer = connection.server })
-                            Column(Modifier.weight(1f)) { Text(connection.name, fontWeight = FontWeight.Bold); Text(connection.endpoint, style = MaterialTheme.typography.bodySmall) }
-                        }
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            TextButton({ editAddress = connection }) { Text(stringResource(R.string.streaming_change_address)) }
-                            TextButton({ forget = connection }) { Text(stringResource(R.string.streaming_forget)) }
-                        }
+                if (connections.isNotEmpty()) item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item { FilterChip(selectedServer == null, { selectedServer = null }, { Text(stringResource(R.string.network_all_devices)) }) }
+                        items(connections, key = { it.server }) { c -> FilterChip(selectedServer == c.server, { selectedServer = c.server }, { Text(c.name) }) }
                     }
+                    TextButton({ manageDevices = true }) { Text(stringResource(R.string.network_manage_devices, connections.size)) }
                 }
-                browser?.let { streamingBrowser(it, onPlay) }
+                if (networkAccess && connections.isNotEmpty()) streamNetworkBrowser(browser, playlistsTab, { playlistsTab = it }, onPlay,
+                    onSave = { name, list -> saveSongs = StreamSaveRequest(name, list) }, onPlaylist = { openedPlaylist = it })
             }
             item { OutlinedButton({ outside = true }, Modifier.fillMaxWidth()) { StreamIcon("public"); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.streaming_outside_title)) } }
             item { Text(stringResource(R.string.streaming_privacy_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
-    if (choosePlaylist) AlertDialog(onDismissRequest = { choosePlaylist = false }, title = { Text(stringResource(R.string.streaming_choose_playlist)) }, text = {
-        LazyColumn(Modifier.heightIn(max = 360.dp)) { items(playlists.filter { it.songs.isNotEmpty() }, key = { it.id }) { playlist ->
-            ListItem(headlineContent = { Text(playlist.name) }, supportingContent = { Text("${playlist.songs.size}") }, modifier = Modifier.clickable { selectedPlaylist = playlist.id; choosePlaylist = false })
+    if (choosePlaylist) {
+        var selection by remember { mutableStateOf(selectedPlaylists) }
+        AlertDialog(onDismissRequest = { choosePlaylist = false }, title = { Text(stringResource(R.string.streaming_choose_playlist)) }, text = {
+            LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                item { Text(stringResource(R.string.network_share_playlist_limit), style = MaterialTheme.typography.bodySmall) }
+                items(playlists.filter { it.songs.any { song -> song.uri.scheme in setOf("file", "content") || StreamOrigins.reference(song) != null } }, key = { it.id }) { playlist ->
+                    Row(Modifier.fillMaxWidth().clickable { selection = if (playlist.id in selection) selection - playlist.id else if (selection.size < 100) selection + playlist.id else selection }, verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(playlist.id in selection, null)
+                        Text(playlist.name, Modifier.weight(1f).padding(8.dp))
+                    }
+                }
+            }
+        }, confirmButton = { TextButton({ selectedPlaylists = selection; shareAll = false; choosePlaylist = false }) { Text(stringResource(R.string.network_apply)) } },
+            dismissButton = { TextButton({ choosePlaylist = false }) { Text(stringResource(R.string.streaming_cancel)) } })
+    }
+    if (manageDevices) AlertDialog(onDismissRequest = { manageDevices = false }, title = { Text(stringResource(R.string.network_devices_title)) }, text = {
+        LazyColumn(Modifier.heightIn(max = 440.dp)) { items(connections, key = { it.server }) { connection ->
+            Column(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(connection.name, fontWeight = FontWeight.Bold)
+                Text(connection.endpoint, style = MaterialTheme.typography.bodySmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton({ editAddress = connection; manageDevices = false }) { Text(stringResource(R.string.streaming_change_address)) }
+                    TextButton({ forget = connection; manageDevices = false }) { Text(stringResource(R.string.streaming_forget)) }
+                }
+            }
         } }
-    }, confirmButton = { TextButton({ choosePlaylist = false }) { Text(stringResource(R.string.streaming_cancel)) } })
+    }, confirmButton = { TextButton({ manageDevices = false }) { Text(stringResource(R.string.streaming_done)) } })
+    openedPlaylist?.let { item -> NetworkPlaylistDialog(item, local = local, onDismiss = { openedPlaylist = null }, onPlay = onPlay,
+        onSave = { name, list -> openedPlaylist = null; saveSongs = StreamSaveRequest(name, list) }) }
+    saveSongs?.let { request -> StreamSaveDialog(request, playlists, onDismiss = { saveSongs = null }, onSave = { id, name ->
+        if (id == null) onCreatePlaylist(name, request.songs) else onAddToPlaylist(id, request.songs)
+        saveSongs = null
+    }) }
     if (addressDialog) StreamAddressDialog(host.addresses.firstOrNull().orEmpty(), host.addresses, R.string.streaming_invite_address_hint, R.string.streaming_create_invite,
         onDismiss = { addressDialog = false }, onSave = { address ->
             runCatching { manager.invite(address) }.onSuccess { invitation = it }.onFailure { error = context.getString(R.string.streaming_start_error) }; addressDialog = false
@@ -296,98 +350,6 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
             LazyColumn(Modifier.heightIn(max = 140.dp)) { items(alternatives) { value -> TextButton({ address = value }) { Text(value) } } }
         }
     }, confirmButton = { TextButton({ val normalized = runCatching { StreamingProtocol.endpoint(address) }.getOrNull(); if (normalized == null) invalid = true else onSave(normalized) }, enabled = !busy) { Text(stringResource(action)) } }, dismissButton = { TextButton(onDismiss, enabled = !busy) { Text(stringResource(R.string.streaming_cancel)) } })
-}
-
-@Stable
-private class StreamBrowserState(val connection: StreamConnection, private val scope: CoroutineScope) {
-    var query by mutableStateOf("")
-    var genre by mutableStateOf("")
-    var page by mutableStateOf<StreamPage?>(null)
-    var tracks by mutableStateOf(emptyList<StreamTrack>())
-    var error by mutableStateOf<String?>(null)
-    var busy by mutableStateOf(false)
-    private var generation = 0
-    private var job: Job? = null
-    fun cancel() { generation++; job?.cancel() }
-    fun reload() {
-        val request = ++generation; job?.cancel(); busy = true; error = null; tracks = emptyList(); page = null
-        job = scope.launch {
-            try { delay(350); val result = StreamingClient.page(connection, query, genre)
-                if (request == generation) { page = result; tracks = result.tracks } }
-            catch (e: CancellationException) { throw e } catch (e: Exception) { if (request == generation) error = StreamingClient.friendlyError(e) }
-            finally { if (request == generation) busy = false }
-        }
-    }
-    fun more() {
-        if (busy) return
-        val request = generation; busy = true; error = null
-        job = scope.launch {
-            try { var result = StreamingClient.page(connection, query, genre, tracks.size)
-                val reset = result.revision != page?.revision
-                if (reset) result = StreamingClient.page(connection, query, genre)
-                if (request == generation) { page = result; tracks = if (reset) result.tracks else (tracks + result.tracks).distinctBy { it.id } }
-            } catch (e: CancellationException) { throw e } catch (e: Exception) { if (request == generation) error = StreamingClient.friendlyError(e) }
-            finally { if (request == generation) busy = false }
-        }
-    }
-}
-@Composable private fun rememberStreamBrowser(connection: StreamConnection): StreamBrowserState {
-    val scope = rememberCoroutineScope()
-    val state = remember(connection) { StreamBrowserState(connection, scope) }
-    LaunchedEffect(state, state.query, state.genre) { state.reload() }
-    LaunchedEffect(state) {
-        while (true) { delay(30_000)
-            if (!state.busy && state.page != null) runCatching { StreamingClient.revision(connection) }.getOrNull()?.let { revision ->
-                if (revision != state.page?.revision) state.reload()
-            }
-        }
-    }
-    DisposableEffect(state) { onDispose { state.cancel() } }
-    return state
-}
-private fun LazyListScope.streamingBrowser(state: StreamBrowserState, onPlay: (List<Song>, Int, Boolean) -> Unit) {
-    val connection = state.connection
-    item(key = "remote-search") {
-        OutlinedTextField(state.query, { state.query = it.take(100) }, label = { Text(stringResource(R.string.streaming_search)) }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-            trailingIcon = { if (state.query.isNotEmpty()) IconButton({ state.query = "" }) { StreamIcon("close", stringResource(R.string.streaming_clear_search)) } })
-    }
-    item(key = "remote-summary") {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            state.page?.let { result ->
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item { FilterChip(state.genre.isEmpty(), { state.genre = "" }, { Text(stringResource(R.string.streaming_all_music)) }) }
-                    items(result.genres) { g -> FilterChip(g == state.genre, { state.genre = if (state.genre == g) "" else g }, { Text(g) }) }
-                }
-                Text("${result.matched} / ${result.total}", style = MaterialTheme.typography.labelLarge)
-            }
-            if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (state.error != null) { StreamError(state.error!!); OutlinedButton(state::reload) { Text(stringResource(R.string.streaming_retry)) } }
-            if (state.tracks.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Button({ onPlay(state.tracks.map { it.song(connection.server) }, 0, false) }, enabled = !state.busy) { Text(stringResource(R.string.streaming_play_visible, state.tracks.size)) }
-                    OutlinedButton({ onPlay(state.tracks.map { it.song(connection.server) }, 0, true) }, enabled = !state.busy) { Text(stringResource(R.string.streaming_shuffle)) }
-                }
-            }
-        }
-    }
-    itemsIndexed(state.tracks, key = { _, track -> "remote:${connection.server}:${track.id}" }) { index, track ->
-        val song = remember(track, connection.server) { track.song(connection.server) }
-        ListItem(headlineContent = { Text(track.title, maxLines = 2, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(listOf(track.artist, track.album).filter { it.isNotBlank() }.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis) },
-            leadingContent = {
-                Box(Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh), contentAlignment = Alignment.Center) {
-                    StreamIcon("music_note"); AsyncImage(song.artworkUri, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
-                }
-            },
-            trailingContent = { StreamIcon("play_arrow") }, modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(enabled = !state.busy) { onPlay(state.tracks.map { it.song(connection.server) }, index, false) })
-    }
-    item(key = "remote-footer") {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (state.page != null && state.tracks.isEmpty() && !state.busy) Text(stringResource(R.string.streaming_no_results))
-            if (state.tracks.size < (state.page?.matched ?: 0) && state.tracks.size < 2000) OutlinedButton(state::more, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.streaming_more)) }
-            if (state.tracks.size >= 2000 && state.tracks.size < (state.page?.matched ?: 0)) Text(stringResource(R.string.streaming_search_more), style = MaterialTheme.typography.bodySmall)
-            TextButton(state::reload, enabled = !state.busy) { Text(stringResource(R.string.streaming_refresh)) }
-        }
-    }
 }
 
 @Composable private fun StreamCard(content: @Composable ColumnScope.() -> Unit) {

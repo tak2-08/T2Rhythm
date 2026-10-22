@@ -224,7 +224,10 @@ class AppUpdaterViewModel(
         ensureDownloadNotificationChannel()
 
         // Load any persisted download state
-        viewModelScope.launch(Dispatchers.IO) { loadDownloadState() }
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { chromahub.rhythm.app.features.updates.UpdateJournal.get(application).reconcile() }
+            loadDownloadState()
+        }
 
         viewModelScope.launch {
             combine(_appSettings.updateChannel, _appSettings.updateSource) { channel, source ->
@@ -975,6 +978,8 @@ class AppUpdaterViewModel(
                 if (!_isDownloading.value || activeCall !== call) return@launch
                 UpdateIntegrity.verifyBytes(file, size, expectedDigest)
                 UpdateIntegrity.verifyPackage(context, file, release?.versionCode)
+                runCatching { chromahub.rhythm.app.features.updates.UpdateJournal.get(context).ready(file, release?.releaseNotes.orEmpty()) }
+                    .onFailure { Log.w(tag, "Unable to save update history", it) }
                 downloadPrefs.edit(commit = true) { putString("verified_checksum", expectedDigest); putLong("verified_size", size) }
                 _downloadedFile.value = file; _downloadProgress.value = 100f; _isDownloading.value = false
                 activeDownload = null; activeCall = null; _downloadState.value = null; saveDownloadState()
@@ -1216,7 +1221,7 @@ class AppUpdaterViewModel(
         }
     }
 
-    private fun launchVerifiedInstaller() {
+    private suspend fun launchVerifiedInstaller() {
         val file = _downloadedFile.value
         if (file == null || !file.exists()) {
             _error.value = "No downloaded file found"
@@ -1265,6 +1270,8 @@ class AppUpdaterViewModel(
 
             // Check if there's an app that can handle this intent
             if (intent.resolveActivity(context.packageManager) != null) {
+                withContext(Dispatchers.IO) { runCatching { chromahub.rhythm.app.features.updates.UpdateJournal.get(context).installing(file) }
+                    .onFailure { Log.w(tag, "Unable to save installer attempt", it) } }
                 context.startActivity(intent)
                 // Installer launch is not installation success. Keep the verified APK so cancel/retry works.
                 saveDownloadState()
@@ -1276,6 +1283,7 @@ class AppUpdaterViewModel(
             }
         } catch (e: Exception) {
             Log.e(tag, "Error installing APK", e)
+            file?.let { runCatching { chromahub.rhythm.app.features.updates.UpdateJournal.get(getApplication()).installerFailed(it) } }
             // Keep _downloadedFile so user can retry install
             _error.value = getApplication<Application>().getString(R.string.update_install_retry)
             saveDownloadState()

@@ -99,6 +99,13 @@ class StreamingServer(
             val limit = s.parameters["limit"]?.singleOrNull()?.toIntOrNull()?.coerceIn(1, 100) ?: 100
             return reply(Response.Status.OK, catalog.page(s.parameters["q"]?.firstOrNull().orEmpty(), s.parameters["genre"]?.firstOrNull().orEmpty().take(100), offset, limit))
         }
+        if (path == "/v1/playlists") return reply(Response.Status.OK, catalog.playlists())
+        if (path.startsWith("/v1/playlists/")) {
+            val id = path.removePrefix("/v1/playlists/")
+            if (!StreamingProtocol.validId(id) || catalog.snapshot.playlists.none { it.info.id == id }) return reply(Response.Status.NOT_FOUND)
+            val offset = s.parameters["offset"]?.singleOrNull()?.toIntOrNull()?.takeIf { it in 0..100_000 } ?: 0
+            return reply(Response.Status.OK, catalog.page("", "", offset, 100, id))
+        }
         val parts = path.split('/')
         if (parts.size != 4 || parts[1] != "v1" || !StreamingProtocol.validId(parts[3]) || parts[3] !in catalog.snapshot.entries) return reply(Response.Status.NOT_FOUND)
         val id = parts[3]
