@@ -100,6 +100,9 @@ import chromahub.rhythm.app.util.RhythmLyricsParser
 import chromahub.rhythm.app.util.LrcUtils
 import chromahub.rhythm.app.util.SemanticLyrics
 import android.content.SharedPreferences
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.withLock
 import androidx.room.withTransaction
 import chromahub.rhythm.app.features.local.data.database.RhythmDatabase
 import chromahub.rhythm.app.features.local.data.database.entity.ArtistEntity
@@ -253,13 +256,7 @@ class MusicRepository(context: Context) {
      * Call this when the ViewModel modifies (e.g. merges metadata) into the song list.
      */
     suspend fun persistEditedSongs(songs: List<Song>) = withContext(Dispatchers.IO) {
-        val previous = cachedSongs
-        val previousArtists = previous?.associate { it.id to (it.artist to it.albumArtist) }
-        val artistsChanged = previousArtists == null || previousArtists.size != songs.size ||
-            songs.any { previousArtists[it.id] != (it.artist to it.albumArtist) }
-        // Retain incremental writes for a single cover/title edit in a large library.
-        saveSongsToRoom(songs, clearArtistCache = false, previousSongs = previous)
-        if (artistsChanged) roomDb.artistDao().deleteAll()
+        saveSongsToRoom(songs, clearArtistCache = false)
     }
 
     fun updateAndPersistSongs(songs: List<Song>) {
@@ -273,12 +270,22 @@ class MusicRepository(context: Context) {
         }
     }
 
+    private val songWriteMutex = Mutex()
+
     private suspend fun saveSongsToRoom(
-        songs: List<Song>,
+        incomingSongs: List<Song>,
         clearArtistCache: Boolean = true,
         previousSongs: List<Song>? = cachedSongs
-    ) {
+    ) = songWriteMutex.withLock {
         try {
+            // Delayed background snapshots must respect the latest explicit edits.
+            val songs = storedSongs(incomingSongs)
+            val previous = cachedSongs ?: previousSongs
+            val previousById = previous.orEmpty().associateBy { it.id }
+            val groupingChanged = previous == null || previous.size != songs.size || songs.any {
+                val old = previousById[it.id]
+                old == null || old.artist != it.artist || old.albumArtist != it.albumArtist || old.album != it.album
+            }
             // Load existing artwork URIs from DB to check for lossless versions
             val existingSongs = runCatching { songDao.getAllSongs().associate { it.id to it.artworkUri } }.getOrNull() ?: emptyMap()
 
@@ -347,17 +354,16 @@ class MusicRepository(context: Context) {
 
             val canUseIncrementalUpdate =
                 !clearArtistCache &&
-                        previousSongs != null &&
-                        previousSongs.size == songs.size &&
-                        previousSongs.map { it.id }.toSet() == songs.map { it.id }.toSet()
+                        previous != null &&
+                        previous.size == songs.size &&
+                        previous.map { it.id }.toSet() == songs.map { it.id }.toSet()
 
             if (canUseIncrementalUpdate) {
-                val previousById = previousSongs.associateBy { it.id }
                 val changedSongs = songs.filter { previousById[it.id] != it }
 
                 if (changedSongs.isEmpty()) {
                     Log.d(TAG, "Skipping Room save because the incremental snapshot is unchanged")
-                    return
+                    return@withLock
                 }
 
                 val chunkSize = 200
@@ -371,6 +377,7 @@ class MusicRepository(context: Context) {
                         roomDb.songArtistDao().deleteBySongIds(chunkSongIds)
                         roomDb.songArtistDao().insertAll(relationshipSets.albumArtistRelationships)
                         roomDb.songArtistDao().insertAll(relationshipSets.trackArtistRelationships)
+                        if (groupingChanged) roomDb.artistDao().deleteAll()
                     }
                     yield()
                 }
@@ -388,8 +395,8 @@ class MusicRepository(context: Context) {
                     roomDb.songArtistDao()
                         .replaceAll(relationshipSets.trackArtistRelationships, false)
 
-                    if (clearArtistCache) {
-                        // Clear artist cache since songs have changed
+                    if (clearArtistCache || groupingChanged) {
+                        // Artist membership and album counts depend on all these tags.
                         roomDb.artistDao().deleteAll()
                     }
                 }
@@ -406,8 +413,11 @@ class MusicRepository(context: Context) {
 
             cachedSongs = songs
             cacheTimestamp = System.currentTimeMillis()
-        } catch (e: Exception) {
+            if (previous != songs) cachedFolderTree = null
+        } catch (cancel: CancellationException) { throw cancel }
+        catch (e: Exception) {
             Log.e(TAG, "Failed to save songs to Room database", e)
+            throw e
         }
     }
 
@@ -866,17 +876,24 @@ class MusicRepository(context: Context) {
             cachedSongs != null && 
             System.currentTimeMillis() - cacheTimestamp < CACHE_VALIDITY_MS) {
             Log.d(TAG, "Returning cached songs (${cachedSongs!!.size})")
-            return@withContext storedSongs(cachedSongs!!)
+            val raw = cachedSongs!!
+            val effective = storedSongs(raw)
+            if (effective != raw) saveSongsToRoom(effective, clearArtistCache = false, previousSongs = raw)
+            return@withContext effective
         }
         
         // On cold start (no in-memory cache), try loading from Room cache
         if (!shouldForceRefresh && cachedSongs == null) {
             val diskCached = loadSongsFromRoom()
             if (diskCached != null) {
-                cachedSongs = storedSongs(diskCached)
+                val effective = storedSongs(diskCached)
+                // Old versions may have persisted an automatic value over a manual selection.
+                // Repair Room too, so SQL search and relationships see the same restored tags.
+                if (effective != diskCached) saveSongsToRoom(effective, clearArtistCache = false, previousSongs = diskCached)
+                cachedSongs = effective
                 cacheTimestamp = System.currentTimeMillis()
                 Log.d(TAG, "Restored ${diskCached.size} songs from Room cache")
-                return@withContext storedSongs(diskCached)
+                return@withContext effective
             }
             cachedSongs = emptyList()
             cacheTimestamp = System.currentTimeMillis()
@@ -2444,14 +2461,7 @@ class MusicRepository(context: Context) {
     private var cachedFolderTree: FolderNode? = null
     private var cachedFolderTreeSongsHash: Int = 0
 
-    private fun fastSongsHash(songs: List<Song>): Int {
-        var hash = songs.size
-        val step = maxOf(1, songs.size / 100)
-        for (i in songs.indices step step) {
-            hash = 31 * hash + songs[i].id.hashCode()
-        }
-        return hash
-    }
+    private fun fastSongsHash(songs: List<Song>): Int = songs.hashCode()
 
     suspend fun getFolderTree(): FolderNode = withContext(Dispatchers.IO) {
         val songs = loadSongs()

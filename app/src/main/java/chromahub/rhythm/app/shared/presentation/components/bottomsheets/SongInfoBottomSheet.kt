@@ -313,10 +313,15 @@ fun SongInfoBottomSheet(
         }
     }
 
-    LaunchedEffect(song.id) {
+    LaunchedEffect(displaySong) {
         isLoadingMetadata = true
         extendedInfo = withContext(Dispatchers.IO) {
-            MediaUtils.getExtendedSongInfo(context, song)
+            val info = MediaUtils.getExtendedSongInfo(context, displaySong)
+            val catalog = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context)
+            if (chromahub.rhythm.app.features.local.data.metadata.ManualSongMetadata(context).read(catalog.songKey(displaySong)) != null)
+                info.copy(genre = displaySong.genre.orEmpty(), year = displaySong.year,
+                    albumArtist = displaySong.albumArtist.orEmpty(), discNumber = displaySong.discNumber)
+            else info
         }
         isLoadingMetadata = false
     }
@@ -515,21 +520,6 @@ fun SongInfoBottomSheet(
                 if (startInEditMode) onDismiss()
             },
             onSave = { title: String, artist: String, album: String, genre: String, year: Int, trackNumber: Int, artworkUri: Uri?, removeArtwork: Boolean, albumArtist: String?, composer: String?, discNumber: Int, onComplete ->
-                currentSong = currentSong?.copy(
-                    title = title,
-                    artist = artist,
-                    album = album,
-                    genre = genre,
-                    year = year,
-                    trackNumber = trackNumber,
-                    artworkUri = when {
-                        removeArtwork -> null
-                        artworkUri != null -> artworkUri
-                        else -> currentSong?.artworkUri
-                    },
-                    albumArtist = albumArtist,
-                    discNumber = discNumber
-                )
                 onEditSong?.invoke(
                     title,
                     artist,
@@ -543,6 +533,21 @@ fun SongInfoBottomSheet(
                     composer,
                     discNumber
                 ) { success ->
+                    if (success) currentSong = currentSong?.copy(
+                        title = title,
+                        artist = artist,
+                        album = album,
+                        genre = genre,
+                        year = year,
+                        trackNumber = trackNumber,
+                        artworkUri = when {
+                            removeArtwork -> null
+                            artworkUri != null -> artworkUri
+                            else -> currentSong?.artworkUri
+                        },
+                        albumArtist = albumArtist,
+                        discNumber = discNumber
+                    )
                     onComplete(success)
                 }
             },
@@ -1538,8 +1543,10 @@ private fun EditSongSheet(
             onDismiss = { showCatalogLookup = false },
             onApply = { imported, artwork ->
                 imported[CatalogField.TRACK_TITLE]?.let { title = it }
-                (imported[CatalogField.TRACK_ARTISTS] ?: imported[CatalogField.ALBUM_ARTISTS]
-                    ?: imported[CatalogField.ARTIST_NAME])?.let { artist = it }
+                val selectedArtist = imported[CatalogField.TRACK_ARTISTS] ?: imported[CatalogField.ALBUM_ARTISTS] ?: imported[CatalogField.ARTIST_NAME]
+                albumArtist = chromahub.rhythm.app.features.local.data.metadata.CatalogSelection.albumArtistAfterImport(
+                    artist, albumArtist, selectedArtist, imported[CatalogField.ALBUM_ARTISTS])
+                selectedArtist?.let { artist = it }
                 (imported[CatalogField.TRACK_ALBUM_TITLE] ?: imported[CatalogField.ALBUM_TITLE])?.let { album = it }
                 (imported[CatalogField.TRACK_GENRES] ?: imported[CatalogField.ALBUM_GENRES]
                     ?: imported[CatalogField.ARTIST_GENRES])?.let { genre = it }

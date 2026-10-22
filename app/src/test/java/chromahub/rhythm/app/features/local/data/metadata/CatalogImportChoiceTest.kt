@@ -6,6 +6,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CatalogImportChoiceTest {
+    @Test fun importingArtistUpdatesAnInheritedAlbumArtistButKeepsCompilationCredits() {
+        assertEquals("New", CatalogSelection.albumArtistAfterImport("Old", "Old", "New", null))
+        assertEquals("New", CatalogSelection.albumArtistAfterImport("Old", "", "New", null))
+        assertEquals("Various Artists", CatalogSelection.albumArtistAfterImport("Old", "Various Artists", "New", null))
+        assertEquals("Album credit", CatalogSelection.albumArtistAfterImport("Old", "Old", "New", "Album credit"))
+        assertEquals("Old", CatalogSelection.albumArtistAfterImport("Old", "Old", null, null))
+    }
     private fun value(field: CatalogField, text: String) = CatalogValue(field, text, "https://www.melon.com/song/detail.htm?songId=1")
     @Test fun ordinaryImportKeepsLyricsUnchecked() {
         val document = CatalogDocument(EntityKind.TRACK, listOf(value(CatalogField.TRACK_TITLE, "노래"), value(CatalogField.TRACK_IMAGE, "https://example.com/a.jpg"), value(CatalogField.TRACK_LYRICS, "가사")))

@@ -1,0 +1,15 @@
+# Metadata consistency and listening recap (1322)
+
+An explicit catalog import used to lose to `replaceTags`/`forceFields` in the stored projection. Artwork and album artist followed different paths, explaining why only some fields appeared to stick. Explicit user tags now win, including empty genre/year, and are stored independently of the automatic catalog cache setting. Existing manual catalog records retain priority during upgrade. Missing album artist credits follow an imported artist only if they were inherited from the old artist; compilation credits remain explicit.
+
+Metadata save completion now waits for Room and song/artist relationships, grouping, playlists, queue metadata and folder state. Album-only changes also invalidate artist album counts. Batch edits publish once. Cover-only changes do not re-save stale text. Mounted song information reloads extended tags after an edit. Existing physical page track references are relinked without changing user prose or artwork. Late page snapshots cannot re-add a track with superseded manual tags. Old manual catalog values are projected back into Room for SQL search as well as UI rendering.
+
+The recap uses indexed history columns, never waveform/sensor JSON. It adds daily listening, peak day, artist highlights, previous-period context, shareable text, and retains playback, playlist and highlight-mix actions. Current library tags resolve by file URI even after a title/artist edit. Removed or ambiguous files stay visible in history without becoming an unrelated playable song. Genre time is divided between normalized labels, avoiding double-counting. Daily totals split at local midnight and reconcile integer rounding. Ongoing period comparisons use matching elapsed local dates/time and cap to the shorter month. A maximum of four report projections is cached per ledger and revision; oversized rankings bypass the cache. New listening revisions invalidate the old entries. Low-data and empty states avoid invented personality or audience claims.
+
+Research consulted on 2026-10-22:
+
+- [Spotify Listening Stats](https://newsroom.spotify.com/2025-11-06/spotify-new-feature-listening-stats/): visible song/artist rankings linked to listening actions.
+- [YouTube Music Recap help](https://support.google.com/youtubemusic/answer/11418178?hl=en): seasonal personal stats and saved playlists, with history eligibility made explicit.
+- [Spotify Engineering: Wrapped Archive](https://engineering.atspotify.com/2026/3/inside-the-archive-2025-wrapped): highlight selection grounded in real listening moments, including peak listening days; attention to timezone and concurrent persistence errors.
+
+T2Rhythm computes its own local statistics; no third-party audience data, cloud narrative model or claimed listener percentile is introduced. Native screenshot evidence uses controlled test listening fixtures.

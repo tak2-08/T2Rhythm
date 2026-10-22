@@ -36,8 +36,8 @@ class LibraryMetadataManager(
     private val context: Application,
     private val scope: CoroutineScope,
     private val getCurrentSong: () -> Song?,
-    private val updateCurrentSongMetadata: (Song) -> Unit,
-    private val bulkUpdateSongs: (Map<String, Song>) -> Unit,
+    private val updateCurrentSongMetadata: suspend (Song) -> Unit,
+    private val bulkUpdateSongs: suspend (Map<String, Song>) -> Unit,
     private val pausePlaybackForWrite: ((String) -> Pair<Long, Boolean>?)? = null,
     private val resumePlaybackAfterWrite: ((String, Pair<Long, Boolean>?) -> Unit)? = null
 ) {
@@ -421,7 +421,8 @@ class LibraryMetadataManager(
                         year = pendingRequest.newYear,
                         trackNumber = pendingRequest.newTrackNumber,
                         artworkUri = updatedArtworkUri,
-                        albumArtist = pendingRequest.newAlbumArtist
+                        albumArtist = pendingRequest.newAlbumArtist,
+                        discNumber = pendingRequest.newDiscNumber
                     )
                     chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(appContext).recordManualSong(updatedSong)
                     updateCurrentSongMetadata(updatedSong)
@@ -637,7 +638,6 @@ class LibraryMetadataManager(
                         
                         // Also update currently playing song if it matches
                         chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(appContext).recordManualSong(updatedSong)
-                        updateCurrentSongMetadata(updatedSong)
 
                         if (newGenre.isNotBlank()) {
                             try {
@@ -780,7 +780,6 @@ class LibraryMetadataManager(
                         )
                         updatedSongs[song.id] = updatedSong
                         chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(appContext).recordManualSong(updatedSong)
-                        updateCurrentSongMetadata(updatedSong)
 
                         if (newGenre.isNotBlank()) {
                             try {
@@ -860,7 +859,7 @@ class LibraryMetadataManager(
                     persistArtworkOverrideUri(appContext, song, cachedUri)
                     MediaUtils.deleteCachedEmbeddedArtwork(appContext.cacheDir, song.uri)
                     val updatedSong = song.copy(artworkUri = cachedUri)
-                    chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(appContext).recordManualSong(updatedSong)
+                    chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(appContext).notifyChanged()
                     updateCurrentSongMetadata(updatedSong)
                     withContext(Dispatchers.Main) {
                         onSuccess()

@@ -182,10 +182,25 @@ class EntityPageStore(private val context: Context) {
     fun resetImage(kind: EntityKind, key: String) = synchronized(lock) {
         read(kind, key)?.copy(image = null, imageEdited = false, imageSource = null, updatedAt = System.currentTimeMillis())?.also { write(it, null) }
     }
+    /** Refresh existing physical pages after a tag edit without changing their prose or artwork. */
+    fun relinkTracks(kind: EntityKind, key: String, removedSources: Set<String>, tracks: List<PageTrack>) = synchronized(lock) {
+        val old = read(kind, key) ?: return@synchronized
+        val nextTracks = (tracks + old.tracks.orEmpty().filterNot { it.source in removedSources })
+            .distinctBy { it.source ?: "${it.artist}:${it.album}:${it.title}:${it.duration}" }
+        val next = old.copy(tracks = nextTracks, albums = if (kind == EntityKind.ARTIST)
+            nextTracks.map { PageAlbum(it.album, it.artist, it.year) }.distinctBy { "${it.artist}:${it.title}" } else old.albums)
+        if (next != old) write(next.copy(updatedAt = System.currentTimeMillis()))
+    }
     fun snapshot(kind: EntityKind, key: String, title: String, artist: String, description: String,
                  tracks: List<PageTrack>, albums: List<PageAlbum> = emptyList(), details: Map<String, String> = emptyMap()): EntityPage = synchronized(lock) {
         val old = capture(kind, key, title, artist, description)
-        val next = old.copy(tracks = (tracks + old.tracks.orEmpty()).distinctBy { it.source ?: "${it.artist}:${it.album}:${it.title}:${it.duration}" }, albums = (albums + old.albums.orEmpty()).distinctBy { "${it.artist}:${it.title}:${it.year}" },
+        // An already-running screen/materializer may finish after an edit moved this file.
+        val manual = ManualSongMetadata(context)
+        val currentTracks = tracks.filter { track ->
+            val tags = track.source?.let(manual::read)
+            tags == null || (tags.title == track.title && tags.artist == track.artist && tags.album == track.album)
+        }
+        val next = old.copy(tracks = (currentTracks + old.tracks.orEmpty()).distinctBy { it.source ?: "${it.artist}:${it.album}:${it.title}:${it.duration}" }, albums = (albums + old.albums.orEmpty()).distinctBy { "${it.artist}:${it.title}:${it.year}" },
             details = details.ifEmpty { old.details.orEmpty() })
         if (next != old) write(next)
         next

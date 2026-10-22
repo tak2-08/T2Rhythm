@@ -3357,4 +3357,21 @@
     <string name="genre_saved_training_pending">교정은 저장됐지만 일부 학습 작업을 시작하지 못했습니다. 다시 시도해 주세요.</string>
     <string name="genre_retry_training">학습 다시 시도</string>
     <string name="genre_training_scheduled">학습을 다시 예약했습니다.</string>
+    <string name="report_how">이 보고서는 어떻게 만들어지나요?</string>
+    <string name="report_empty_detail">T2Rhythm에서 음악을 들으면 나만의 기록이 쌓여요. 일시정지한 시간은 포함하지 않아요.</string>
+    <string name="report_share">보고서 공유</string>
+    <string name="report_gathering">이제 기록이 쌓이기 시작했어요. 더 들을수록 나만의 하이라이트가 풍성해져요.</string>
+    <string name="report_artists">일상에 머문 아티스트</string>
+    <string name="report_artist_stats">%1$d곡 · 함께한 %2$d분</string>
+    <string name="report_genres">내 음악의 색깔</string>
+    <string name="report_tracks">자꾸 돌아온 노래</string>
+    <string name="report_no_baseline">이전 기간에는 없던 새로운 음악 기록이에요</string>
+    <string name="report_change_same">비슷한 시간만큼 음악과 함께했어요</string>
+    <string name="report_change_more">음악과 함께한 시간이 %1$d%% 늘었어요</string>
+    <string name="report_change_less">음악과 함께한 시간이 %1$d%% 줄었어요</string>
+    <string name="report_comparison_detail">이전: %1$s ~ %2$s · %3$d분</string>
+    <string name="report_comparison_partial">현재 기간은 이전 기간과 같은 경과 일수·시각까지 비교해요. 월 길이가 다르면 짧은 쪽에 맞춰요.</string>
+    <string name="report_daily_title">음악이 흐른 날들</string>
+    <string name="report_active_days">음악을 들은 %1$d일 · 가장 많이 들은 날 %2$s, %3$d분</string>
+    <string name="report_method">청취 시간은 실제로 재생한 기록을 합산하며 일시정지 시간은 제외해요. 재생 횟수는 일부만 들은 경우도 포함한 서로 다른 재생 세션 수예요. 곡 순위는 청취 시간순이에요. 날짜를 넘긴 재생은 현지 자정에 나눠 일별로 표시해요. 장르가 여러 개면 시간을 균등하게 나눠요. 보관함에서 수정한 이름과 장르는 원래 청취 기록을 바꾸지 않고 보고서에 반영해요. 파일이 없어진 곡도 기록은 남지만 재생할 수는 없어요. 이전 달력 기간과 비교하며, 진행 중인 기간은 같은 경과 일수·시각까지만 비교해요. 월 길이가 다르면 짧은 쪽에 맞춰요. 모든 계산은 기기 안에서 처리해요.</string>
 </resources>

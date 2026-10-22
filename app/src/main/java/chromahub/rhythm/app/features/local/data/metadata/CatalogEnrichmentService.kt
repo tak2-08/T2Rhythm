@@ -75,6 +75,7 @@ class CatalogEnrichmentService private constructor(private val context: Context)
         it.field !in setOf(CatalogField.TRACK_LYRICS, CatalogField.ARTIST_DESCRIPTION, CatalogField.ALBUM_DESCRIPTION)
     }))
     private val artworkChoices = SongArtworkOverrides(context)
+    private val manualTags = ManualSongMetadata(context)
     fun artworkRemoved(song: Song) = artworkChoices.read(song)?.removed == true
     fun manualArtwork(song: Song): Uri? = artworkChoices.read(song)?.uri?.let(Uri::parse)?.takeIf(::usableArtwork)
         ?: image(read(EntityKind.TRACK, "manual:${songKey(song)}"))
@@ -95,8 +96,8 @@ class CatalogEnrichmentService private constructor(private val context: Context)
     }
     private fun changed() { revision.update { it + 1 }; PersonalArchive.enqueue(context) }
     private fun save(kind: EntityKind, key: String, document: CatalogDocument, retryAfter: Long,
-                     imageFile: String? = null, replace: Boolean = false, attemptedFields: Set<CatalogField> = emptySet(), reset: Boolean = false, matchingPolicy: String? = null): StoredCatalog {
-        val result = if (preferences.options.value.permanent) store.merge(kind, key, canonical(document), retryAfter, imageFile, replace, attemptedFields, reset, matchingPolicy)
+                     imageFile: String? = null, replace: Boolean = false, attemptedFields: Set<CatalogField> = emptySet(), reset: Boolean = false, matchingPolicy: String? = null, durable: Boolean = false): StoredCatalog {
+        val result = if (durable || preferences.options.value.permanent) store.merge(kind, key, canonical(document), retryAfter, imageFile, replace, attemptedFields, reset, matchingPolicy)
             else {
                 val existing = if (reset) null else read(kind, key)
                 val fields = existing?.document?.values.orEmpty().associateBy { it.field }.toMutableMap()
@@ -221,33 +222,36 @@ class CatalogEnrichmentService private constructor(private val context: Context)
         val automatic = if (includeMetadata && verifiedTrack) storedTrack.document else CatalogDocument(EntityKind.TRACK, emptyList())
         val manual = projection(EntityKind.TRACK, "manual:$key").document
         val album = projection(EntityKind.ALBUM, albumKey(song.album, effectiveAlbumArtist(song)))
-        fun text(field: CatalogField, current: String?): String? = (if (preferences.options.value.replaces(field)) automatic.get(field) else null) ?: manual[field]?.takeIf {
+        fun text(field: CatalogField, current: String?): String? = manual[field]?.takeIf {
             !fillMissingManual || !CatalogIdentity.missing(it)
-        } ?: current?.takeUnless(CatalogIdentity::missing) ?: automatic.get(field) ?: when (field) {
+        } ?: (if (preferences.options.value.replaces(field)) automatic.get(field) else null) ?: current?.takeUnless(CatalogIdentity::missing) ?: automatic.get(field) ?: when (field) {
                 CatalogField.TRACK_GENRES -> if (includeMetadata) album.document[CatalogField.ALBUM_GENRES] else null
                 CatalogField.TRACK_RELEASE_DATE -> if (includeMetadata) album.document[CatalogField.ALBUM_RELEASE_DATE] else null
                 else -> null
             } ?: current
         val autoArt = (if (verifiedTrack) image(storedTrack) else null) ?: image(album)
         val removed = artworkRemoved(song)
-        return song.copy(title = text(CatalogField.TRACK_TITLE, song.title).orEmpty(),
+        val enriched = song.copy(title = text(CatalogField.TRACK_TITLE, song.title).orEmpty(),
             artist = text(CatalogField.TRACK_ARTISTS, song.artist).orEmpty(),
             album = text(CatalogField.TRACK_ALBUM_TITLE, song.album).orEmpty(), genre = chromahub.rhythm.app.util.GenreUtils.splitGenres(text(CatalogField.TRACK_GENRES, song.genre)).joinToString(", ").ifEmpty { null },
-            year = (if (preferences.options.value.replaces(CatalogField.TRACK_RELEASE_DATE)) automatic[CatalogField.TRACK_RELEASE_DATE].yearOrNull() else null) ?: manual[CatalogField.TRACK_RELEASE_DATE]?.toIntOrNull()?.takeIf { !fillMissingManual || it > 0 }
+            year = manual[CatalogField.TRACK_RELEASE_DATE]?.toIntOrNull()?.takeIf { !fillMissingManual || it > 0 }
+                ?: (if (preferences.options.value.replaces(CatalogField.TRACK_RELEASE_DATE)) automatic[CatalogField.TRACK_RELEASE_DATE].yearOrNull() else null)
                 ?: song.year.takeIf { it > 0 } ?: (automatic[CatalogField.TRACK_RELEASE_DATE] ?: if (includeMetadata) album.document[CatalogField.ALBUM_RELEASE_DATE] else null).yearOrNull() ?: 0,
             artworkUri = if (removed) null else manualArtwork(song) ?: {
                 val original = song.artworkUri
                 if (!preferences.options.value.replaces(CatalogField.TRACK_IMAGE) && original?.scheme == "file" && original.path?.let { File(it).isFile && !(it.startsWith(context.cacheDir.path) && File(it).name.contains("placeholder", true)) } == true) original
                 else autoArt ?: original
             }())
+        return manualTags.read(key)?.let { manualTags.apply(enriched, it) } ?: enriched
     }
     fun recordManualSong(song: Song) {
-        if (!preferences.options.value.permanent) return
+        // User actions are durable even when automatic catalog caching is temporary.
+        manualTags.save(songKey(song), song)
         val source = song.uri.toString()
         val values = listOf(CatalogField.TRACK_TITLE to song.title, CatalogField.TRACK_ARTISTS to song.artist,
             CatalogField.TRACK_ALBUM_TITLE to song.album, CatalogField.TRACK_GENRES to song.genre.orEmpty(),
             CatalogField.TRACK_RELEASE_DATE to song.year.toString()).map { CatalogValue(it.first, it.second, source) }
-        save(EntityKind.TRACK, "manual:${songKey(song)}", CatalogDocument(EntityKind.TRACK, values), Long.MAX_VALUE, replace = true)
+        save(EntityKind.TRACK, "manual:${songKey(song)}", CatalogDocument(EntityKind.TRACK, values), Long.MAX_VALUE, replace = true, durable = true)
     }
     suspend fun artistDescription(name: String): String? {
         val wanted = setOf(CatalogField.ARTIST_DESCRIPTION, CatalogField.ARTIST_DEBUT_DATE, CatalogField.ARTIST_GENRES)
@@ -282,7 +286,7 @@ class CatalogEnrichmentService private constructor(private val context: Context)
         save(kind, key, CatalogDocument(kind, listOf(CatalogValue(field, text, "local:description"))), read(kind, key)?.retryAfter ?: 0)
     }
     fun notifyChanged() = changed()
-    fun reloadStored() { temporary.clear(); projections.clear(); SongArtworkOverrides.invalidate(); changed() }
+    fun reloadStored() { temporary.clear(); projections.clear(); SongArtworkOverrides.invalidate(); ManualSongMetadata.invalidate(); changed() }
     suspend fun setPermanent(enabled: Boolean) = withContext(Dispatchers.IO) {
         preferences.update(preferences.options.value.copy(permanent = enabled))
         if (enabled) {

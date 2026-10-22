@@ -3131,4 +3131,21 @@
     <string name="genre_saved_training_pending">Your correction is saved, but some training tasks could not start. Please retry.</string>
     <string name="genre_retry_training">Retry training</string>
     <string name="genre_training_scheduled">Training has been scheduled again.</string>
+    <string name="report_how">How this story is made</string>
+    <string name="report_empty_detail">Play music in T2Rhythm to build a private listening story. Paused time is excluded.</string>
+    <string name="report_share">Share report</string>
+    <string name="report_gathering">A small beginning. Your highlights will become more meaningful as you listen.</string>
+    <string name="report_artists">The artists in your days</string>
+    <string name="report_artist_stats">%1$d songs · %2$d min together</string>
+    <string name="report_genres">The colors of your listening</string>
+    <string name="report_tracks">Your most played tracks</string>
+    <string name="report_no_baseline">A new chapter: no listening in the previous period</string>
+    <string name="report_change_same">Your listening time stayed steady</string>
+    <string name="report_change_more">%1$d%% more listening time</string>
+    <string name="report_change_less">%1$d%% less listening time</string>
+    <string name="report_comparison_detail">Previous: %1$s – %2$s · %3$d min</string>
+    <string name="report_comparison_partial">Compared through the same elapsed days and time; limited to the shorter month.</string>
+    <string name="report_daily_title">A rhythm through your days</string>
+    <string name="report_active_days">%1$d listening days · peak %2$s, %3$d min</string>
+    <string name="report_method">Listening time counts actual recorded playback, excluding pauses. Plays are distinct playback sessions, including partial listens. Songs rank by listening time. Daily bars split sessions at local midnight. A track with multiple genres divides its time evenly between them. Current library edits update names and genres without rewriting history. Missing files remain in your story but cannot be played. Comparisons use the previous calendar period; an ongoing period compares equal elapsed local time, capped to the shorter month. All calculations run on your device.</string>
 </resources>
