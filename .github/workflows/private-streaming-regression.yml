@@ -68,10 +68,9 @@ jobs:
           disable-animations: true
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
-          pre-emulator-launch-script: |
-            if [ '${{ matrix.api }}' = 37 ]; then
-              python3 -c 'import os,pathlib; text=(pathlib.Path(os.environ["ANDROID_AVD_HOME"])/"test.ini").read_text(); print(text); assert "target=android-37.0" in text, "Update avdmanager before booting API37"'
-            fi
+          # emulator-runner executes pre-launch input one line at a time.
+          pre-emulator-launch-script: >-
+            python3 -c 'import os,pathlib; text=(pathlib.Path(os.environ["ANDROID_AVD_HOME"])/"test.ini").read_text(); print(text); assert "${{ matrix.api }}" != "37" or "target=android-37.0" in text, "Update avdmanager before booting API37"'
           script: bash scripts/run_private_streaming_regression.sh
       - uses: actions/upload-artifact@v7
         if: always()
