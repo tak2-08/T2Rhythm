@@ -48,14 +48,11 @@ if tag_ref is None:
                                       'sha': manifest['source_revision']})
 assert tag_ref['object']['type'] == 'commit'
 assert tag_ref['object']['sha'] == manifest['source_revision'], 'Refusing to move an existing tag'
-release = api('GET', '/releases/tags/' + tag, missing=True)
-if release is not None:
-    assert release['draft'], 'Refusing to alter an already published release'
-body = (root / 'release-body.md').read_text()
-fields = {'tag_name': tag, 'target_commitish': manifest['source_revision'],
-          'name': 'T2Rhythm ' + tag, 'body': body, 'draft': True, 'prerelease': False}
-release = api('POST', '/releases', fields) if release is None else api(
-    'PATCH', '/releases/' + str(release['id']), fields)
+assert manifest['release_id'] == 420933363
+release = api('GET', '/releases/' + str(manifest['release_id']))
+assert release['tag_name'] == tag
+assert release['draft'], 'Refusing to alter an already published release'
+assert release['body'] == (root / 'release-body.md').read_text()
 subprocess.run(['gh', 'release', 'upload', tag, '--repo', repository, '--clobber',
     *[str(output / a['name']) for a in manifest['assets']], str(output / 'SHA256SUMS')], check=True)
 release = api('GET', '/releases/' + str(release['id']))
@@ -64,8 +61,8 @@ for expected in manifest['assets']:
     actual = next(a for a in release['assets'] if a['name'] == expected['name'])
     assert actual['size'] == expected['size']
     assert actual['digest'] == 'sha256:' + expected['sha256']
-fields.update(draft=False, make_latest='true')
-release = api('PATCH', '/releases/' + str(release['id']), fields)
+release = api('PATCH', '/releases/' + str(release['id']),
+              {'draft': False, 'prerelease': False, 'make_latest': 'true'})
 assert not release['draft'] and not release['prerelease']
 assert api('GET', '/releases/latest')['id'] == release['id']
 Path('publisher-result.json').write_text(json.dumps(release, indent=2) + '\n')
