@@ -30,6 +30,7 @@ class ManualSongMetadata(private val context: Context) {
         if (cache.containsKey(id)) return@synchronized cache[id]
         runCatching {
             val source = file(key)
+            if (!source.exists() && !File(source.path + ".bak").exists()) return@runCatching null
             // openRead restores a .bak left by an interrupted write before checking its size.
             AtomicFile(source).openRead().bufferedReader().use {
                 require(source.length() in 1..64_000)
