@@ -94,7 +94,11 @@ class MetadataConsistencyTest {
         catalog.recordManualSong(cleared)
         catalog.reloadStored()
         assertEquals(cleared, catalog.apply(original))
-        assertTrue(File(context.filesDir, "music_metadata/manual_tags/${CatalogFileStore.hash(catalog.songKey(original))}.json").isFile)
+        val tags = File(context.filesDir, "music_metadata/manual_tags/${CatalogFileStore.hash(catalog.songKey(original))}.json")
+        assertTrue(tags.isFile)
+        File(tags.path + ".bak").writeBytes(tags.readBytes()); assertTrue(tags.delete())
+        catalog.reloadStored()
+        assertEquals(cleared, catalog.apply(original)); assertTrue(tags.isFile)
     }
     @Test fun albumOnlyEditRefreshesArtistAlbumCountsAndFolderContents() = runBlocking {
         val first = song(); val second = song().copy(album = first.album)

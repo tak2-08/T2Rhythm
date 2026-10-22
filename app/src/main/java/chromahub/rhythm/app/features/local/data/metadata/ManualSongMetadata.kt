@@ -30,8 +30,14 @@ class ManualSongMetadata(private val context: Context) {
         if (cache.containsKey(id)) return@synchronized cache[id]
         runCatching {
             val source = file(key)
-            require(source.length() in 1..64_000)
-            AtomicFile(source).openRead().bufferedReader().use { gson.fromJson(it, Tags::class.java) }
+            // openRead restores a .bak left by an interrupted write before checking its size.
+            AtomicFile(source).openRead().bufferedReader().use {
+                require(source.length() in 1..64_000)
+                gson.fromJson(it, Tags::class.java).also { tags ->
+                    // Gson can populate null into non-null Kotlin fields in a damaged file.
+                    require(tags.title.length <= 16_000 && tags.artist.length <= 16_000 && tags.album.length <= 16_000)
+                }
+            }
         }.getOrNull().also { cache[id] = it }
     }
     fun save(key: String, song: Song) = synchronized(lock) {
