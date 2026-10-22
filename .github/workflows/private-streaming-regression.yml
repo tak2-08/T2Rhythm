@@ -43,7 +43,10 @@ jobs:
         run: |
           # Old avdmanager writes target=android-0 for android-37.0. This causes
           # SurfaceFlinger/RegionSampling crash loops even after boot_completed.
-          sdkmanager --install 'cmdline-tools;latest'
+          # sdkmanager is added to PATH by emulator-runner, which has not run yet.
+          stream_sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$stream_sdkmanager" --licenses > /dev/null || true
+          "$stream_sdkmanager" --install 'cmdline-tools;latest'
           if [[ -d "$ANDROID_HOME/cmdline-tools/latest-2" ]]; then
             mv "$ANDROID_HOME/cmdline-tools/latest" "$RUNNER_TEMP/t2-old-cmdline-tools"
             mv "$ANDROID_HOME/cmdline-tools/latest-2" "$ANDROID_HOME/cmdline-tools/latest"
