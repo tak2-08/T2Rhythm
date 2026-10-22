@@ -4,7 +4,7 @@ set -euo pipefail
 collect() {
   local evidence=app/build/outputs/private-streaming-screenshots
   mkdir -p "$evidence"
-  for name in streaming-host-ready streaming-connect-validation streaming-pair-approval streaming-remote-library streaming-large-text-help streaming-playback-controls; do
+  for name in streaming-host-ready streaming-connect-validation streaming-pair-approval streaming-remote-library streaming-large-text-help streaming-playback-controls streaming-song-info; do
     adb pull "/sdcard/Android/data/chromahub.rhythm.app.debug/files/$name.png" "$evidence/$name.png" 2>/dev/null || true
   done
   timeout 15s adb logcat -d > "$evidence/logcat.txt" 2>&1 || true
@@ -12,7 +12,7 @@ collect() {
 trap collect EXIT
 adb shell dumpsys battery set ac 1
 classes=(PrivateStreamingTransportTest PrivateStreamingFlowTest)
-counts=(15 6)
+counts=(15 7)
 failed=0
 for index in "${!classes[@]}"; do
   name="${classes[$index]}"

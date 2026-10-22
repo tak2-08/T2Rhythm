@@ -116,7 +116,9 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
             if (current?.uri?.host == StreamingProtocol.MEDIA_HOST) Surface(tonalElevation = 4.dp) {
                 Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        AsyncImage(current.artworkUri, null, Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+                        Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+                            StreamIcon("music_note"); AsyncImage(current.artworkUri, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+                        }
                         Column(Modifier.weight(1f).padding(12.dp)) { Text(current.title, maxLines = 1, overflow = TextOverflow.Ellipsis); Text(current.artist, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         IconButton(onClick = onToggle) { StreamIcon(if (playing) "pause" else "play_arrow", stringResource(R.string.streaming_play_pause)) }
                         IconButton(onClick = onNext) { StreamIcon("skip_next", stringResource(R.string.streaming_next)) }
@@ -136,7 +138,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
             item {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.tertiaryContainer))).padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     StreamIcon(if (hostTab) "phonelink_lock" else "headphones", size = 32)
-                    Text(stringResource(R.string.streaming_hint), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.streaming_hero_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(stringResource(if (hostTab) R.string.streaming_host_intro else R.string.streaming_client_intro), style = MaterialTheme.typography.bodyMedium)
                 }
             }
@@ -371,7 +373,11 @@ private fun LazyListScope.streamingBrowser(state: StreamBrowserState, onPlay: (L
     itemsIndexed(state.tracks, key = { _, track -> "remote:${connection.server}:${track.id}" }) { index, track ->
         val song = remember(track, connection.server) { track.song(connection.server) }
         ListItem(headlineContent = { Text(track.title, maxLines = 2, overflow = TextOverflow.Ellipsis) }, supportingContent = { Text(listOf(track.artist, track.album).filter { it.isNotBlank() }.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis) },
-            leadingContent = { AsyncImage(song.artworkUri, null, Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh), contentScale = ContentScale.Crop) },
+            leadingContent = {
+                Box(Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh), contentAlignment = Alignment.Center) {
+                    StreamIcon("music_note"); AsyncImage(song.artworkUri, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+                }
+            },
             trailingContent = { StreamIcon("play_arrow") }, modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(enabled = !state.busy) { onPlay(state.tracks.map { it.song(connection.server) }, index, false) })
     }
     item(key = "remote-footer") {

@@ -46,6 +46,7 @@ class PrivateStreamingFlowTest {
         compose.runOnUiThread {
             Locale.setDefault(Locale.KOREAN)
             listOf(base.resources, compose.activity.resources).forEach { r -> r.updateConfiguration(Configuration(r.configuration).apply { setLocale(Locale.KOREAN); fontScale = 1f }, r.displayMetrics) }
+            androidx.core.view.WindowCompat.getInsetsController(compose.activity.window, compose.activity.window.decorView).isAppearanceLightStatusBars = true
         }
     }
     @After @Suppress("DEPRECATION") fun cleanup() {
@@ -71,6 +72,7 @@ class PrivateStreamingFlowTest {
     private fun scroll(text: String) { compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText(text)) }
     private fun screenshot(name: String) {
         compose.waitForIdle()
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync(); android.os.SystemClock.sleep(200)
         val bitmap = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
         File(base.getExternalFilesDir(null), "$name.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle()
     }
@@ -106,7 +108,7 @@ class PrivateStreamingFlowTest {
         assertEquals(song.title, StreamingClient.page(connection, song.title).tracks.single().title)
         scroll("접근 취소"); compose.onNodeWithText("접근 취소").performClick()
         compose.onNodeWithText("진행 중인", substring = true).assertExists()
-        compose.onNodeWithText("접근 취소", substring = false).performClick()
+        compose.onAllNodesWithText("접근 취소", substring = false).onLast().performClick()
         compose.waitUntil(10_000) { manager.access.authorized(connection.token) == null }
         scroll("서버 중지"); compose.onNodeWithText("서버 중지").performClick()
         compose.waitUntil(10_000) { !manager.state.value.running }; Unit
@@ -124,6 +126,7 @@ class PrivateStreamingFlowTest {
         scroll("노래 · 아티스트 · 앨범 검색")
         compose.waitUntil(20_000) { compose.onAllNodesWithText(song.title).fetchSemanticsNodes().isNotEmpty() }
         scroll(song.title); screenshot("streaming-remote-library")
+        compose.onNodeWithText("T2Rhythm Streaming").assertIsDisplayed()
         compose.onNodeWithText(song.title).performClick()
         assertEquals(0, chosen); assertEquals(song.title, played.single().title)
         assertEquals(StreamingProtocol.MEDIA_HOST, played.single().uri.host); assertFalse(played.single().uri.toString().contains(token))
@@ -156,5 +159,19 @@ class PrivateStreamingFlowTest {
         assertEquals(1, seeks); assertTrue(position > .6f)
         compose.onNodeWithContentDescription("재생 또는 일시 정지").performClick(); compose.onNodeWithContentDescription("다음 곡").performClick()
         assertEquals(1, toggles); assertEquals(1, next); screenshot("streaming-playback-controls")
+        compose.onNodeWithText("T2Rhythm Streaming").assertIsDisplayed()
+    }
+    @Test fun privateSongInformationShowsServerTagsWithoutOfferingPhysicalFileEditing() {
+        val original = song()
+        val remote = original.copy(id = "private-$unique", uri = Uri.parse("https://${StreamingProtocol.MEDIA_HOST}/server/audio/${"a".repeat(64)}"))
+        compose.setContent { MaterialTheme {
+            chromahub.rhythm.app.shared.presentation.components.bottomsheets.SongInfoBottomSheet(remote, {},
+                chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(base),
+                onEditSong = { _, _, _, _, _, _, _, _, _, _, _, _ -> fail("A remote song cannot edit a device file") }, startInEditMode = true)
+        } }
+        compose.waitUntil(15_000) { compose.onAllNodesWithText(remote.title).fetchSemanticsNodes().isNotEmpty() }
+        compose.onAllNodesWithText(remote.artist).onFirst().assertExists()
+        compose.onAllNodes(hasSetTextAction()).assertCountEquals(0)
+        screenshot("streaming-song-info")
     }
 }

@@ -2,6 +2,7 @@
 <resources>
     <string name="streaming_title">T2Rhythm Streaming</string>
     <string name="streaming_hint">내 휴대폰으로 만드는 나만의 음악 서버</string>
+    <string name="streaming_hero_title">내 폰이\n음악 서버로</string>
     <string name="streaming_host">폰에서 실행</string>
     <string name="streaming_connect">연결하기</string>
     <string name="streaming_start">음악 서버 시작</string>

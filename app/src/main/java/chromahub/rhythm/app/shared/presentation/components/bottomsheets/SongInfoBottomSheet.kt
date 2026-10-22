@@ -142,6 +142,7 @@ data class ExtendedSongInfo(
 )
 
 private fun resolveSongInfoArtworkUri(context: android.content.Context, song: Song): Uri? {
+    if (chromahub.rhythm.app.features.streaming.PrivateStreamDataSource.isPrivate(song.uri)) return song.artworkUri
     val currentArtworkUri = song.artworkUri
 
     if (currentArtworkUri != null &&
@@ -212,13 +213,15 @@ fun SongInfoBottomSheet(
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
+    val privateStream = song?.uri?.let(chromahub.rhythm.app.features.streaming.PrivateStreamDataSource::isPrivate) == true
+    val streamingSource = isStreamingMode || privateStream
     var extendedInfo by remember { mutableStateOf<ExtendedSongInfo?>(null) }
     var isLoadingMetadata by remember { mutableStateOf(true) }
     var isLoadingStats by remember { mutableStateOf(true) }
-    var showEditSheet by remember { mutableStateOf(startInEditMode && !isStreamingMode) }
+    var showEditSheet by remember(song?.id, streamingSource) { mutableStateOf(startInEditMode && !streamingSource) }
 
-    LaunchedEffect(startInEditMode) {
-        if (startInEditMode && !isStreamingMode) {
+    LaunchedEffect(startInEditMode, streamingSource) {
+        if (startInEditMode && !streamingSource) {
             showEditSheet = true
         }
     }
@@ -316,6 +319,8 @@ fun SongInfoBottomSheet(
     LaunchedEffect(displaySong) {
         isLoadingMetadata = true
         extendedInfo = withContext(Dispatchers.IO) {
+            if (privateStream) return@withContext ExtendedSongInfo(genre = displaySong.genre.orEmpty(), year = displaySong.year,
+                albumArtist = displaySong.albumArtist.orEmpty(), discNumber = displaySong.discNumber)
             val info = MediaUtils.getExtendedSongInfo(context, displaySong)
             val catalog = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context)
             if (chromahub.rhythm.app.features.local.data.metadata.ManualSongMetadata(context).read(catalog.songKey(displaySong)) != null)
@@ -556,7 +561,7 @@ fun SongInfoBottomSheet(
         )
     }
 
-    if (startInEditMode) {
+    if (startInEditMode && !streamingSource) {
         if (showEditSheet) {
             renderEditSheet()
         }
@@ -691,7 +696,7 @@ fun SongInfoBottomSheet(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             // Edit button — local files only (hidden for streaming songs)
-                                            if (!isStreamingMode) {
+                                            if (!streamingSource) {
                                                 onEditSong?.let {
                                                     AdaptiveSheetActionButton(
                                                         onClick = {
@@ -877,7 +882,7 @@ fun SongInfoBottomSheet(
                         contentPadding = PaddingValues(start = 24.dp, end = 24.dp + endPadding, top = 8.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(28.dp)
                     ) {
-            if (isStreamingMode) {
+            if (streamingSource) {
                 if (onToggleDownload != null) {
                     item {
                         Row(

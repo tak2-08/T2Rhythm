@@ -2,6 +2,7 @@
 <resources>
     <string name="streaming_title">T2Rhythm Streaming</string>
     <string name="streaming_hint">Your phone, your private music server</string>
+    <string name="streaming_hero_title">My phone.\nMy music server.</string>
     <string name="streaming_host">Run on this phone</string>
     <string name="streaming_connect">Connect</string>
     <string name="streaming_start">Start music server</string>
