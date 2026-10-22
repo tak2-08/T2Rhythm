@@ -1,0 +1,43 @@
+{
+  "tag": "5.5.499.1323",
+  "source_revision": "6f8f7be38607575407d27f39e99680352f471cb3",
+  "assets": [
+    {
+      "name": "T2Rhythm-5.5.499.1323.apk",
+      "size": 74295852,
+      "sha256": "f411dae3922e955ef73fa8682f2f21d04b272eb7f88bb1d8a48317a7f2f96dc5",
+      "parts": [
+        "parts/asset-0-000.b64",
+        "parts/asset-0-001.b64",
+        "parts/asset-0-002.b64",
+        "parts/asset-0-003.b64",
+        "parts/asset-0-004.b64",
+        "parts/asset-0-005.b64",
+        "parts/asset-0-006.b64",
+        "parts/asset-0-007.b64",
+        "parts/asset-0-008.b64",
+        "parts/asset-0-009.b64"
+      ]
+    },
+    {
+      "name": "T2Rhythm-5.5.499.1323-debug.apk",
+      "size": 103419968,
+      "sha256": "7ccd2b69f753112d5cf37f75bdb0ed0453d3fb2fe81e8a4f43737e11fa471b59",
+      "parts": [
+        "parts/asset-1-000.b64",
+        "parts/asset-1-001.b64",
+        "parts/asset-1-002.b64",
+        "parts/asset-1-003.b64",
+        "parts/asset-1-004.b64",
+        "parts/asset-1-005.b64",
+        "parts/asset-1-006.b64",
+        "parts/asset-1-007.b64",
+        "parts/asset-1-008.b64",
+        "parts/asset-1-009.b64",
+        "parts/asset-1-010.b64",
+        "parts/asset-1-011.b64",
+        "parts/asset-1-012.b64"
+      ]
+    }
+  ]
+}
