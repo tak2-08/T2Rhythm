@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Run native regression classes with strict result counts and retain screenshots before clearing data."""
-import argparse, hashlib, json, os, re, subprocess, sys, time
+import argparse, hashlib, json, os, re, subprocess, sys, time, shutil
 from pathlib import Path
 
 parser = argparse.ArgumentParser()
@@ -52,10 +52,7 @@ while True:
     assert time.monotonic() < storage_deadline, ready
     time.sleep(1)
 fixture = out / 'library-fixture.m4a'
-subprocess.run(['ffmpeg','-nostdin','-hide_banner','-loglevel','error','-y','-stream_loop','-1',
-    '-i',str(root / 'app/src/androidTest/assets/audio-test.m4a'),'-t','70','-c:a','copy',
-    '-metadata','title=Archive test track','-metadata','artist=T2 Regression',
-    '-metadata','album=Preservation fixture',str(fixture)],check=True,timeout=60)
+shutil.copyfile(Path(__file__).resolve().parents[1] / 'app/src/androidTest/assets/library-fixture.m4a',fixture)
 adb('push', str(fixture), '/sdcard/Music/T2-preservation-fixture.m4a')
 adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file:///sdcard/Music/T2-preservation-fixture.m4a')
 scan_deadline = time.monotonic() + 60
