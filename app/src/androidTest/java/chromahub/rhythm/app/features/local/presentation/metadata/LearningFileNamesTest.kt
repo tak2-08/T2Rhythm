@@ -166,7 +166,12 @@ class LearningFileNamesTest {
         assertEquals("COLLISION", service.rename(plan).state)
         assertArrayEquals(bytes, context.contentResolver.openInputStream(other.uri)!!.use { it.readBytes() }); assertTrue(File(song.path!!).isFile)
         val next = service.plan(song, "ARTIST_TITLE")!!; assertTrue(next.name.contains(" (2)"))
-        context.contentResolver.openOutputStream(song.uri, "wa")!!.use { it.write(0) }
+        // Providers may interpret append modes differently. Seek a writable descriptor and
+        // verify that this fixture really changed before testing the production stale guard.
+        android.os.ParcelFileDescriptor.AutoCloseOutputStream(context.contentResolver.openFileDescriptor(song.uri, "rw")!!).use {
+            it.channel.position(it.channel.size()); it.write(0); it.flush(); it.fd.sync()
+        }
+        assertEquals(next.bytes + 1, File(song.path!!).length())
         assertEquals("STALE", service.rename(next).state)
         assertArrayEquals(bytes, context.contentResolver.openInputStream(other.uri)!!.use { it.readBytes() })
     }

@@ -89,8 +89,9 @@ def collect(name):
 for name in selected:
     class_name, expected, methods = sources[name]
     # Separate artwork invocations reset process image caches while retaining every assertion.
-    targets = [(class_name + '#' + method, 1) for method in methods] if args.group == 'artwork' else [(class_name, expected)]
-    assert targets and (args.group != 'artwork' or len(methods) == expected), (name, expected, methods)
+    isolate = args.group in ('artwork', 'compat')
+    targets = [(class_name + '#' + method, 1) for method in methods] if isolate else [(class_name, expected)]
+    assert targets and (not isolate or len(methods) == expected), (name, expected, methods)
     for target, count in targets:
         label = target.rsplit('.',1)[-1].replace('#','-')
         try:
@@ -127,6 +128,6 @@ for name in selected:
             except Exception: pass
             (out/'summary.json').write_text(json.dumps(dict(api=api,group=args.group,results=results),indent=2))
             if 'device' in str(error).lower(): break
-assert len(results) == sum(len(sources[n][2]) if args.group == 'artwork' else 1 for n in selected), results
+assert len(results) == sum(len(sources[n][2]) if args.group in ('artwork', 'compat') else 1 for n in selected), results
 assert all(r['success'] for r in results), results
 print('Verified native preservation tests:',sum(r['passed'] for r in results),flush=True)

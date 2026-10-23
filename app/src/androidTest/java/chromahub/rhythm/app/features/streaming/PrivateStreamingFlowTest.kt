@@ -92,7 +92,7 @@ class PrivateStreamingFlowTest {
         scroll("연결하기"); compose.onNodeWithText("연결하기", useUnmergedTree = false).performClick()
         scroll("초대 붙여넣기"); compose.onNodeWithText("초대 붙여넣기").performTextInput("T2S1.invalid")
         compose.onNodeWithText("연결 요청").performScrollTo().performClick()
-        compose.onNodeWithText("초대가 올바르지 않거나 만료되었습니다. 서버에서 새 초대를 받아 주세요.").assertExists()
+        compose.onNodeWithText("초대가 올바르지 않거나 만료되었습니다. 서버에서 새 초대를 받아 주세요.").assertIsDisplayed()
         screenshot("streaming-connect-validation")
     }
     @Test fun foregroundHostApprovesThenRevokesARealPinnedTlsConnection() = runBlocking {

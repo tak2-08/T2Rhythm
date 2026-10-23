@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
@@ -79,6 +80,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     var bluetoothSharing by remember { mutableStateOf(false) }
     DisposableEffect(nearby) { onDispose { nearby.close(); BluetoothStreaming.hideInvitation(); nearbySecret.value?.let { manager.access.cancelInvite(it) } } }
     val host by manager.state.collectAsState()
+    val listState = rememberLazyListState()
     val connections by manager.store.connections.collectAsState()
     var hostTab by rememberSaveable { mutableStateOf(true) }
     var shareAll by rememberSaveable { mutableStateOf(manager.store.selection().let { it == null || (it.isEmpty() && manager.store.sharedPlaylists().isEmpty()) }) }
@@ -90,6 +92,9 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     var inviteText by remember { mutableStateOf("") }
     var deviceName by rememberSaveable { mutableStateOf(StreamingProtocol.name(Build.MODEL)) }
     var error by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(error, host.error, hostTab) {
+        if (error != null || (hostTab && host.error != null)) listState.animateScrollToItem(2)
+    }
     var busy by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf<StreamConnection?>(null) }
     var pairingBinding by remember { mutableStateOf(1) }
@@ -207,7 +212,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                 }
             }
         }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), state = listState, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(hostTab, { hostTab = true }, { Text(stringResource(R.string.streaming_host)) }, leadingIcon = { StreamIcon("dns") })

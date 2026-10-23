@@ -872,11 +872,12 @@ class MusicRepository(context: Context) {
         }
 
         // Check in-memory cache first
+        val memorySnapshot = cachedSongs
         if (!shouldForceRefresh && 
-            cachedSongs != null && 
+            memorySnapshot != null &&
             System.currentTimeMillis() - cacheTimestamp < CACHE_VALIDITY_MS) {
-            Log.d(TAG, "Returning cached songs (${cachedSongs!!.size})")
-            val raw = cachedSongs!!
+            Log.d(TAG, "Returning cached songs (${memorySnapshot.size})")
+            val raw = memorySnapshot
             val effective = storedSongs(raw)
             if (effective != raw) saveSongsToRoom(effective, clearArtistCache = false, previousSongs = raw)
             return@withContext effective
