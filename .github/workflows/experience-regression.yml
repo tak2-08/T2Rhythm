@@ -111,7 +111,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Allow unimplemented guest performance registers
-        if: matrix.group == 'compat_remaining'
+        if: matrix.api == '35'
         run: |
           # Nested AMD KVM hosts can reject Android 15's WRMSR(0xc0010007).
           # Keep the guest alive when the host does not expose that performance counter.
