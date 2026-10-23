@@ -171,7 +171,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
         }
     }
     val discoverable = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode <= 0) { BluetoothStreaming.hideInvitation(); manager.access.cancelInvite(); bluetoothSharing = false }
+        if (result.resultCode <= 0) { BluetoothStreaming.hideInvitation(); nearbySecret.value?.let { manager.access.cancelInvite(it) }; bluetoothSharing = false }
     }
     val qrScanner = rememberLauncherForActivityResult(com.journeyapps.barcodescanner.ScanContract()) { result ->
         result.contents?.let { text ->
@@ -244,14 +244,14 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                             Text(stringResource(R.string.streaming_scope_running), style = MaterialTheme.typography.bodySmall)
                             Button({ addressDialog = true }, Modifier.fillMaxWidth(), enabled = host.peers.size < StreamingProtocol.MAX_PEERS) { Text(stringResource(R.string.streaming_invite)) }
                             OutlinedButton({
-                                if (advertisingNearby) { nearby.stopAdvertising(); manager.access.cancelInvite() }
+                                if (advertisingNearby) { nearby.stopAdvertising(); nearbySecret.value?.let { manager.access.cancelInvite(it) } }
                                 else runCatching {
                                     BluetoothStreaming.hideInvitation(); bluetoothSharing = false
                                     nearby.advertise(manager.invite("https://127.0.0.1:${StreamingProtocol.PORT}", durationMillis = 120_000).also { nearbySecret.value = it.secret })
                                 }.onFailure { error = context.getString(R.string.streaming_start_error) }
                             }, Modifier.fillMaxWidth()) { Text(stringResource(if (advertisingNearby) R.string.nearby_hide else R.string.nearby_show)) }
                             OutlinedButton({ permitted(false, bluetooth = true) {
-                                if (bluetoothSharing) { BluetoothStreaming.hideInvitation(); manager.access.cancelInvite(); bluetoothSharing = false }
+                                if (bluetoothSharing) { BluetoothStreaming.hideInvitation(); nearbySecret.value?.let { manager.access.cancelInvite(it) }; bluetoothSharing = false }
                                 else runCatching {
                                     nearby.stopAdvertising()
                                     BluetoothStreaming.host(manager.invite("https://127.0.0.1:${StreamingProtocol.PORT}", durationMillis = 120_000).also { nearbySecret.value = it.secret })

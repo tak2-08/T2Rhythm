@@ -14,7 +14,10 @@ pkg = 'chromahub.rhythm.app.debug'
 runner = pkg + '.test/androidx.test.runner.AndroidJUnitRunner'
 
 def adb(*values, check=True, timeout=120):
-    return subprocess.run(['adb', *values], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout, check=check).stdout
+    result = subprocess.run(['adb', *values], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+    if check and result.returncode:
+        raise RuntimeError(f'adb {values}: {result.stdout[-8000:]}')
+    return result.stdout
 
 sources = {}
 for path in (root / 'app/src/androidTest/java').rglob('*.kt'):
@@ -42,7 +45,12 @@ adb('shell','dumpsys','battery','set','ac','1')
 adb('shell','dumpsys','battery','set','level','100')
 adb('shell','settings','put','global','stay_on_while_plugged_in','3')
 adb('shell','settings','put','system','screen_off_timeout','1800000')
-adb('shell','mkdir','-p','/sdcard/Music')
+storage_deadline = time.monotonic() + 60
+while True:
+    ready = adb('shell', 'mkdir -p /sdcard/Music && touch /sdcard/Music/.t2-ready && rm /sdcard/Music/.t2-ready && echo T2_STORAGE_READY',check=False)
+    if 'T2_STORAGE_READY' in ready: break
+    assert time.monotonic() < storage_deadline, ready
+    time.sleep(1)
 adb('push', str(root / 'app/src/androidTest/assets/audio-test.m4a'), '/sdcard/Music/T2-preservation-fixture.m4a')
 adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file:///sdcard/Music/T2-preservation-fixture.m4a')
 app = root / 'app/build/outputs/apk/github/debug/Rhythm-5.5.499.1325-githubDebug.apk'

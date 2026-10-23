@@ -188,7 +188,9 @@ class PrivateStreamingFlowTest {
         }
         scroll("음악 서버 시작"); compose.onNodeWithText("음악 서버 시작").performClick()
         compose.waitUntil(30_000) { manager.state.value.running }
+        scroll(base.getString(R.string.nearby_show)); compose.onNodeWithText(base.getString(R.string.nearby_show)).performClick()
         val invite = manager.invite("https://127.0.0.1:8898")
+        scroll(base.getString(R.string.nearby_hide)); compose.onNodeWithText(base.getString(R.string.nearby_hide)).performClick()
         compose.runOnIdle { visible = false }
         compose.waitForIdle()
         assertTrue(manager.state.value.running)
@@ -224,7 +226,7 @@ class PrivateStreamingFlowTest {
         val copied = base.getSystemService(android.content.ClipboardManager::class.java).primaryClip!!.getItemAt(0).text.toString()
         assertEquals(invite, StreamingProtocol.Invite.decode(copied))
         compose.onNodeWithText(base.getString(R.string.streaming_share)).performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText(base.getString(R.string.streaming_done)).performClick()
+        compose.onNodeWithText(base.getString(R.string.streaming_done)).performClick(); Unit
     }
 
 }
