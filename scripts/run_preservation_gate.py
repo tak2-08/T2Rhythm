@@ -36,6 +36,7 @@ groups = {
  'streaming': ['PrivateStreamingTransportTest','PrivateStreamingFlowTest','PeerNetworkFlowTest','PeerNetworkRegressionTest','UpdateHistoryFlowTest','UpdateJournalRegressionTest'],
  'compat': ['MetadataConsistencyTest','ListeningRecapFlowTest','LearningFileNamesTest','LibraryPagesTest','GenreControlsTest','LocalSearchStateTest','GenreSearchStateTest'],
  'artwork': ['PageArtworkFlowTest'],
+ 'compat_remaining': ['GenreControlsTest','LocalSearchStateTest','GenreSearchStateTest'],
  'newflows': ['PrivateStreamingFlowTest','LibrarySearchNavigationTest','LocalSearchStateTest','GenreSearchStateTest'],
  'visual_baseline': ['UsabilityAuditTest'], 'visual_candidate': ['UsabilityAuditTest'],
 }
@@ -83,12 +84,20 @@ def collect(name):
     (destination/'logcat.txt').write_text(adb('logcat','-d',check=False), errors='replace')
     return destination
 
-for name in selected:
+def targets_for(name):
     class_name, expected, methods = sources[name]
-    # Separate artwork invocations reset process image caches while retaining every assertion.
-    isolate = args.group in ('artwork', 'compat')
+    isolate = args.group in ('artwork', 'compat', 'compat_remaining')
+    if args.group == 'compat_remaining' and name == 'GenreControlsTest':
+        wanted = {'visibilitySwitchHidesTrainingEntryAndKeepsAlgorithmServiceAndData',
+                  'hidingTrainingToolsKeepsRecommendationPlaybackAndLyricsContent'}
+        methods = [m for m in methods if m in wanted]
+        expected = 2
     targets = [(class_name + '#' + method, 1) for method in methods] if isolate else [(class_name, expected)]
     assert targets and (not isolate or len(methods) == expected), (name, expected, methods)
+    return targets
+
+for name in selected:
+    targets = targets_for(name)
     for target, count in targets:
         label = target.rsplit('.',1)[-1].replace('#','-')
         try:
@@ -125,6 +134,6 @@ for name in selected:
             except Exception: pass
             (out/'summary.json').write_text(json.dumps(dict(api=api,group=args.group,results=results),indent=2))
             if 'device' in str(error).lower(): break
-assert len(results) == sum(len(sources[n][2]) if args.group in ('artwork', 'compat') else 1 for n in selected), results
+assert len(results) == sum(len(targets_for(n)) for n in selected), results
 assert all(r['success'] for r in results), results
 print('Verified native preservation tests:',sum(r['passed'] for r in results),flush=True)

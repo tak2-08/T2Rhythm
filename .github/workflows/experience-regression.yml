@@ -18,7 +18,7 @@ on:
       preservation_batch:
         description: Preservation groups to run (streaming repeats the affected flows after an invitation fix)
         type: choice
-        options: [full, streaming, remaining, navigation]
+        options: [full, streaming, remaining, navigation, compat]
         default: full
       baseline_ref:
         description: Baseline source for visual comparison
@@ -89,7 +89,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(inputs.preservation_batch == 'navigation' && '[{"api":"29","group":"navigation"},{"api":"35","group":"newflows"},{"api":"37.0","group":"newflows"}]' || inputs.preservation_batch == 'remaining' && '[{"api":"29","group":"streaming"},{"api":"29","group":"visual_baseline"}]' || inputs.preservation_batch == 'streaming' && '[{"api":"29","group":"streaming"},{"api":"35","group":"newflows"},{"api":"37.0","group":"streaming"},{"api":"37.0","group":"newflows"}]' || '[{"api":"29","group":"metadata"},{"api":"29","group":"persistence"},{"api":"29","group":"navigation"},{"api":"29","group":"streaming"},{"api":"35","group":"compat"},{"api":"35","group":"artwork"},{"api":"35","group":"newflows"},{"api":"37.0","group":"streaming"},{"api":"37.0","group":"newflows"},{"api":"29","group":"visual_baseline"},{"api":"29","group":"visual_candidate"}]') }}
+        include: ${{ fromJSON(inputs.preservation_batch == 'compat' && '[{"api":"35","group":"compat_remaining"}]' || inputs.preservation_batch == 'navigation' && '[{"api":"29","group":"navigation"},{"api":"35","group":"newflows"},{"api":"37.0","group":"newflows"}]' || inputs.preservation_batch == 'remaining' && '[{"api":"29","group":"streaming"},{"api":"29","group":"visual_baseline"}]' || inputs.preservation_batch == 'streaming' && '[{"api":"29","group":"streaming"},{"api":"35","group":"newflows"},{"api":"37.0","group":"streaming"},{"api":"37.0","group":"newflows"}]' || '[{"api":"29","group":"metadata"},{"api":"29","group":"persistence"},{"api":"29","group":"navigation"},{"api":"29","group":"streaming"},{"api":"35","group":"compat"},{"api":"35","group":"artwork"},{"api":"35","group":"newflows"},{"api":"37.0","group":"streaming"},{"api":"37.0","group":"newflows"},{"api":"29","group":"visual_baseline"},{"api":"29","group":"visual_candidate"}]') }}
     env:
       GATE_PROJECT: ${{ matrix.group == 'visual_baseline' && 'baseline' || '.' }}
       PRESERVATION_MODEL: /tmp/t2-preservation-vosk.zip
@@ -140,7 +140,7 @@ jobs:
           heap-size: 512M
           disable-animations: true
           emulator-boot-timeout: 600
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -no-snapshot-save
           pre-emulator-launch-script: >-
             python3 -c 'import os,pathlib; text=(pathlib.Path(os.environ["ANDROID_AVD_HOME"])/"test.ini").read_text(); print(text); assert "${{ matrix.api }}" != "37.0" or "target=android-37.0" in text'
           script: python3 scripts/run_preservation_gate.py --project "$GATE_PROJECT" --group "${{ matrix.group }}" --output "preservation-results/${{ matrix.group }}-api${{ matrix.api }}"
@@ -152,7 +152,7 @@ jobs:
           retention-days: 14
 
   preservation-checks:
-    if: ${{ inputs.preservation && inputs.preservation_batch != 'navigation' }}
+    if: ${{ inputs.preservation && inputs.preservation_batch != 'navigation' && inputs.preservation_batch != 'compat' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
