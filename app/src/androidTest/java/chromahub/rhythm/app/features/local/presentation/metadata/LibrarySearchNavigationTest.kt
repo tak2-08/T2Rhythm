@@ -162,9 +162,16 @@ class LibrarySearchNavigationTest {
         assertNull(locate("기억의 습작"))
         capture("library-search-genre-tags.png")
         enter("")
-        click("FOLK")
+        compose.runOnUiThread {
+            androidx.core.view.WindowCompat.getInsetsController(compose.activity.window, compose.activity.window.decorView)
+                .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
+        }
+        compose.onAllNodes(hasText("FOLK") and hasClickAction() and hasAnyAncestor(hasScrollAction()))
+            .onFirst().performScrollTo().performClick()
+        compose.onNode(hasText("FOLK") and isSelected()).assertIsDisplayed()
         awaitNode("서른 즈음에")
         enter("편지")
+        compose.onNode(hasText("FOLK") and isSelected()).assertExists()
         awaitNode("이등병의 편지")
         assertNull(locate("서른 즈음에"))
         capture("library-search-within-genre.png")

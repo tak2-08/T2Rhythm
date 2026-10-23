@@ -278,7 +278,7 @@ class PopularPlaybackNavigationTest {
                 else listOf(node.text, node.hintText)
             if (
                 values.filterNotNull().any { value ->
-                    value.toString().lineSequence().any { it.trim() == label }
+                    value.toString().split('\n', ',').any { it.trim() == label }
                 }
             )
                 return node

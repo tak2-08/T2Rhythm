@@ -20,6 +20,7 @@ import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
 import chromahub.rhythm.app.shared.data.model.*
 import chromahub.rhythm.app.shared.presentation.screens.settings.*
 import chromahub.rhythm.app.util.GenreUtils
+import kotlinx.coroutines.test.StandardTestDispatcher
 import java.io.File
 import java.util.Locale
 import java.util.UUID
@@ -27,7 +28,8 @@ import org.junit.Assert.*
 import org.junit.*
 
 class GenreControlsTest {
-    @get:Rule val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
+    @OptIn(ExperimentalTestApi::class)
+    @get:Rule val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>(effectContext = StandardTestDispatcher())
     private val base get() = InstrumentationRegistry.getInstrumentation().targetContext
     private val prefix = "genre-control-${UUID.randomUUID()}"
     private val backups = mutableMapOf<File, ByteArray?>()
