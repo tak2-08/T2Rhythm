@@ -136,14 +136,21 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_2
-          ram-size: ${{ matrix.api == '37.0' && '4096M' || '3072M' }}
+          ram-size: ${{ matrix.group == 'compat_remaining' && '2048M' || matrix.api == '37.0' && '4096M' || '3072M' }}
           heap-size: 512M
           disable-animations: true
           emulator-boot-timeout: 600
-          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -no-snapshot-save
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -no-snapshot-save ${{ matrix.group == 'compat_remaining' && '-skin 720x1280 -dpi-device 320' || '' }}
           pre-emulator-launch-script: >-
             python3 -c 'import os,pathlib; text=(pathlib.Path(os.environ["ANDROID_AVD_HOME"])/"test.ini").read_text(); print(text); assert "${{ matrix.api }}" != "37.0" or "target=android-37.0" in text'
           script: python3 scripts/run_preservation_gate.py --project "$GATE_PROJECT" --group "${{ matrix.group }}" --output "preservation-results/${{ matrix.group }}-api${{ matrix.api }}"
+      - name: Retain emulator host diagnostics after a failed assertion
+        if: failure()
+        run: |
+          mkdir -p preservation-results/host
+          free -m > preservation-results/host/memory.txt
+          sudo dmesg | tail -n 160 > preservation-results/host/kernel.txt || true
+          cp /tmp/android-runner/emu-crash* preservation-results/host/ 2>/dev/null || true
       - uses: actions/upload-artifact@v7
         if: always()
         with:
