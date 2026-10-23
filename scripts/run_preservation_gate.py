@@ -81,7 +81,7 @@ def collect(name):
         file = file.strip()
         if file.endswith('.png') or file.endswith('update-lifecycle-evidence.json'):
             adb('pull',file,str(destination/Path(file).name),check=False,timeout=60)
-    (destination/'logcat.txt').write_text(adb('logcat','-d',check=False), errors='replace')
+    (destination/'logcat.txt').write_text(adb('logcat','-d',check=False,timeout=30), errors='replace')
     return destination
 
 def targets_for(name):
@@ -133,7 +133,12 @@ for name in selected:
             try: collect(label)
             except Exception: pass
             (out/'summary.json').write_text(json.dumps(dict(api=api,group=args.group,results=results),indent=2))
-            if 'device' in str(error).lower(): break
+            try:
+                connected = adb('get-state',check=False,timeout=10).strip() == 'device'
+            except Exception:
+                connected = False
+            if not connected:
+                raise RuntimeError('Emulator disconnected; remaining assertions did not run.') from error
 assert len(results) == sum(len(targets_for(n)) for n in selected), results
 assert all(r['success'] for r in results), results
 print('Verified native preservation tests:',sum(r['passed'] for r in results),flush=True)

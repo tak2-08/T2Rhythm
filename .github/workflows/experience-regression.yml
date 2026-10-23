@@ -110,6 +110,13 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - name: Allow unimplemented guest performance registers
+        if: matrix.group == 'compat_remaining'
+        run: |
+          # Nested AMD KVM hosts can reject Android 15's WRMSR(0xc0010007).
+          # Keep the guest alive when the host does not expose that performance counter.
+          echo 1 | sudo tee /sys/module/kvm/parameters/ignore_msrs
+          cat /sys/module/kvm/parameters/ignore_msrs
       - name: Download the verified Korean speech fixture
         if: matrix.group == 'persistence'
         run: |
@@ -136,11 +143,11 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_2
-          ram-size: ${{ matrix.group == 'compat_remaining' && '2048M' || matrix.api == '37.0' && '4096M' || '3072M' }}
+          ram-size: ${{ matrix.api == '37.0' && '4096M' || '3072M' }}
           heap-size: 512M
           disable-animations: true
           emulator-boot-timeout: 600
-          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -no-snapshot-save ${{ matrix.group == 'compat_remaining' && '-skin 720x1280 -dpi-device 320' || '' }}
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -no-snapshot-save
           pre-emulator-launch-script: >-
             python3 -c 'import os,pathlib; text=(pathlib.Path(os.environ["ANDROID_AVD_HOME"])/"test.ini").read_text(); print(text); assert "${{ matrix.api }}" != "37.0" or "target=android-37.0" in text'
           script: python3 scripts/run_preservation_gate.py --project "$GATE_PROJECT" --group "${{ matrix.group }}" --output "preservation-results/${{ matrix.group }}-api${{ matrix.api }}"
