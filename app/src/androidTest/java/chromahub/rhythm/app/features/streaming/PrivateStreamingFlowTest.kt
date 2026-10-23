@@ -16,6 +16,8 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
+import chromahub.rhythm.app.R
+import androidx.compose.ui.graphics.asAndroidBitmap
 import chromahub.rhythm.app.features.local.data.database.RhythmDatabase
 import chromahub.rhythm.app.features.local.data.database.entity.toEntity
 import chromahub.rhythm.app.shared.data.model.Playlist
@@ -175,4 +177,54 @@ class PrivateStreamingFlowTest {
         compose.onAllNodes(hasSetTextAction()).assertCountEquals(0)
         screenshot("streaming-song-info")
     }
+    @Test fun manualInvitationStillWorksAfterLeavingAndReturningToTheHostScreen() = runBlocking {
+        val track = song(); inserted = track.id
+        RhythmDatabase.getInstance(base).songDao().insertMissing(listOf(track.toEntity()))
+        var visible by mutableStateOf(true)
+        compose.setContent {
+            CompositionLocalProvider(LocalContext provides compose.activity) {
+                MaterialTheme { if (visible) StreamingContent({}, listOf(track), emptyList(), { _, _, _ -> }) else androidx.compose.material3.Text("Another screen") }
+            }
+        }
+        scroll("음악 서버 시작"); compose.onNodeWithText("음악 서버 시작").performClick()
+        compose.waitUntil(30_000) { manager.state.value.running }
+        val invite = manager.invite("https://127.0.0.1:8898")
+        compose.runOnIdle { visible = false }
+        compose.waitForIdle()
+        assertTrue(manager.state.value.running)
+        val connection = StreamingClient.pair(invite, "화면 밖 초대", StreamingProtocol.token())
+        testPeer = manager.access.requests().single().peer.id
+        compose.runOnIdle { visible = true }
+        scroll("승인"); compose.onNodeWithText("승인").performClick()
+        compose.waitUntil(10_000) { manager.access.authorized(connection.token) != null }
+        assertEquals(track.title, StreamingClient.page(connection).tracks.single().title)
+    }
+    @Test @Suppress("DEPRECATION") fun largeTextQrDecodesAndLegacyInvitationActionsStayReachable() = runBlocking {
+        val track = song(); inserted = track.id
+        RhythmDatabase.getInstance(base).songDao().insertMissing(listOf(track.toEntity()))
+        compose.runOnUiThread { listOf(base.resources, compose.activity.resources).forEach { r -> r.updateConfiguration(Configuration(r.configuration).apply { fontScale = 1.6f }, r.displayMetrics) } }
+        screen(listOf(track))
+        scroll("음악 서버 시작"); compose.onNodeWithText("음악 서버 시작").performClick()
+        compose.waitUntil(30_000) { manager.state.value.running }
+        scroll(base.getString(R.string.streaming_invite)); compose.onNodeWithText(base.getString(R.string.streaming_invite)).performClick()
+        compose.onNode(hasSetTextAction()).performTextReplacement("https://127.0.0.1:8898")
+        compose.onNodeWithText(base.getString(R.string.streaming_create_invite)).performClick()
+        val qr = compose.onNodeWithContentDescription(base.getString(R.string.streaming_qr_description))
+        compose.waitUntil(10_000) { runCatching { qr.fetchSemanticsNode() }.isSuccess }
+        qr.performScrollTo()
+        val image = qr.captureToImage().asAndroidBitmap()
+        val pixels = IntArray(image.width * image.height)
+        image.getPixels(pixels, 0, image.width, 0, 0, image.width, image.height)
+        val decoded = com.google.zxing.qrcode.QRCodeReader().decode(com.google.zxing.BinaryBitmap(com.google.zxing.common.HybridBinarizer(
+            com.google.zxing.RGBLuminanceSource(image.width, image.height, pixels))))
+        val invite = StreamingProtocol.Invite.decode(decoded.text)
+        assertEquals(manager.store.serverId, invite.server); assertEquals(2, invite.binding)
+        screenshot("streaming-qr-invitation-large-text")
+        compose.onNodeWithText(base.getString(R.string.streaming_copy)).performScrollTo().performClick()
+        val copied = base.getSystemService(android.content.ClipboardManager::class.java).primaryClip!!.getItemAt(0).text.toString()
+        assertEquals(invite, StreamingProtocol.Invite.decode(copied))
+        compose.onNodeWithText(base.getString(R.string.streaming_share)).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(base.getString(R.string.streaming_done)).performClick()
+    }
+
 }

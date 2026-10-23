@@ -135,7 +135,12 @@ class StreamingAccess(initial: List<StreamPeer> = emptyList(), private val persi
         return peers.values.firstOrNull { StreamingProtocol.equal(hash, it.tokenHash) }
     }
     @Synchronized fun approved(id: String) = id in peers
-    @Synchronized fun cancelInvite() { inviteHash = null; inviteUntil = 0 }
+    @Synchronized fun cancelInvite(secret: String? = null) {
+        // A disposed discovery screen must not invalidate a newer, manually shared invitation.
+        if (secret == null || (StreamingProtocol.validToken(secret) && StreamingProtocol.equal(StreamingProtocol.hash(secret), inviteHash.orEmpty()))) {
+            inviteHash = null; inviteUntil = 0
+        }
+    }
     @Synchronized fun closePairing() { inviteHash = null; inviteUntil = 0; pending.clear() }
     @Synchronized fun cancel(token: String) {
         val hash = StreamingProtocol.hash(token)

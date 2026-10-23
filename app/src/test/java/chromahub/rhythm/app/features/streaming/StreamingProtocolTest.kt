@@ -131,4 +131,15 @@ class StreamingProtocolTest {
         assertEquals(StreamingProtocol.code(token), StreamingProtocol.pairCode(token, honestPin, 1))
     }
 
+    @Test fun closingDiscoveryCannotInvalidateANewerManualInvitation() {
+        val access = StreamingAccess()
+        val nearby = access.invite(durationMillis = 120_000).first
+        val manual = access.invite().first
+        access.cancelInvite(nearby)
+        assertNotNull(access.pair(manual, StreamingProtocol.token(), "Manual invitation"))
+        val nextNearby = access.invite(durationMillis = 120_000).first
+        access.cancelInvite(nextNearby)
+        assertNull(access.pair(nextNearby, StreamingProtocol.token(), "Expired discovery"))
+    }
+
 }
