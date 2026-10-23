@@ -1089,7 +1089,7 @@ fun UniversalSearchScreen(
             }
             selectedGenre?.takeIf { genreTab }?.let { genre ->
                 InputChip(selected = true, onClick = { genreTrail = emptyList() }, label = { Text(genre, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    trailingIcon = { Icon(MaterialSymbolIcon("close"), stringResource(R.string.ui_clear)) })
+                    trailingIcon = { Icon(MaterialSymbolIcon("close"), stringResource(R.string.ui_clear), Modifier.size(18.dp)) })
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),

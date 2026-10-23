@@ -6,6 +6,7 @@ import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import chromahub.rhythm.app.R
@@ -229,6 +230,7 @@ class LibrarySearchNavigationTest {
         }.isSuccess
         if (!visible) capture("library-search-selected-genre-failure.png")
         node.assertIsDisplayed()
+        assertTrue("Selected genre chip must not cover the screen", node.getUnclippedBoundsInRoot().height <= 56.dp)
     }
 
     private fun label(resource: Int): String {
