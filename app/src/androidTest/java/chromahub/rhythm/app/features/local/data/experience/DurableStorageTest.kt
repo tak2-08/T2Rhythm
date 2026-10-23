@@ -76,7 +76,7 @@ class DurableStorageTest {
         assertEquals(first, RecommendationShelf.current(context))
     }
     @Test fun cumulativeAffinityDoesNotCountRepeatedCheckpointsOrOlderWritesTwice() {
-        val ledger = ListeningLedger.get(context); val id = UUID.randomUUID().toString()
+        val ledger = ListeningLedger.get(context); val id = UUID.randomUUID().toString().uppercase(java.util.Locale.ROOT)
         fun row(ms: Long, recorded: Long) = ListeningRecord(id, id, "segment", id, id, "T", "A", "B", "Pop",
             1_000_000, 1_000_000 + ms, ms, 100_000, 0, ms, 1f, "checkpoint", recordedAt = recorded)
         ledger.record(row(10_000, 1)); ledger.record(row(20_000, 2)); ledger.record(row(10_000, 1))
@@ -85,7 +85,7 @@ class DurableStorageTest {
         assertEquals(20_000, ledger.records().single { it.id == id }.listenedMs)
     }
     @Test fun recentTasteAndReplayIntervalsSurviveIncrementalContextProjection() {
-        val ledger = ListeningLedger.get(context); val key = UUID.randomUUID().toString()
+        val ledger = ListeningLedger.get(context); val key = UUID.randomUUID().toString().uppercase(java.util.Locale.ROOT)
         val now = System.currentTimeMillis(); val scene = ListeningSituation(hour = 9, weekday = 4)
         fun row(index: Int, at: Long, listened: Long, recorded: Long) = ListeningRecord("$key:$index", "$key:$index", "segment", key, key,
             "T", "A", "B", key, at, at + listened, listened, 100_000, 0, listened, 1f, "checkpoint", recordedAt = recorded, situation = scene)
@@ -102,7 +102,7 @@ class DurableStorageTest {
         }
     }
     @Test fun contextProjectionIncludesTransportDaylightAndActualPerPlayCompletion() {
-        val ledger = ListeningLedger.get(context); val id = UUID.randomUUID().toString()
+        val ledger = ListeningLedger.get(context); val id = UUID.randomUUID().toString().uppercase(java.util.Locale.ROOT)
         val scene = ListeningSituation(hour = 9, weekday = 4, motion = MotionSnapshot("walking", .8, "test", 0), daylight = DaylightSnapshot(true, "test"))
         fun row(kind: String, ms: Long, recorded: Long) = ListeningRecord("$id:$kind", id, kind, id, id, "T", "A", "B", id,
             1_000_000, 1_000_000 + ms, ms, 100_000, 0, ms, 1f, "checkpoint", recordedAt = recorded, situation = scene, playCompletionRatio = .8)

@@ -74,13 +74,17 @@ class ListeningPersistenceTest {
                 kr.co.metadata.crawler.CatalogValue(kr.co.metadata.crawler.CatalogField.TRACK_DURATION_MS, "1000", "test"))), imageFile = image.name)
         val prefs = context.getSharedPreferences("artwork_overrides", android.content.Context.MODE_PRIVATE)
         prefs.edit().putBoolean("removed_$id", true).commit()
+        // Loading a real Room song migrates legacy ID choices before catalog enrichment.
+        chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides(context).migrate(song)
         try {
             val repository = chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(context)
             catalog.preferences.update(originalOptions.copy(replaceTags = false, forceFields = emptySet()))
             assertNull(repository.fetchTrackArtwork(listOf(song)).single().artworkUri)
             assertTrue(catalog.artworkRemoved(song))
             catalog.preferences.update(originalOptions.copy(forceFields = setOf(kr.co.metadata.crawler.CatalogField.TRACK_IMAGE)))
-            assertNotNull(repository.fetchTrackArtwork(listOf(song)).single().artworkUri)
+            assertNull("Automatic replacement must preserve a user's removal", repository.fetchTrackArtwork(listOf(song)).single().artworkUri)
+            chromahub.rhythm.app.features.local.data.metadata.SongArtworkOverrides(context).save(song, Uri.fromFile(image))
+            assertEquals(Uri.fromFile(image), repository.fetchTrackArtwork(listOf(song)).single().artworkUri)
             assertFalse(catalog.artworkRemoved(song))
         } finally { catalog.preferences.update(originalOptions); prefs.edit().remove("removed_$id").commit() }
     }

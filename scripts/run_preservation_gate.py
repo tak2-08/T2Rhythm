@@ -14,7 +14,7 @@ pkg = 'chromahub.rhythm.app.debug'
 runner = pkg + '.test/androidx.test.runner.AndroidJUnitRunner'
 
 def adb(*values, check=True, timeout=120):
-    result = subprocess.run(['adb', *values], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+    result = subprocess.run(['adb', *values], text=True, errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
     if check and result.returncode:
         raise RuntimeError(f'adb {values}: {result.stdout[-8000:]}')
     return result.stdout
@@ -51,8 +51,21 @@ while True:
     if 'T2_STORAGE_READY' in ready: break
     assert time.monotonic() < storage_deadline, ready
     time.sleep(1)
-adb('push', str(root / 'app/src/androidTest/assets/audio-test.m4a'), '/sdcard/Music/T2-preservation-fixture.m4a')
+fixture = out / 'library-fixture.m4a'
+subprocess.run(['ffmpeg','-nostdin','-hide_banner','-loglevel','error','-y','-stream_loop','-1',
+    '-i',str(root / 'app/src/androidTest/assets/audio-test.m4a'),'-t','70','-c:a','copy',
+    '-metadata','title=Archive test track','-metadata','artist=T2 Regression',
+    '-metadata','album=Preservation fixture',str(fixture)],check=True,timeout=60)
+adb('push', str(fixture), '/sdcard/Music/T2-preservation-fixture.m4a')
 adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file:///sdcard/Music/T2-preservation-fixture.m4a')
+scan_deadline = time.monotonic() + 60
+while True:
+    library = adb('shell','content','query','--uri','content://media/external/audio/media',
+        '--projection','title:artist:album:duration',check=False)
+    if 'Archive test track' in library and 'T2 Regression' in library: break
+    assert time.monotonic() < scan_deadline, library
+    time.sleep(1)
+print('MediaStore fixture:',library,flush=True)
 app = root / 'app/build/outputs/apk/github/debug/Rhythm-5.5.499.1325-githubDebug.apk'
 if not app.exists():
     apps = [p for p in (root/'app/build/outputs/apk/github/debug').glob('*.apk') if not any(s in p.name for s in ['-arm64-v8a','-armeabi-v7a','-x86'])]
@@ -105,7 +118,10 @@ for name in selected:
             collect(label)
             (out/'summary.json').write_text(json.dumps(dict(api=api, group=args.group, results=results),indent=2))
         except Exception as error:
-            results.append(dict(target=target,expected=count,passed=0,success=False,error=str(error)))
+            if results and results[-1]['target'] == target:
+                results[-1].update(success=False,error=str(error))
+            else:
+                results.append(dict(target=target,expected=count,passed=0,success=False,error=str(error)))
             print(json.dumps(results[-1]),flush=True)
             try: collect(label)
             except Exception: pass

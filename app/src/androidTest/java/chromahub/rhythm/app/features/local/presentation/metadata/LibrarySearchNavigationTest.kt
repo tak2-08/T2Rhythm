@@ -4,8 +4,8 @@ package chromahub.rhythm.app.features.local.presentation.metadata
 import android.Manifest
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
-import android.view.accessibility.AccessibilityNodeInfo
-import androidx.test.ext.junit.rules.ActivityScenarioRule
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import chromahub.rhythm.app.R
@@ -24,7 +24,8 @@ import org.junit.runner.RunWith
 /** Real MainActivity/navigation, not a separate copy of its navigation controls. */
 @RunWith(AndroidJUnit4::class)
 class LibrarySearchNavigationTest {
-    private val activity = ActivityScenarioRule(MainActivity::class.java)
+    private val compose = createAndroidComposeRule<MainActivity>()
+    private val activity get() = compose.activityRule
     private val instrumentation
         get() = InstrumentationRegistry.getInstrumentation()
 
@@ -58,7 +59,7 @@ class LibrarySearchNavigationTest {
                 AppSettings.getInstance(context).setShowKeyboardOnSearchOpen(true)
             }
         }
-    @get:Rule val rules: RuleChain = RuleChain.outerRule(preparation).around(activity)
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(preparation).around(compose)
 
     @Test
     fun koreanSearchFiltersAndRestorationUseTheRealAppNavigation() {
@@ -189,28 +190,8 @@ class LibrarySearchNavigationTest {
     }
 
     private fun enter(text: String) {
-        fun editable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-            if (node == null) return null
-            if (node.isEditable) return node
-            for (i in 0 until node.childCount) editable(node.getChild(i))?.let {
-                return it
-            }
-            return null
-        }
-        val node = editable(instrumentation.uiAutomation.rootInActiveWindow)
-        assertNotNull("Search field unavailable", node)
-        assertTrue(
-            node!!.performAction(
-                AccessibilityNodeInfo.ACTION_SET_TEXT,
-                android.os.Bundle().apply {
-                    putCharSequence(
-                        AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
-                        text,
-                    )
-                },
-            )
-        )
-        instrumentation.uiAutomation.waitForIdle(100, 10000)
+        compose.onAllNodes(hasSetTextAction()).onFirst().performTextReplacement(text)
+        compose.waitForIdle()
     }
 
     private fun label(resource: Int): String {
@@ -220,32 +201,18 @@ class LibrarySearchNavigationTest {
         return text
     }
 
-    private fun locate(label: String, description: Boolean = false): AccessibilityNodeInfo? {
-        fun visit(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-            if (node == null) return null
-            val values =
-                if (description) listOf(node.contentDescription, node.text)
-                else listOf(node.text, node.hintText)
-            if (
-                values.filterNotNull().any { value ->
-                    value.toString().lineSequence().any { it.trim() == label }
-                }
-            )
-                return node
-            for (i in 0 until node.childCount) visit(node.getChild(i))?.let {
-                return it
-            }
-            return null
-        }
-        return visit(instrumentation.uiAutomation.rootInActiveWindow)
+    private fun matching(label: String, description: Boolean) =
+        if (description) hasContentDescription(label) or hasText(label) else hasText(label)
+
+    private fun locate(label: String, description: Boolean = false): SemanticsNodeInteraction? {
+        val nodes = compose.onAllNodes(matching(label, description), useUnmergedTree = true)
+        return if (nodes.fetchSemanticsNodes().isNotEmpty()) nodes.onFirst() else null
     }
 
-    private fun awaitNode(label: String, description: Boolean = false): AccessibilityNodeInfo {
+    private fun awaitNode(label: String, description: Boolean = false): SemanticsNodeInteraction {
         val deadline = SystemClock.elapsedRealtime() + 90000
         while (SystemClock.elapsedRealtime() < deadline) {
-            locate(label, description)?.let {
-                return it
-            }
+            locate(label, description)?.let { return it }
             SystemClock.sleep(100)
         }
         instrumentation.uiAutomation.takeScreenshot()?.let { bitmap ->
@@ -267,13 +234,9 @@ class LibrarySearchNavigationTest {
     }
 
     private fun click(label: String, description: Boolean = false) {
-        var node: AccessibilityNodeInfo? = awaitNode(label, description)
-        while (node != null && !node.isClickable) node = node.parent
-        assertTrue(
-            "No clickable ancestor: $label",
-            node?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true,
-        )
-        instrumentation.uiAutomation.waitForIdle(100, 10000)
+        awaitNode(label, description)
+        compose.onAllNodes(matching(label, description)).onFirst().performClick()
+        compose.waitForIdle()
     }
 
     private fun capture(name: String) {
