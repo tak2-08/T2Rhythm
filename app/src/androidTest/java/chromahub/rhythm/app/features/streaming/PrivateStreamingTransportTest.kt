@@ -42,7 +42,7 @@ class PrivateStreamingTransportTest {
         InstrumentationRegistry.getInstrumentation().context.assets.open("audio-test.m4a").use { input -> audio.outputStream().use { input.copyTo(it) } }
         song = Song("test-$unique", "밤의 정원", "노을", "우리의 계절", duration = 90_000, uri = Uri.fromFile(audio), genre = "INDIE, POP", year = 2026, path = audio.path)
         catalog.replace(listOf(song), null)
-        server = StreamingServer(0, identity.serverContext(), access, catalog, artwork = { artPayload }); server.start(10_000, true)
+        server = StreamingServer(0, identity.serverContext(), access, catalog, artwork = { artPayload }, identityPin = identity.pin); server.start(10_000, true)
         token = StreamingProtocol.token()
         peer = access.pair(access.invite().first, token, "메인폰")!!.peer; access.approve(peer.id)
         connection = StreamConnection(store.serverId, "서브폰", "https://127.0.0.1:${server.listeningPort}", identity.pin, token)

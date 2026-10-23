@@ -35,11 +35,16 @@ object StreamingProtocol {
         return "https://${if (':' in host) "[$host]" else host.lowercase(java.util.Locale.ROOT)}:${if (uri.port == -1) PORT else uri.port}"
     }
     fun code(secret: String): String = (hash(secret).take(7).toLong(16) % 1_000_000).toString().padStart(6, '0')
+    fun pairCode(token: String, pin: String, binding: Int): String = when (binding) {
+        1 -> code(token)
+        2 -> hash("T2Rhythm pairing v2|$token|$pin").take(16).uppercase(java.util.Locale.ROOT).chunked(4).joinToString(" ")
+        else -> throw IllegalArgumentException("Unsupported pairing binding")
+    }
     fun validId(id: String) = hexPattern.matches(id)
 
-    data class Invite(val server: String, val name: String, val endpoint: String, val pin: String, val secret: String, val expires: Long) {
+    data class Invite(val server: String, val name: String, val endpoint: String, val pin: String, val secret: String, val expires: Long, val binding: Int = 1) {
         fun encode(): String = "T2S1." + Base64.getUrlEncoder().withoutPadding().encodeToString(JSONObject()
-            .put("server", server).put("name", name).put("endpoint", endpoint).put("pin", pin).put("invite", secret).put("expires", expires)
+            .put("server", server).put("name", name).put("endpoint", endpoint).put("pin", pin).put("invite", secret).put("expires", expires).put("binding", binding)
             .toString().toByteArray(Charsets.UTF_8))
         // Sharing sheets may prepend a human-readable sentence. Only one bounded code is accepted.
         companion object {
@@ -51,7 +56,8 @@ object StreamingProtocol {
                 val pin = json.getString("pin"); require(hexPattern.matches(pin))
                 val secret = json.getString("invite"); require(validToken(secret))
                 val expires = json.getLong("expires"); require(expires > now && expires - now <= 11 * 60_000)
-                return Invite(server, name(json.getString("name")), endpoint(json.getString("endpoint")), pin, secret, expires)
+                val binding = json.optInt("binding", 1); require(binding in 1..2)
+                return Invite(server, name(json.getString("name")), endpoint(json.getString("endpoint")), pin, secret, expires, binding)
             }
         }
     }
@@ -90,19 +96,20 @@ class StreamingAccess(initial: List<StreamPeer> = emptyList(), private val persi
     private var inviteUntil = 0L
     @Synchronized fun peers(): List<StreamPeer> = peers.values.toList()
     @Synchronized fun requests(now: Long = System.currentTimeMillis()): List<PairRequest> { pending.entries.removeAll { it.value.expires <= now }; return pending.values.toList() }
-    @Synchronized fun invite(now: Long = System.currentTimeMillis()): Pair<String, Long> {
+    @Synchronized fun invite(now: Long = System.currentTimeMillis(), durationMillis: Long = 10 * 60_000L): Pair<String, Long> {
+        require(durationMillis in 1L..600_000L)
         check(peers.size < StreamingProtocol.MAX_PEERS)
-        val token = StreamingProtocol.token(); inviteHash = StreamingProtocol.hash(token); inviteUntil = now + 10 * 60_000
+        val token = StreamingProtocol.token(); inviteHash = StreamingProtocol.hash(token); inviteUntil = now + durationMillis
         return token to inviteUntil
     }
-    @Synchronized fun pair(invite: String, token: String, name: String, now: Long = System.currentTimeMillis()): PairRequest? {
+    @Synchronized fun pair(invite: String, token: String, name: String, now: Long = System.currentTimeMillis(), identityPin: String? = null): PairRequest? {
         requests(now)
         if (!StreamingProtocol.validToken(invite) || !StreamingProtocol.validToken(token) || inviteUntil <= now ||
             !StreamingProtocol.equal(StreamingProtocol.hash(invite), inviteHash ?: "") || peers.size >= StreamingProtocol.MAX_PEERS || pending.size >= 3) return null
         val hash = StreamingProtocol.hash(token)
         if (peers.values.any { StreamingProtocol.equal(hash, it.tokenHash) } || pending.values.any { StreamingProtocol.equal(hash, it.peer.tokenHash) }) return null
         val peer = StreamPeer(UUID.randomUUID().toString(), StreamingProtocol.name(name), hash, now)
-        val request = PairRequest(peer, StreamingProtocol.code(token), now + 5 * 60_000)
+        val request = PairRequest(peer, if (identityPin == null) StreamingProtocol.code(token) else StreamingProtocol.pairCode(token, identityPin, 2), now + 5 * 60_000)
         pending[peer.id] = request; inviteHash = null; inviteUntil = 0
         return request
     }
@@ -128,6 +135,7 @@ class StreamingAccess(initial: List<StreamPeer> = emptyList(), private val persi
         return peers.values.firstOrNull { StreamingProtocol.equal(hash, it.tokenHash) }
     }
     @Synchronized fun approved(id: String) = id in peers
+    @Synchronized fun cancelInvite() { inviteHash = null; inviteUntil = 0 }
     @Synchronized fun closePairing() { inviteHash = null; inviteUntil = 0; pending.clear() }
     @Synchronized fun cancel(token: String) {
         val hash = StreamingProtocol.hash(token)

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="genre_search_all">전체</string>
+    <string name="genre_search_tab">장르 검색</string>
+    <string name="genre_search_hint">장르 태그 검색</string>
+    <string name="nearby_title">근처 T2Rhythm 기기</string>
+    <string name="nearby_show">Wi-Fi에서 2분간 기기 공개</string>
+    <string name="nearby_hide">Wi-Fi 기기 공개 중지</string>
+    <string name="nearby_search">같은 Wi-Fi 기기 찾기</string>
+    <string name="nearby_search_stop">검색 중지</string>
+    <string name="nearby_visibility_hint">직접 공개한 동안만 새 연결을 요청할 수 있습니다. 양쪽 폰의 확인 코드를 비교한 뒤 승인하세요. 이미 승인한 Bluetooth 연결은 음악 서버를 중지할 때까지 사용할 수 있습니다.</string>
+    <string name="nearby_connect_hint">상대 폰에서 음악 서버를 시작하고 기기를 공개하세요. 아래 기기를 누르고 양쪽 확인 코드를 비교하세요. Bluetooth는 Wi-Fi 없이도 전송합니다.</string>
+    <string name="nearby_error">기기를 찾지 못했습니다. 로컬 네트워크 권한과 Wi-Fi를 확인하거나 초대로 연결하세요.</string>
+    <string name="nearby_bluetooth_show">Bluetooth에서 2분간 기기 공개</string>
+    <string name="nearby_bluetooth_hide">Bluetooth 새 연결 공개 중지</string>
+    <string name="nearby_bluetooth_search">Bluetooth 기기 찾기</string>
+    <string name="nearby_bluetooth_devices">T2Rhythm에서 Bluetooth 공개를 켠 폰을 선택하세요. 다른 Bluetooth 기기도 표시될 수 있습니다. Android에서 기기 페어링 확인을 요청할 수 있습니다.</string>
+    <string name="nearby_bluetooth_error">Bluetooth 연결에 실패했습니다. Bluetooth와 근처 기기 권한을 켜고 상대 폰의 T2Rhythm에서 기기를 공개하세요.</string>
+    <string name="nearby_tls_hint">폰끼리 직접 암호화하여 전송합니다. 공인 인증기관 대신 초대에 담긴 폰 인증서를 검증합니다. 근처 기기 연결은 양쪽 확인 코드를 비교한 뒤 승인하세요.</string>
+    <string name="streaming_qr_scan">초대 QR 스캔</string>
+    <string name="streaming_qr_scan_hint">상대 T2Rhythm 폰의 초대 QR을 스캔하세요</string>
+    <string name="streaming_qr_hint">상대 폰에서 초대 QR 스캔을 누르세요. QR은 초대와 함께 만료되며 비밀로 전달해야 합니다. 상대 폰이 아래 주소에 연결할 수 있어야 합니다.</string>
+    <string name="streaming_qr_description">개인 스트리밍 초대 QR</string>
+    <string name="streaming_qr_error">QR을 만들지 못했습니다. 초대를 복사하거나 공유해 주세요.</string>
+    <string name="nearby_device_limit">기기는 최대 8대까지 저장할 수 있습니다. 다른 기기를 추가하려면 기존 연결을 해제하세요.</string>
+</resources>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="genre_search_all">All</string>
+    <string name="genre_search_tab">Genres</string>
+    <string name="genre_search_hint">Search genre tags</string>
+    <string name="nearby_title">Nearby T2Rhythm devices</string>
+    <string name="nearby_show">Make visible on Wi-Fi for 2 minutes</string>
+    <string name="nearby_hide">Stop Wi-Fi visibility</string>
+    <string name="nearby_search">Find devices on Wi-Fi</string>
+    <string name="nearby_search_stop">Stop searching</string>
+    <string name="nearby_visibility_hint">Only visible when you choose. Nearby users can request a connection; compare the code on both phones before approving. Approved Bluetooth connections remain available until the music server stops.</string>
+    <string name="nearby_connect_hint">On the other phone, start the music server and make it visible. Tap a device below, then compare the code on both phones. Bluetooth also works without Wi-Fi.</string>
+    <string name="nearby_error">Device discovery failed. Check local network permission and Wi-Fi, or use an invitation.</string>
+    <string name="nearby_bluetooth_show">Make visible on Bluetooth for 2 minutes</string>
+    <string name="nearby_bluetooth_hide">Stop Bluetooth invitations</string>
+    <string name="nearby_bluetooth_search">Find Bluetooth devices</string>
+    <string name="nearby_bluetooth_devices">Select a phone running T2Rhythm with Bluetooth sharing enabled. Other Bluetooth devices may appear here. Android may ask you to pair.</string>
+    <string name="nearby_bluetooth_error">Bluetooth connection failed. Turn on Bluetooth, allow nearby device access, and make the other phone visible in T2Rhythm.</string>
+    <string name="nearby_tls_hint">Encrypted directly between phones. T2Rhythm checks the phone certificate from the invitation instead of relying on a public certificate authority. Compare the pairing code before approving a nearby device.</string>
+    <string name="streaming_qr_scan">Scan invitation QR</string>
+    <string name="streaming_qr_scan_hint">Scan the invitation QR on the other T2Rhythm phone</string>
+    <string name="streaming_qr_hint">On the other phone, choose Scan invitation QR. This private QR expires with the invitation; both phones must be able to reach the displayed address.</string>
+    <string name="streaming_qr_description">Private streaming invitation QR</string>
+    <string name="streaming_qr_error">Could not create a QR. Copy or share the invitation instead.</string>
+    <string name="nearby_device_limit">You can save up to 8 devices. Disconnect a device before adding another.</string>
+</resources>

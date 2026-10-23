@@ -48,7 +48,7 @@ class PeerNetworkFlowTest {
         val catalog = StreamingCatalog(base, serverId).apply { replace(listOf(song), null) }
         val identity = StreamingIdentity(alias); val access = StreamingAccess(); val token = StreamingProtocol.token()
         access.approve(access.pair(access.invite().first, token, "내 폰")!!.peer.id)
-        val server = StreamingServer(0, identity.serverContext(), access, catalog, artwork = { null }).apply { start(10_000, true) }
+        val server = StreamingServer(0, identity.serverContext(), access, catalog, artwork = { null }, identityPin = identity.pin).apply { start(10_000, true) }
         val connection = StreamConnection(serverId, name, "https://127.0.0.1:${server.listeningPort}", identity.pin, token)
         if (register) manager.store.save(connection)
         return Node(alias, connection, server, catalog).also { nodes += it }

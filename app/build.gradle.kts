@@ -32,8 +32,8 @@ android {
         
         val overrideVersionCode = project.findProperty("versionCodeOverride")?.toString()?.toIntOrNull()
         val overrideVersionName = project.findProperty("versionNameOverride")?.toString()
-        versionCode = overrideVersionCode ?: 554991324
-        versionName = overrideVersionName ?: "5.5.499.1324"
+        versionCode = overrideVersionCode ?: 554991325
+        versionName = overrideVersionName ?: "5.5.499.1325"
 
         val overrideReleaseDate = project.findProperty("releaseDateOverride")?.toString()
         buildConfigField("String", "RELEASE_DATE", "\"${overrideReleaseDate ?: "2026-10-20"}\"")
@@ -226,6 +226,8 @@ androidComponents {
 }
 
 dependencies {
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    implementation("com.google.zxing:core:3.5.3")
     implementation(project(":crawler"))
     implementation("com.alphacephei:vosk-android:0.3.75")
     implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5") {

@@ -118,7 +118,7 @@ class PrivateStreamingFlowTest {
         val song = song(); val serverId = UUID.randomUUID().toString(); testServer = serverId
         val access = StreamingAccess(); val catalog = StreamingCatalog(base, serverId); catalog.replace(listOf(song), null)
         val identity = StreamingIdentity()
-        val server = StreamingServer(0, identity.serverContext(), access, catalog, artwork = { null }); transport = server; server.start(10_000, true)
+        val server = StreamingServer(0, identity.serverContext(), access, catalog, artwork = { null }, identityPin = identity.pin); transport = server; server.start(10_000, true)
         val token = StreamingProtocol.token(); access.approve(access.pair(access.invite().first, token, "메인폰")!!.peer.id)
         manager.store.save(StreamConnection(serverId, "나의 음악 서브폰", "https://127.0.0.1:${server.listeningPort}", identity.pin, token))
         var played = emptyList<Song>(); var chosen = -1

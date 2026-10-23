@@ -42,7 +42,13 @@ object StreamingClient {
                 }
             }
             val ssl = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trust), null) }
-            OkHttpClient.Builder().sslSocketFactory(ssl.socketFactory, trust)
+            OkHttpClient.Builder().apply {
+                val host = connection.endpoint.toHttpUrl().host
+                if (BluetoothStreaming.isBluetooth(host)) {
+                    socketFactory(BluetoothStreaming.socketFactory(host))
+                    dns { listOf(java.net.InetAddress.getLoopbackAddress()) }
+                }
+            }.sslSocketFactory(ssl.socketFactory, trust)
                 .hostnameVerifier { host, session -> host == connection.endpoint.toHttpUrl().host &&
                     runCatching { StreamingProtocol.equal(StreamingProtocol.hash(session.peerCertificates[0].encoded), connection.pin) }.getOrDefault(false) }
                 .followRedirects(false).followSslRedirects(false).proxy(Proxy.NO_PROXY)
@@ -75,9 +81,10 @@ object StreamingClient {
     }
     suspend fun pair(invite: StreamingProtocol.Invite, name: String, token: String): StreamConnection {
         val connection = StreamConnection(invite.server, invite.name, invite.endpoint, invite.pin, token)
-        val body = JSONObject().put("invite", invite.secret).put("token", token).put("name", StreamingProtocol.name(name)).toString()
+        val body = JSONObject().put("invite", invite.secret).put("token", token).put("name", StreamingProtocol.name(name)).put("binding", invite.binding).toString()
         val result = json(connection, request(connection, "/v1/pair").post(body.toRequestBody("application/json".toMediaType())).build())
-        require(result.getString("code") == StreamingProtocol.code(token))
+        require(result.optInt("binding", 1) == invite.binding)
+        require(result.getString("code") == StreamingProtocol.pairCode(token, invite.pin, invite.binding))
         return connection
     }
     suspend fun status(connection: StreamConnection) = json(connection, request(connection, "/v1/pair/status").build()).getString("status")

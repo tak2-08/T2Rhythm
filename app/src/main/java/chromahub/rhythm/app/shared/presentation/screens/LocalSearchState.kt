@@ -25,7 +25,7 @@ internal data class LocalSearchState(
     val genresReady: Boolean,
 )
 
-private data class SongIndex(val index: LibrarySearchIndex<Song>, val genres: Map<String, Int>)
+private data class SongIndex(val index: LibrarySearchIndex<Song>, val genreIndex: LibrarySearchIndex<Song>, val genres: Map<String, Int>)
 
 private data class Request(
     val query: String,
@@ -34,6 +34,8 @@ private data class Request(
     val artists: LibrarySearchIndex<Artist>?,
     val playlists: LibrarySearchIndex<Playlist>?,
     val ready: Boolean,
+    val genreOnly: Boolean,
+    val selectedGenre: String?,
 )
 
 /**
@@ -50,6 +52,8 @@ internal fun rememberLocalSearch(
     filterAlbums: Boolean,
     filterArtists: Boolean,
     filterPlaylists: Boolean,
+    genreOnly: Boolean = false,
+    selectedGenre: String? = null,
 ): LocalSearchState {
     val songIndex by
         produceState<SongIndex?>(null, songs) {
@@ -73,6 +77,7 @@ internal fun rememberLocalSearch(
                         ) {
                             active.ensureActive()
                         },
+                        LibrarySearchIndex.build(songs, { it.title }, { sequenceOf(GenreUtils.splitGenres(it.genre).joinToString("\u0001")) }) { active.ensureActive() },
                         counts.toSortedMap().values.associate { it },
                     )
                 }
@@ -114,7 +119,7 @@ internal fun rememberLocalSearch(
                     }
                 }
         }
-    val ready =
+    val ready = if (genreOnly) songIndex?.index?.source == songs else
         (!filterSongs || songIndex?.index?.source == songs) &&
             (!filterAlbums || albumIndex?.source == albums) &&
             (!filterArtists || artistIndex?.source == artists) &&
@@ -122,23 +127,29 @@ internal fun rememberLocalSearch(
     val request =
         Request(
             query,
-            songIndex?.index.takeIf { filterSongs },
-            albumIndex.takeIf { filterAlbums },
-            artistIndex.takeIf { filterArtists },
-            playlistIndex.takeIf { filterPlaylists },
-            ready,
+            (if (genreOnly && selectedGenre == null) songIndex?.genreIndex else songIndex?.index).takeIf { filterSongs || genreOnly },
+            albumIndex.takeIf { filterAlbums && !genreOnly },
+            artistIndex.takeIf { filterArtists && !genreOnly },
+            playlistIndex.takeIf { filterPlaylists && !genreOnly },
+            ready && (!genreOnly || songIndex?.index?.source == songs),
+            genreOnly,
+            selectedGenre,
         )
     val completed by
         produceState<Pair<Request, LocalSearchResults>?>(null, request) {
             value = null // Release the preceding source/results even when the query is cleared.
-            if (query.isBlank() || !ready) return@produceState
+            if ((query.isBlank() && selectedGenre == null) || !request.ready) return@produceState
             delay(120)
             value =
                 withContext(searchDispatcher) {
                     val active = currentCoroutineContext()
                     request to
                         LocalSearchResults(
-                            request.songs?.search(query) { active.ensureActive() }.orEmpty(),
+                            (if (selectedGenre != null && query.isBlank()) request.songs?.source.orEmpty()
+                            else request.songs?.search(query) { active.ensureActive() }.orEmpty()).filterIndexed { i, song ->
+                                if (i % 128 == 0) active.ensureActive()
+                                selectedGenre == null || GenreUtils.matchesGenre(song.genre, selectedGenre)
+                            },
                             request.albums?.search(query) { active.ensureActive() }.orEmpty(),
                             request.artists?.search(query) { active.ensureActive() }.orEmpty(),
                             request.playlists?.search(query) { active.ensureActive() }.orEmpty(),
@@ -148,7 +159,7 @@ internal fun rememberLocalSearch(
     val current = completed?.takeIf { it.first == request }?.second
     return LocalSearchState(
         current ?: LocalSearchResults(),
-        query.isNotBlank() && current == null,
+        (query.isNotBlank() || selectedGenre != null) && current == null,
         songIndex?.takeIf { it.index.source == songs }?.genres.orEmpty(),
         songIndex?.index?.source == songs,
     )

@@ -156,6 +156,8 @@ fun UniversalSearchScreen(
         }
     }
 
+    var genreTab by rememberSaveable { mutableStateOf(false) }
+    var selectedGenre by rememberSaveable { mutableStateOf<String?>(null) }
     var showFilters by rememberSaveable { mutableStateOf(false) }
     var filterSongs by rememberSaveable { mutableStateOf(true) }
     var filterAlbums by rememberSaveable { mutableStateOf(true) }
@@ -213,7 +215,7 @@ fun UniversalSearchScreen(
 
 
     val search = rememberLocalSearch(query, localSongs, fullLocalAlbums, localArtists, localPlaylists,
-        filterSongs, filterAlbums, filterArtists, filterPlaylists)
+        filterSongs, filterAlbums, filterArtists, filterPlaylists, genreTab, selectedGenre)
     val genreSongCounts = search.genreCounts
     val genres = remember(genreSongCounts) { genreSongCounts.keys.toList() }
     val matchedLocalSongs = search.results.songs
@@ -228,7 +230,8 @@ fun UniversalSearchScreen(
     val handleBack = {
         if (showAllSongsPage) {
             showAllSongsPage = false
-        } else if (query.isNotEmpty() || showFilters) {
+        } else if (query.isNotEmpty() || showFilters || selectedGenre != null) {
+            selectedGenre = null
             query = ""
             showFilters = false
             focusManager.clearFocus()
@@ -241,7 +244,7 @@ fun UniversalSearchScreen(
 
     val statusBarsTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navigationBarsBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val searchBarHeightPadding = 88.dp + (if (showFilters) 48.dp else 0.dp)
+    val searchBarHeightPadding = 144.dp + (if (selectedGenre != null) 48.dp else 0.dp) + (if (showFilters) 48.dp else 0.dp)
     val totalBottomPadding = searchBarHeightPadding + navigationBarsBottom + 16.dp
 
     Box(
@@ -250,7 +253,7 @@ fun UniversalSearchScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         AnimatedContent(
-            targetState = query.isBlank(),
+            targetState = query.isBlank() && selectedGenre == null,
             transitionSpec = {
                 if (targetState) {
                     (slideInVertically(initialOffsetY = { -it / 6 }) + fadeIn(animationSpec = tween(300)))
@@ -372,7 +375,7 @@ fun UniversalSearchScreen(
                                     isGenreDetectionComplete = isGenreDetectionComplete && search.genresReady,
                                     onGenreClick = { genre ->
                                         HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                        query = genre
+                                        genreTab = true; selectedGenre = genre; query = ""; showFilters = false
                                     }
                                 )
                             }
@@ -561,7 +564,7 @@ fun UniversalSearchScreen(
                                 isGenreDetectionComplete = isGenreDetectionComplete && search.genresReady,
                                 onGenreClick = { genre ->
                                     HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                    query = genre
+                                    genreTab = true; selectedGenre = genre; query = ""; showFilters = false
                                 }
                             )
                         }
@@ -599,7 +602,7 @@ fun UniversalSearchScreen(
                                     .padding(vertical = 48.dp)
                                     .animateItem(),
                                 title = stringResource(R.string.no_results_found),
-                                subtitle = stringResource(R.string.search_no_results_query_format, query),
+                                subtitle = stringResource(R.string.search_no_results_query_format, selectedGenre ?: query),
                                 mainIcon = RhythmIcons.Search,
                                 accentIcon = RhythmIcons.Search,
                                 cornerIcon = RhythmIcons.MusicNote,
@@ -1063,6 +1066,14 @@ fun UniversalSearchScreen(
                 .animateContentSize(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium))
                 .align(Alignment.BottomCenter)
         ) {
+            PrimaryTabRow(selectedTabIndex = if (genreTab) 1 else 0) {
+                Tab(selected = !genreTab, onClick = { genreTab = false; selectedGenre = null }, text = { Text(stringResource(R.string.genre_search_all)) })
+                Tab(selected = genreTab, onClick = { genreTab = true; showFilters = false }, text = { Text(stringResource(R.string.genre_search_tab)) })
+            }
+            selectedGenre?.let { genre ->
+                InputChip(selected = true, onClick = { selectedGenre = null }, label = { Text(genre) },
+                    trailingIcon = { Icon(MaterialSymbolIcon("close"), stringResource(R.string.ui_clear)) })
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1108,7 +1119,7 @@ fun UniversalSearchScreen(
                             decorationBox = { innerTextField ->
                                 Box(contentAlignment = Alignment.CenterStart) {
                                     if (query.isEmpty()) {
-                                        Text(stringResource(R.string.universalsearchscreen_search_everywhere), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(stringResource(if (genreTab && selectedGenre == null) R.string.genre_search_hint else R.string.universalsearchscreen_search_everywhere), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                     innerTextField()
                                 }
@@ -1132,7 +1143,7 @@ fun UniversalSearchScreen(
                     IconButton(onClick = {
                         HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                         showFilters = !showFilters
-                    }) {
+                    }, enabled = !genreTab) {
                         Icon(
                             RhythmIcons.FilterList,
                             contentDescription = stringResource(R.string.cd_filters),
@@ -1144,7 +1155,7 @@ fun UniversalSearchScreen(
             }
 
             AnimatedVisibility(
-                visible = showFilters,
+                visible = showFilters && !genreTab,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {

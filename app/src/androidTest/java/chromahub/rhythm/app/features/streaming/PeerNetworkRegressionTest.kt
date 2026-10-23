@@ -36,7 +36,7 @@ class PeerNetworkRegressionTest {
         val namespace = "network-$unique-${nodes.size}"; val store = StreamingStore(base, namespace)
         val catalog = StreamingCatalog(base, store.serverId).apply { replace(listOf(original.copy(title = name)), null) }
         val identity = StreamingIdentity(namespace); val access = StreamingAccess()
-        val server = StreamingServer(0, identity.serverContext(), access, catalog, artwork = { null }).apply { start(10_000, true) }
+        val server = StreamingServer(0, identity.serverContext(), access, catalog, artwork = { null }, identityPin = identity.pin).apply { start(10_000, true) }
         val token = StreamingProtocol.token(); val peer = access.pair(access.invite().first, token, "듣는 폰")!!.peer; access.approve(peer.id)
         return Node(namespace, store, catalog, access, server, identity,
             StreamConnection(store.serverId, name, "https://127.0.0.1:${server.listeningPort}", identity.pin, token), peer).also { nodes += it }

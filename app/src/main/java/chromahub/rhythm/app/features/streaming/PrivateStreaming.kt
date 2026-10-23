@@ -19,6 +19,7 @@ data class StreamHostState(val running: Boolean = false, val starting: Boolean =
     val tracks: Int = 0, val peers: List<StreamPeer> = emptyList(), val pending: List<PairRequest> = emptyList(), val bytes: Long = 0, val error: String? = null)
 
 class PrivateStreaming private constructor(private val context: Context) {
+    init { BluetoothStreaming.initialize(context) }
     val store = StreamingStore(context)
     val access = StreamingAccess(store.peers()) { store.savePeers(it) }
     val catalog = StreamingCatalog(context, store.serverId)
@@ -42,7 +43,7 @@ class PrivateStreaming private constructor(private val context: Context) {
             val database = RhythmDatabase.getInstance(context)
             rebuildCatalog(database)
             currentCoroutineContext().ensureActive()
-            candidate = StreamingServer(StreamingProtocol.PORT, tls.serverContext(), access, catalog, ::refresh, ::artwork)
+            candidate = StreamingServer(StreamingProtocol.PORT, tls.serverContext(), access, catalog, ::refresh, ::artwork, identityPin = tls.pin)
             candidate.start(10_000, true)
             currentCoroutineContext().ensureActive()
             synchronized(lifecycle) {
@@ -73,6 +74,7 @@ class PrivateStreaming private constructor(private val context: Context) {
         catalog.replace(songs, selection, playlists)
     }
     fun stop() {
+        BluetoothStreaming.stopHosting()
         updates?.cancel(); updates = null
         val previous = synchronized(lifecycle) { generation++; server.also { server = null }
             .also { _state.update { state -> state.copy(running = false, starting = false, pending = emptyList(), addresses = emptyList()) } } }
@@ -82,10 +84,10 @@ class PrivateStreaming private constructor(private val context: Context) {
     fun fail(message: String) { _state.update { it.copy(error = message, starting = false) } }
     fun refresh() { _state.update { it.copy(peers = access.peers(), pending = access.requests(), tracks = catalog.snapshot.sharedCount,
         bytes = server?.bytesSent?.get() ?: it.bytes, addresses = if (it.running) addresses() else emptyList()) } }
-    fun invite(endpoint: String): StreamingProtocol.Invite {
+    fun invite(endpoint: String, durationMillis: Long = 10 * 60_000L): StreamingProtocol.Invite {
         check(_state.value.running)
-        val (secret, expires) = access.invite()
-        return StreamingProtocol.Invite(store.serverId, StreamingProtocol.name(android.os.Build.MODEL), StreamingProtocol.endpoint(endpoint), requireNotNull(identity).pin, secret, expires)
+        val (secret, expires) = access.invite(durationMillis = durationMillis)
+        return StreamingProtocol.Invite(store.serverId, StreamingProtocol.name(android.os.Build.MODEL), StreamingProtocol.endpoint(endpoint), requireNotNull(identity).pin, secret, expires, binding = 2)
     }
     fun approve(id: String) { access.approve(id); refresh() }
     fun revoke(id: String) { access.revoke(id); refresh() }
