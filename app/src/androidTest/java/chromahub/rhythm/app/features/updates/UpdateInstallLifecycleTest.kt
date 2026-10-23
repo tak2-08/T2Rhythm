@@ -10,18 +10,26 @@ import org.json.JSONObject
 import org.junit.Test
 import org.junit.Assert.*
 
-/** Called twice by the API35 runner, on either side of a real adb package replacement. */
+/** Prepares storage, then observes a real adb package replacement across two processes. */
 @androidx.test.filters.SdkSuppress(minSdkVersion = 28)
 class UpdateInstallLifecycleTest {
     @Test fun realPackageReplacementConfirmsHistoryAndRemovesOnlyTheUsedApk() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
         val phase = InstrumentationRegistry.getArguments().getString("updateLifecyclePhase")
-        require(phase in setOf("seed", "verify"))
+        require(phase in setOf("prepare", "seed", "verify"))
         val file = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "verified-updates/lifecycle-future.apk")
+        if (phase == "prepare") {
+            assertTrue(file.parentFile!!.isDirectory || file.parentFile!!.mkdirs())
+            File(context.getExternalFilesDir(null), "update-lifecycle-path.txt").writeText(file.absolutePath)
+            return
+        }
         val journal = UpdateJournal.get(context)
         if (phase == "seed") {
-            assertTrue(file.length() > 0)
+            assertTrue("Missing fixture ${file.path}; files=${file.parentFile!!.list()?.toList()}", file.length() > 0)
+            val archive = context.packageManager.getPackageArchiveInfo(file.path, 0)!!
+            val installed = context.packageManager.getPackageInfo(context.packageName, 0)
+            assertTrue("Fixture ${archive.longVersionCode} must upgrade ${installed.longVersionCode}", archive.longVersionCode > installed.longVersionCode)
             journal.ready(file, "Real package replacement verification")
             journal.installing(file)
             context.getSharedPreferences("app_updater_downloads", Context.MODE_PRIVATE).edit().putString("downloaded_file", file.path).commit()

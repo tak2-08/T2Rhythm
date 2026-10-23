@@ -20,8 +20,6 @@ else
   fixture="app/build/outputs/apk/github/debug/Rhythm-$t2_future_name-githubDebug.apk"
 fi
 test -s "$fixture"
-adb shell mkdir -p /sdcard/Android/data/chromahub.rhythm.app.debug/files/Download/verified-updates
-adb push "$fixture" /sdcard/Android/data/chromahub.rhythm.app.debug/files/Download/verified-updates/lifecycle-future.apk
 run_phase() {
   local phase="$1"
   adb shell am instrument -w \
@@ -34,6 +32,11 @@ text = pathlib.Path(sys.argv[1]).read_text()
 assert re.search(r'OK \(1 tests?\)', text) and 'FAILURES!!!' not in text, text[-4000:]
 PY
 }
+run_phase prepare
+t2_device_fixture=$(adb shell cat /sdcard/Android/data/chromahub.rhythm.app.debug/files/update-lifecycle-path.txt | tr -d '\r')
+[[ "$t2_device_fixture" == /storage/emulated/0/Android/data/chromahub.rhythm.app.debug/files/*/verified-updates/lifecycle-future.apk ]]
+adb push "$fixture" "$t2_device_fixture"
+adb shell ls -l "$t2_device_fixture"
 run_phase seed
 adb install -r -t "$fixture"
 run_phase verify
