@@ -52,7 +52,7 @@ jobs:
           disable-animations: true
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
-          script: FILE_NAME_COMPAT_ONLY=1 bash scripts/run_personal_experience_regression.sh
+          script: ANDROID_TEST_JVM_HEAP=1536m FILE_NAME_COMPAT_ONLY=1 bash scripts/run_personal_experience_regression.sh
       - name: Upload regression reports
         if: always()
         uses: actions/upload-artifact@v7

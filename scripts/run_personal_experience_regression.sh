@@ -5,11 +5,17 @@ set -euo pipefail
 collect_evidence() {
     local evidence_dir="app/build/outputs/experience-screenshots"
     mkdir -p "$evidence_dir"
-    adb logcat -d > "$evidence_dir/logcat.txt" 2>&1 || true
+    # A terminated emulator must not hold the entire job in evidence collection.
+    if [[ "$(timeout 5s adb get-state 2>/dev/null || true)" != device ]]; then
+        printf '%s\n' 'Emulator disconnected; keeping reports already written on the host.' > "$evidence_dir/device-disconnected.txt"
+        free -m || true
+        return
+    fi
+    timeout 10s adb logcat -d > "$evidence_dir/logcat.txt" 2>&1 || true
     for screenshot in insights-download-search.png insights-algorithms.png insights-listening-report.png lyrics-ai-entry.png lyrics-ai-options.png lyrics-ai-material.png lyrics-ai-fullscreen.png lyrics-ai-review.png recommendation-settings.png app-updates-clean.png manual-lyrics-editor.png manual-lyrics-save-failed.png genre-multiple-selection.png genre-manual-teaching.png genre-service-with-training-hidden.png genre-library-teaching.png lyrics-manual-in-edit.png page-description-editor.png player-genre-date.png folder-album-setting.png learning-battery-range.png file-name-settings.png file-name-preview.png artist-page-clean.png artist-page-edit-menu.png album-page-clean.png album-page-edit-menu.png artist-online-artwork-search.png catalog-artwork-preview.png catalog-selectable-lyrics.png song-editor-online-artwork.png catalog-large-text-landscape.png recap-overview.png recap-highlights.png recap-large-text.png recap-empty.png; do
         local remote_file="/sdcard/Android/data/chromahub.rhythm.app.debug/files/$screenshot"
-        if adb shell test -f "$remote_file"; then
-            adb pull "$remote_file" "$evidence_dir/$screenshot" || true
+        if timeout 5s adb shell test -f "$remote_file"; then
+            timeout 10s adb pull "$remote_file" "$evidence_dir/$screenshot" || true
         fi
     done
 }
@@ -47,7 +53,7 @@ for index in "${!classes[@]}"; do
         "-Pandroid.testInstrumentationRunnerArguments.class=$class_name" \
         "-Pandroid.testInstrumentationRunnerArguments.timeout_msec=$timeout" \
         -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
-        --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx3g --console=plain || result=$?
+        --no-daemon --max-workers=2 "-Dorg.gradle.jvmargs=-Xmx${ANDROID_TEST_JVM_HEAP:-3g}" --console=plain || result=$?
     evidence="app/build/outputs/experience-regression/${class_name##*.}"
     mkdir -p "$evidence"
     cp -R app/build/outputs/androidTest-results/connected "$evidence/results"
