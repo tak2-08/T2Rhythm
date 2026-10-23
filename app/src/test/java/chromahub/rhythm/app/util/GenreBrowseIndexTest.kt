@@ -15,6 +15,8 @@ class GenreBrowseIndexTest {
         val index = GenreBrowseIndex.build(songs, { it.genre })
         assertEquals(setOf("ROCK", "HARD ROCK", "인디 록"), index.search("록").toSet())
         assertEquals(index.search("록").toSet(), index.search("rock").toSet())
+        assertEquals(listOf("HARD ROCK"), index.search("하드록"))
+        assertEquals(listOf("인디 록"), index.search("indierock"))
         assertTrue(index.search("Quiet").isEmpty())
         assertFalse(index.genres.contains("알 수 없음"))
         assertEquals(1, index.count("ROCK"))

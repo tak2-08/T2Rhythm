@@ -57,7 +57,9 @@ internal fun GenreBrowseContent(
                     item { Text(stringResource(R.string.genre_browse_children), style = MaterialTheme.typography.titleMedium) }
                     items(children, key = { "child:$it" }) { GenreResult(it, index.count(it)) { onGenreClick(it) } }
                 }
-                item { Text(stringResource(R.string.genre_browse_related), style = MaterialTheme.typography.titleMedium) }
+                if (related.isNotEmpty()) {
+                    item { Text(stringResource(R.string.genre_browse_related), style = MaterialTheme.typography.titleMedium) }
+                }
                 items(related, key = { "related:$it" }) { GenreResult(it, index.count(it)) { onGenreClick(it) } }
                 if (related.isEmpty() && children.isEmpty()) {
                     item { Text(stringResource(R.string.genre_browse_empty), style = MaterialTheme.typography.bodyMedium) }

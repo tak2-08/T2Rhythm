@@ -10,7 +10,8 @@ internal class GenreBrowseIndex<T> private constructor(
     private val index: LibrarySearchIndex<String>,
 ) {
     val genres: List<String> get() = index.source
-    fun search(query: String): List<String> = if (query.isBlank()) genres else index.search(query)
+    fun search(query: String): List<String> = if (query.isBlank()) genres else
+        (index.search(query) + index.search(canonical(query.take(256)))).distinct()
     fun songs(genre: String?): List<T> = byGenre[genre].orEmpty()
     fun count(genre: String): Int = songs(genre).size
 
