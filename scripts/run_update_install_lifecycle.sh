@@ -3,9 +3,22 @@
 set -euo pipefail
 evidence=app/build/outputs/private-streaming-regression/UpdateInstallLifecycleTest
 mkdir -p "$evidence"
-./gradlew :app:assembleGithubDebug -PversionCodeOverride=554991325 -PversionNameOverride=5.5.499.1325 \
-  --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx3g --console=plain
-fixture=app/build/outputs/apk/github/debug/Rhythm-5.5.499.1325-githubDebug.apk
+read -r t2_future_code t2_future_name < <(python3 - <<'VERSION'
+import pathlib,re
+text=pathlib.Path('app/build.gradle.kts').read_text()
+code=int(re.search(r'versionCode = overrideVersionCode \?: (\d+)',text).group(1))+1
+name=re.search(r'versionName = overrideVersionName \?: "([0-9.]+)"',text).group(1)
+parts=name.split('.'); parts[-1]=str(int(parts[-1])+1)
+print(code,'.'.join(parts))
+VERSION
+)
+if [[ -n "${T2_UPDATE_FIXTURE:-}" ]]; then
+  fixture="$T2_UPDATE_FIXTURE"
+else
+  ./gradlew :app:assembleGithubDebug "-PversionCodeOverride=$t2_future_code" "-PversionNameOverride=$t2_future_name" \
+    --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --console=plain
+  fixture="app/build/outputs/apk/github/debug/Rhythm-$t2_future_name-githubDebug.apk"
+fi
 test -s "$fixture"
 adb shell mkdir -p /sdcard/Android/data/chromahub.rhythm.app.debug/files/Download/verified-updates
 adb push "$fixture" /sdcard/Android/data/chromahub.rhythm.app.debug/files/Download/verified-updates/lifecycle-future.apk
@@ -25,10 +38,10 @@ run_phase seed
 adb install -r -t "$fixture"
 run_phase verify
 adb pull /sdcard/Android/data/chromahub.rhythm.app.debug/files/update-lifecycle-evidence.json "$evidence/evidence.json"
-python3 - "$evidence/evidence.json" <<'PY'
+python3 - "$evidence/evidence.json" "$t2_future_code" <<'PY'
 import json, pathlib, sys
 data = json.loads(pathlib.Path(sys.argv[1]).read_text())
-assert data['installedCode'] == data['historyCode'] == 554991325, data
+assert data['installedCode'] == data['historyCode'] == int(sys.argv[2]), data
 assert data['stage'] == 'INSTALLED' and data['apkRemoved'] and not data['apkExists'], data
 print('Verified real package replacement, durable installation history and APK cleanup:', data)
 PY

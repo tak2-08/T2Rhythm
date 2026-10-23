@@ -4,6 +4,11 @@ on:
     branches: ["main"]
     paths: ["app/**", "gradle/**", "scripts/run_private_streaming_regression.sh", "scripts/run_update_install_lifecycle.sh", ".github/workflows/private-streaming-regression.yml"]
   workflow_dispatch:
+    inputs:
+      update_only:
+        description: Verify actual package replacement and APK cleanup on API35 before PR
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -18,13 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - api: 29
-            platform: "29"
-          - api: 35
-            platform: "35"
-          - api: 37
-            platform: "37.0"
+        include: ${{ inputs.update_only && fromJSON('[{"api":35,"platform":"35"}]') || fromJSON('[{"api":29,"platform":"29"},{"api":35,"platform":"35"},{"api":37,"platform":"37.0"}]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
@@ -53,7 +52,24 @@ jobs:
           fi
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --version
       - name: Build APKs
-        run: ./gradlew :app:assembleGithubDebug :app:assembleGithubDebugAndroidTest --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx3g --console=plain
+        run: ./gradlew :app:assembleGithubDebug :app:assembleGithubDebugAndroidTest --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --console=plain
+      - name: Prepare next-version test fixture before starting the emulator
+        if: inputs.update_only
+        run: |
+          read -r t2_code t2_name < <(python3 -c 'import pathlib,re; t=pathlib.Path("app/build.gradle.kts").read_text(); c=int(re.search(r"versionCode = overrideVersionCode \?: (\d+)",t).group(1))+1; n=re.search(r"versionName = overrideVersionName \?: \"([0-9.]+)\"",t).group(1).split("."); n[-1]=str(int(n[-1])+1); print(c,".".join(n))')
+          ./gradlew :app:assembleGithubDebug "-PversionCodeOverride=$t2_code" "-PversionNameOverride=$t2_name" --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --console=plain
+          cp "app/build/outputs/apk/github/debug/Rhythm-$t2_name-githubDebug.apk" "$RUNNER_TEMP/t2-future.apk"
+      - name: Write package replacement runner
+        if: inputs.update_only
+        run: |
+          cat > "$RUNNER_TEMP/t2-install-check.sh" <<'SCRIPT'
+          set -euo pipefail
+          current_name=$(python3 -c 'import pathlib,re; print(re.search(r"versionName = overrideVersionName \?: \"([0-9.]+)\"",pathlib.Path("app/build.gradle.kts").read_text()).group(1))')
+          adb install -r -t "app/build/outputs/apk/github/debug/Rhythm-$current_name-githubDebug.apk"
+          adb install -r -t app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk
+          export T2_UPDATE_FIXTURE="$RUNNER_TEMP/t2-future.apk"
+          bash scripts/run_update_install_lifecycle.sh
+          SCRIPT
       - name: Verify encrypted hosting, playback and native flows
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -71,7 +87,7 @@ jobs:
           # emulator-runner executes pre-launch input one line at a time.
           pre-emulator-launch-script: >-
             python3 -c 'import os,pathlib; text=(pathlib.Path(os.environ["ANDROID_AVD_HOME"])/"test.ini").read_text(); print(text); assert "${{ matrix.api }}" != "37" or "target=android-37.0" in text, "Update avdmanager before booting API37"'
-          script: bash scripts/run_private_streaming_regression.sh
+          script: ${{ inputs.update_only && format('bash {0}/t2-install-check.sh', runner.temp) || 'bash scripts/run_private_streaming_regression.sh' }}
       - uses: actions/upload-artifact@v7
         if: always()
         with:
