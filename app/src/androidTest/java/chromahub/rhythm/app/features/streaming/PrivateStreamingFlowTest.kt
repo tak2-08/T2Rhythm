@@ -223,8 +223,16 @@ class PrivateStreamingFlowTest {
         assertEquals(manager.store.serverId, invite.server); assertEquals(2, invite.binding)
         screenshot("streaming-qr-invitation-large-text")
         compose.onNodeWithText(base.getString(R.string.streaming_copy)).performScrollTo().performClick()
-        val copied = base.getSystemService(android.content.ClipboardManager::class.java).primaryClip!!.getItemAt(0).text.toString()
-        assertEquals(invite, StreamingProtocol.Invite.decode(copied))
+        // Android's clipboard overlay may temporarily own focus after a copy.
+        // Return to the dialog before reading, as background reads are denied.
+        qr.performScrollTo().performTouchInput { click() }
+        val clipboard = base.getSystemService(android.content.ClipboardManager::class.java)
+        var copied: String? = null
+        compose.waitUntil(5_000) {
+            copied = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
+            copied != null
+        }
+        assertEquals(invite, StreamingProtocol.Invite.decode(requireNotNull(copied)))
         compose.onNodeWithText(base.getString(R.string.streaming_share)).performScrollTo().assertIsDisplayed()
         compose.onNodeWithText(base.getString(R.string.streaming_done)).performClick(); Unit
     }
