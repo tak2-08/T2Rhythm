@@ -142,6 +142,7 @@ data class ExtendedSongInfo(
 )
 
 private fun resolveSongInfoArtworkUri(context: android.content.Context, song: Song): Uri? {
+    if (chromahub.rhythm.app.features.streaming.PrivateStreamDataSource.isPrivate(song.uri)) return song.artworkUri
     val currentArtworkUri = song.artworkUri
 
     if (currentArtworkUri != null &&
@@ -212,13 +213,15 @@ fun SongInfoBottomSheet(
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
+    val privateStream = song?.uri?.let(chromahub.rhythm.app.features.streaming.PrivateStreamDataSource::isPrivate) == true
+    val streamingSource = isStreamingMode || privateStream
     var extendedInfo by remember { mutableStateOf<ExtendedSongInfo?>(null) }
     var isLoadingMetadata by remember { mutableStateOf(true) }
     var isLoadingStats by remember { mutableStateOf(true) }
-    var showEditSheet by remember { mutableStateOf(startInEditMode && !isStreamingMode) }
+    var showEditSheet by remember(song?.id, streamingSource) { mutableStateOf(startInEditMode && !streamingSource) }
 
-    LaunchedEffect(startInEditMode) {
-        if (startInEditMode && !isStreamingMode) {
+    LaunchedEffect(startInEditMode, streamingSource) {
+        if (startInEditMode && !streamingSource) {
             showEditSheet = true
         }
     }
@@ -313,10 +316,17 @@ fun SongInfoBottomSheet(
         }
     }
 
-    LaunchedEffect(song.id) {
+    LaunchedEffect(displaySong) {
         isLoadingMetadata = true
         extendedInfo = withContext(Dispatchers.IO) {
-            MediaUtils.getExtendedSongInfo(context, song)
+            if (privateStream) return@withContext ExtendedSongInfo(genre = displaySong.genre.orEmpty(), year = displaySong.year,
+                albumArtist = displaySong.albumArtist.orEmpty(), discNumber = displaySong.discNumber)
+            val info = MediaUtils.getExtendedSongInfo(context, displaySong)
+            val catalog = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context)
+            if (chromahub.rhythm.app.features.local.data.metadata.ManualSongMetadata(context).read(catalog.songKey(displaySong)) != null)
+                info.copy(genre = displaySong.genre.orEmpty(), year = displaySong.year,
+                    albumArtist = displaySong.albumArtist.orEmpty(), discNumber = displaySong.discNumber)
+            else info
         }
         isLoadingMetadata = false
     }
@@ -515,21 +525,6 @@ fun SongInfoBottomSheet(
                 if (startInEditMode) onDismiss()
             },
             onSave = { title: String, artist: String, album: String, genre: String, year: Int, trackNumber: Int, artworkUri: Uri?, removeArtwork: Boolean, albumArtist: String?, composer: String?, discNumber: Int, onComplete ->
-                currentSong = currentSong?.copy(
-                    title = title,
-                    artist = artist,
-                    album = album,
-                    genre = genre,
-                    year = year,
-                    trackNumber = trackNumber,
-                    artworkUri = when {
-                        removeArtwork -> null
-                        artworkUri != null -> artworkUri
-                        else -> currentSong?.artworkUri
-                    },
-                    albumArtist = albumArtist,
-                    discNumber = discNumber
-                )
                 onEditSong?.invoke(
                     title,
                     artist,
@@ -543,10 +538,22 @@ fun SongInfoBottomSheet(
                     composer,
                     discNumber
                 ) { success ->
+                    if (success) currentSong = currentSong?.copy(
+                        title = title,
+                        artist = artist,
+                        album = album,
+                        genre = genre,
+                        year = year,
+                        trackNumber = trackNumber,
+                        artworkUri = when {
+                            removeArtwork -> null
+                            artworkUri != null -> artworkUri
+                            else -> currentSong?.artworkUri
+                        },
+                        albumArtist = albumArtist,
+                        discNumber = discNumber
+                    )
                     onComplete(success)
-                    if (success) {
-                        showEditSheet = false
-                    }
                 }
             },
             onShowLyricsEditor = onShowLyricsEditor,
@@ -554,7 +561,7 @@ fun SongInfoBottomSheet(
         )
     }
 
-    if (startInEditMode) {
+    if (startInEditMode && !streamingSource) {
         if (showEditSheet) {
             renderEditSheet()
         }
@@ -689,7 +696,7 @@ fun SongInfoBottomSheet(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             // Edit button — local files only (hidden for streaming songs)
-                                            if (!isStreamingMode) {
+                                            if (!streamingSource) {
                                                 onEditSong?.let {
                                                     AdaptiveSheetActionButton(
                                                         onClick = {
@@ -875,7 +882,7 @@ fun SongInfoBottomSheet(
                         contentPadding = PaddingValues(start = 24.dp, end = 24.dp + endPadding, top = 8.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(28.dp)
                     ) {
-            if (isStreamingMode) {
+            if (streamingSource) {
                 if (onToggleDownload != null) {
                     item {
                         Row(
@@ -1229,7 +1236,7 @@ private fun SongInfoCard(
 
         val genreValue = if (!song.genre.isNullOrEmpty()) song.genre else extendedInfo?.genre
         if (!genreValue.isNullOrEmpty()) {
-            add(MetadataItem(context.getString(R.string.metadata_genre), genreValue.trim(), RhythmIcons.Category))
+            add(MetadataItem(context.getString(R.string.metadata_genre), chromahub.rhythm.app.util.GenreUtils.splitGenres(genreValue).joinToString(", "), RhythmIcons.Category))
         }
 
         if (!song.album.isNullOrEmpty()) {
@@ -1520,8 +1527,10 @@ private fun EditSongSheet(
     val haptics = LocalHapticFeedback.current
     var showWarningDialog by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
-    var isFetchingOnlineArt by remember { mutableStateOf(false) }
     var showCatalogLookup by remember(song.id) { mutableStateOf(false) }
+    var showOnlineArtwork by remember(song.id) { mutableStateOf(false) }
+    var importedLyrics by remember(song.id) { mutableStateOf<kr.co.metadata.crawler.CatalogValue?>(null) }
+    var lyricSaveFailed by remember(song.id) { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     var resolvedSongArtworkUri by remember(song.id, song.artworkUri, song.uri) {
         mutableStateOf(song.artworkUri)
@@ -1539,22 +1548,33 @@ private fun EditSongSheet(
             onDismiss = { showCatalogLookup = false },
             onApply = { imported, artwork ->
                 imported[CatalogField.TRACK_TITLE]?.let { title = it }
-                (imported[CatalogField.TRACK_ARTISTS] ?: imported[CatalogField.ALBUM_ARTISTS]
-                    ?: imported[CatalogField.ARTIST_NAME])?.let { artist = it }
+                val selectedArtist = imported[CatalogField.TRACK_ARTISTS] ?: imported[CatalogField.ALBUM_ARTISTS] ?: imported[CatalogField.ARTIST_NAME]
+                albumArtist = chromahub.rhythm.app.features.local.data.metadata.CatalogSelection.albumArtistAfterImport(
+                    artist, albumArtist, selectedArtist, imported[CatalogField.ALBUM_ARTISTS])
+                selectedArtist?.let { artist = it }
                 (imported[CatalogField.TRACK_ALBUM_TITLE] ?: imported[CatalogField.ALBUM_TITLE])?.let { album = it }
                 (imported[CatalogField.TRACK_GENRES] ?: imported[CatalogField.ALBUM_GENRES]
                     ?: imported[CatalogField.ARTIST_GENRES])?.let { genre = it }
                 (imported[CatalogField.TRACK_RELEASE_DATE] ?: imported[CatalogField.ALBUM_RELEASE_DATE])
                     .yearOrNull()?.let { year = it.toString() }
                 if (artwork != null) { selectedImageUri = artwork; removeArtwork = false }
+                importedLyrics = imported.values.firstOrNull { it.field == CatalogField.TRACK_LYRICS }
                 showCatalogLookup = false
             },
         )
     }
+    if (showOnlineArtwork) chromahub.rhythm.app.features.local.presentation.metadata.CatalogArtworkDialog(
+        initialQuery = "$title $artist".trim(), initialKind = kr.co.metadata.crawler.EntityKind.TRACK, allowAlbums = true,
+        onDismiss = { showOnlineArtwork = false }, onSelect = { uri -> selectedImageUri = uri; removeArtwork = false; showOnlineArtwork = false })
     val catalogImportButton: @Composable () -> Unit = {
+        if (importedLyrics != null) {
+            Text(stringResource(R.string.catalog_lyrics_staged), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { importedLyrics = null }) { Text(stringResource(R.string.catalog_lyrics_remove)) }
+        }
+        if (lyricSaveFailed) Text(stringResource(R.string.catalog_import_failed), color = MaterialTheme.colorScheme.error)
         OutlinedButton(
             onClick = { showCatalogLookup = true },
-            enabled = !isSaving && !isFetchingOnlineArt,
+            enabled = !isSaving,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(stringResource(R.string.catalog_find_metadata)) }
     }
@@ -1571,101 +1591,20 @@ private fun EditSongSheet(
         discNumber = originalDiscNumber
         selectedImageUri = null
         removeArtwork = false
+        importedLyrics = null
+        lyricSaveFailed = false
         HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
     }
 
-    val fetchOnlineArtwork: () -> Unit = {
-        if (!isFetchingOnlineArt && title.isNotBlank() && artist.isNotBlank()) {
-            isFetchingOnlineArt = true
-            coroutineScope.launch(Dispatchers.IO) {
-                try {
-                    var imageUrl: String? = null
+    val fetchOnlineArtwork: () -> Unit = { showOnlineArtwork = true }
 
-                    if (NetworkClient.isDeezerApiEnabled()) {
-                        val deezerApi = NetworkClient.deezerApiService
-                        if (deezerApi != null) {
-                            try {
-                                val query = if (artist.isNotBlank() && !artist.equals("Unknown", ignoreCase = true)) {
-                                    "${title.trim()} ${artist.trim()}"
-                                } else title.trim()
-                                val response = deezerApi.searchAlbums(query)
-                                val albumList = response.data
-                                if (!albumList.isNullOrEmpty()) {
-                                    val best = albumList.firstOrNull { albumItem ->
-                                        (album.isNotBlank() && albumItem.title.contains(album, ignoreCase = true)) ||
-                                        albumItem.artist?.name?.contains(artist, ignoreCase = true) == true
-                                    } ?: albumList.firstOrNull()
-                                    imageUrl = best?.coverXl ?: best?.coverBig ?: best?.coverMedium ?: best?.cover
-                                }
-                            } catch (e: Exception) {
-                                Log.w("SongInfoBottomSheet", "Deezer album search failed: ${e.message}")
-                            }
-                        }
-                    }
-
-                    if (imageUrl.isNullOrEmpty() && NetworkClient.isYTMusicApiEnabled()) {
-                        val apiService = NetworkClient.ytmusicApiService
-                        if (apiService != null) {
-                            try {
-                                val searchQuery = "${title.trim()} ${artist.trim()}"
-                                val searchRequest = YTMusicSearchRequest(
-                                    context = YTMusicContext(YTMusicClient()),
-                                    query = searchQuery,
-                                    params = "EgWKAQIIAWoKEAoQAxAEEAkQBQ%3D%3D"
-                                )
-                                val response = apiService.search(request = searchRequest)
-                                if (response.isSuccessful) {
-                                    imageUrl = response.body()?.extractAlbumImageUrl()
-                                } else {
-                                    Log.w("SongInfoBottomSheet", "YTMusic search unsuccessful: ${response.code()}")
-                                }
-                            } catch (e: Exception) {
-                                Log.w("SongInfoBottomSheet", "YTMusic album search failed: ${e.message}")
-                            }
-                        }
-                    }
-
-                    if (!imageUrl.isNullOrEmpty()) {
-                        val okRequest = okhttp3.Request.Builder().url(imageUrl).build()
-                        val okResponse = NetworkClient.genericHttpClient.newCall(okRequest).execute()
-                        if (okResponse.isSuccessful) {
-                            val bytes = okResponse.body.bytes()
-                            val tempFile = File(context.cacheDir, "temp_artwork_fetched_${song.id}.jpg")
-                            tempFile.writeBytes(bytes)
-                            withContext(Dispatchers.Main) {
-                                selectedImageUri = Uri.fromFile(tempFile)
-                                removeArtwork = false
-                                Toast.makeText(context, R.string.songinfobottomsheet_artwork_fetched_successfully_click, Toast.LENGTH_SHORT).show()
-                            }
-                        } else {
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(context, R.string.songinfobottomsheet_failed_to_download_artwork_1, Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    } else {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, R.string.songinfobottomsheet_no_artwork_found_for, Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                } catch (e: Exception) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, context.getString(R.string.error_fetching_artwork, e.message ?: ""), Toast.LENGTH_LONG).show()
-                    }
-                } finally {
-                    withContext(Dispatchers.Main) {
-                        isFetchingOnlineArt = false
-                    }
-                }
-            }
-        }
-    }
-    
     val proceedWithSave = { 
         val yearInt = year.toIntOrNull() ?: 0
         val trackInt = trackNumber.toIntOrNull() ?: 0
         val discInt = discNumber.toIntOrNull() ?: 1
         
         isSaving = true
+        lyricSaveFailed = false
             onSave(
             title.trim(),
             artist.trim(),
@@ -1679,9 +1618,17 @@ private fun EditSongSheet(
             composer.trim(),
             discInt
         ) { success ->
-            isSaving = false
-            if (success) {
-                onDismiss()
+            if (!success) isSaving = false
+            else coroutineScope.launch {
+                try {
+                    importedLyrics?.let { lyrics ->
+                        chromahub.rhythm.app.features.local.data.metadata.CatalogLyricImport.save(context,
+                            song.copy(title = title.trim(), artist = artist.trim(), album = album.trim()), lyrics)
+                    }
+                    isSaving = false
+                    onDismiss()
+                } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                catch (_: Exception) { isSaving = false; lyricSaveFailed = true }
             }
         }
     }
@@ -1944,16 +1891,15 @@ private fun EditSongSheet(
                                         type = RhythmButtonType.Filled,
                                         icon = RhythmIcons.Image,
                                         iconSize = 18.dp,
-                                        text = context.getString(chromahub.rhythm.app.R.string.ui_select_artwork)
+                                        text = stringResource(R.string.ui_select_artwork)
                                     )
                                 }
 
-                                if (NetworkClient.isDeezerApiEnabled() || NetworkClient.isYTMusicApiEnabled()) {
+                                Column {
                                     Spacer(modifier = Modifier.height(10.dp))
                                     RhythmDetailActionButtonFullWidth(
                                         onClick = fetchOnlineArtwork,
-                                        enabled = !isFetchingOnlineArt && title.isNotBlank() && artist.isNotBlank(),
-                                        isLoading = isFetchingOnlineArt,
+                                        enabled = !isSaving,
                                         height = 48.dp,
                                         type = RhythmButtonType.Tonal,
                                         icon = MaterialSymbolIcon("cloud_download", filled = true),
@@ -2091,7 +2037,7 @@ private fun EditSongSheet(
 
                                         OutlinedTextField(
                                             value = genre,
-                                            onValueChange = { genre = it },
+                                            onValueChange = { genre = it.uppercase(java.util.Locale.ROOT) },
                                             label = { Text(stringResource(R.string.bottomsheet_genre), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                             leadingIcon = {
                                                 Icon(
@@ -2462,15 +2408,14 @@ private fun EditSongSheet(
                             type = RhythmButtonType.Filled,
                             icon = RhythmIcons.Image,
                             iconSize = 18.dp,
-                            text = context.getString(chromahub.rhythm.app.R.string.ui_select_artwork)
+                            text = stringResource(R.string.ui_select_artwork)
                         )
                     }
 
-                    if (NetworkClient.isDeezerApiEnabled() || NetworkClient.isYTMusicApiEnabled()) {
+                    Column {
                         RhythmDetailActionButtonFullWidth(
                             onClick = fetchOnlineArtwork,
-                            enabled = !isFetchingOnlineArt && title.isNotBlank() && artist.isNotBlank(),
-                            isLoading = isFetchingOnlineArt,
+                            enabled = !isSaving,
                             height = 48.dp,
                             type = RhythmButtonType.Tonal,
                             icon = MaterialSymbolIcon("cloud_download", filled = true),
@@ -2567,7 +2512,7 @@ private fun EditSongSheet(
 
                     OutlinedTextField(
                         value = genre,
-                        onValueChange = { genre = it },
+                        onValueChange = { genre = it.uppercase(java.util.Locale.ROOT) },
                         label = { Text(stringResource(R.string.bottomsheet_genre), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         leadingIcon = {
                             Icon(

@@ -1017,6 +1017,7 @@ fun PlayerScreen(
             song = song,
             isStreamingMode = isStreamingMode,
             onDismiss = { showLyricsEditorDialog = false },
+            manualTiming = { input -> chromahub.rhythm.app.features.local.presentation.metadata.ManualLyricTimingButton(song, lyrics, musicViewModel, input) },
             onSave = { editedLyrics, timeOffset, format ->
                 musicViewModel.saveEditedLyrics(editedLyrics, timeOffset, format)
             },

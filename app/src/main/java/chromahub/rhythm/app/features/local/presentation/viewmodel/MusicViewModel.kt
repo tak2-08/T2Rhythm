@@ -191,24 +191,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         private const val METADATA_EXTRA_ORIGINAL_ALBUM = "chromahub.rhythm.app.extra.original_album"
     }
 
-    private val repository = MusicRepository(application)
+    private val repository = chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(application)
     private val notificationManagerHelper = LibraryNotificationManager(application)
     private val metadataManagerHelper = LibraryMetadataManager(
         context = application,
         scope = viewModelScope,
         getCurrentSong = { _currentSong.value },
-        updateCurrentSongMetadata = { updatedSong -> updateCurrentSongMetadata(updatedSong) },
-        bulkUpdateSongs = { updatedSongsMap ->
-            val newSongs = _songs.value.map { song ->
-                updatedSongsMap[song.id] ?: song
-            }
-            _songs.value = newSongs
-            repository.updateAndPersistSongs(newSongs)
-            viewModelScope.launch {
-                _albums.value = repository.loadAlbums()
-                _artists.value = repository.loadArtists()
-            }
-        },
+        updateCurrentSongMetadata = { updatedSong -> commitSongMetadata(mapOf(updatedSong.id to updatedSong)) },
+        bulkUpdateSongs = { updatedSongs -> commitSongMetadata(updatedSongs) },
         pausePlaybackForWrite = { songId ->
             val controller = mediaController
             val isCurrent = _currentSong.value?.id == songId || controller?.currentMediaItem?.mediaId == songId
@@ -1210,24 +1200,32 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         val catalog = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(application)
+        chromahub.rhythm.app.features.local.data.metadata.EntityPageMaterializationWorker.enqueue(application)
+        chromahub.rhythm.app.features.local.data.metadata.FileNameWorker.enqueue(application)
+        viewModelScope.launch {
+            appSettings.useFolderNameAsAlbum.drop(1).collect {
+                refreshLibrary(showMediaScanLoader = false)
+            }
+        }
         viewModelScope.launch {
             catalog.changes.debounce(750).collect {
-                val updated = withContext(Dispatchers.IO) { repository.storedSongs(_songs.value) }
-                if (updated != _songs.value) {
-                    _songs.value = updated
-                    repository.updateAndPersistSongs(updated)
-                    _currentSong.value?.let { current -> updated.find { it.id == current.id }?.let { replacement ->
-                        if (replacement != current) updateCurrentSongMetadata(replacement)
-                    } }
-                }
+                val baseline = _songs.value
+                val updated = withContext(Dispatchers.IO) { repository.storedSongs(baseline) }
+                val changed = updated.filterIndexed { index, song -> song != baseline[index] }.associateBy { it.id }
+                if (changed.isNotEmpty()) commitSongMetadata(changed)
                 val artwork = withContext(Dispatchers.IO) {
-                    _albums.value.map { album -> album.copy(artworkUri = catalog.preferredArtwork(album.artworkUri,
+                    _albums.value.associate { album -> album.id to (album.artworkUri to catalog.preferredArtwork(album.artworkUri,
                         catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ALBUM, catalog.albumKey(album.title, album.artist))))) } to
-                    _artists.value.map { artist -> artist.copy(artworkUri = catalog.preferredArtwork(artist.artworkUri,
+                    _artists.value.associate { artist -> artist.id to (artist.artworkUri to catalog.preferredArtwork(artist.artworkUri,
                         catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ARTIST, catalog.artistKey(artist.name))))) }
                 }
-                _albums.value = artwork.first
-                _artists.value = artwork.second
+                // Only images are projected here; never restore an old list after a suspended lookup.
+                _albums.value = _albums.value.map { album ->
+                    artwork.first[album.id]?.takeIf { it.first == album.artworkUri }?.let { album.copy(artworkUri = it.second) } ?: album
+                }
+                _artists.value = _artists.value.map { artist ->
+                    artwork.second[artist.id]?.takeIf { it.first == artist.artworkUri }?.let { artist.copy(artworkUri = it.second) } ?: artist
+                }
                 _currentSong.value?.let { song ->
                     val saved = withContext(Dispatchers.IO) { chromahub.rhythm.app.features.local.data.metadata.AutomaticLyricsStore.get(application).read(song) }
                     if (_currentSong.value?.id == song.id && saved != null && saved.hasLyrics() && saved != _currentLyrics.value) {
@@ -1236,6 +1234,21 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         resetBluetoothLyricsBroadcastState(clearLastBroadcast = true)
                         _currentLyrics.value = saved
                     }
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            chromahub.rhythm.app.features.local.data.metadata.EntityPageStore.imageChanges.collect { change ->
+                if (change.root != application.filesDir.path) return@collect
+                val uri = withContext(Dispatchers.IO) {
+                    val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(application)
+                    pages.image(pages.read(change.kind, change.key))
+                }
+                if (change.kind == kr.co.metadata.crawler.EntityKind.ARTIST) _artists.value = _artists.value.map {
+                    if (catalog.artistKey(it.name) == change.key) it.copy(artworkUri = uri) else it
+                } else if (change.kind == kr.co.metadata.crawler.EntityKind.ALBUM) _albums.value = _albums.value.map {
+                    if (catalog.albumKey(it.title, it.artist) == change.key) it.copy(artworkUri = uri) else it
                 }
             }
         }
@@ -2976,68 +2989,95 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * Updates the current song metadata in the UI and library
      * @param update The song with updated metadata
      */
+    private val metadataCommitMutex = Mutex()
+
     fun updateCurrentSongMetadata(update: Song) {
-        viewModelScope.launch {
-            val updatedSong = withContext(Dispatchers.IO) { update.copy(artworkUri = repository.catalog.apply(update).artworkUri) }
-            // Update the song in the main songs list
-            val updatedSongs = _songs.value.map { song ->
-                if (song.id == updatedSong.id) updatedSong else song
-            }
-            _songs.value = updatedSongs
-            
-            // Update current song if it matches
-            if (_currentSong.value?.id == updatedSong.id) {
-                _currentSong.value = updatedSong
-            }
+        viewModelScope.launch { commitSongMetadata(mapOf(update.id to update)) }
+    }
 
-            _currentQueue.value = _currentQueue.value.copy(
-                songs = _currentQueue.value.songs.map { song ->
-                    if (song.id == updatedSong.id) updatedSong else song
+    /** Save, regroup and publish one coherent edit before reporting completion to the editor. */
+    private suspend fun commitSongMetadata(updates: Map<String, Song>) = metadataCommitMutex.withLock {
+        if (updates.isEmpty()) return@withLock
+        val replacements = withContext(Dispatchers.IO) { updates.mapValues { repository.catalog.apply(it.value) } }
+        val before = _songs.value
+        val updatedSongs = before.map { song -> replacements[song.id]?.takeIf { it.uri == song.uri } ?: song }
+        val previousCurrent = _currentSong.value
+        val previousArt = before.associate { it.id to it.artworkUri }
+        repository.persistEditedSongs(updatedSongs)
+        withContext(Dispatchers.IO) {
+            refreshEditedPageReferences(before, updatedSongs, replacements.keys)
+            val latest = updatedSongs.associateBy { it.id }
+            before.forEach { old -> latest[old.id]?.takeIf { it.title != old.title || it.artist != old.artist }?.let {
+                repository.refreshLyricsForMetadataChange(old, it)
+            } }
+        }
+        val (albums, artists, folders) = withContext(Dispatchers.IO) {
+            Triple(repository.loadAlbums(), repository.loadArtists(), repository.buildFolderTree(updatedSongs))
+        }
+        val oldAlbums = _albums.value.associateBy { it.id }
+        val oldArtists = _artists.value.associateBy { it.id }
+        _songs.value = updatedSongs
+        _albums.value = albums.map { album ->
+            val old = oldAlbums[album.id]?.artworkUri
+            if (old?.path?.startsWith(File(getApplication<Application>().cacheDir, "page-images").path + "/") == true)
+                album.copy(artworkUri = old) else album
+        }
+        _artists.value = artists.map { artist -> oldArtists[artist.id]?.let { artist.copy(artworkUri = it.artworkUri) } ?: artist }
+        _folderTree.value = folders
+        fun replace(song: Song) = replacements[song.id]?.takeIf { it.uri == song.uri } ?: song
+        _currentSong.value = _currentSong.value?.let(::replace)
+        _currentQueue.value = _currentQueue.value.copy(songs = _currentQueue.value.songs.map(::replace))
+        _playlists.value = _playlists.value.map { it.copy(songs = it.songs.map(::replace)) }
+        mediaController?.let { controller ->
+            try {
+                // The same song can appear more than once, including later in the queue.
+                for (index in 0 until controller.mediaItemCount) {
+                    val item = controller.getMediaItemAt(index)
+                    val song = replacements[item.mediaId] ?: continue
+                    if (item.localConfiguration?.uri != song.uri) continue
+                    controller.replaceMediaItem(index, item.buildUpon().setMediaMetadata(
+                        item.mediaMetadata.buildUpon().setTitle(song.title).setArtist(song.artist)
+                            .setAlbumTitle(song.album).setAlbumArtist(song.albumArtist).setGenre(song.genre)
+                            .setReleaseYear(song.year.takeIf { it > 0 }).setTrackNumber(song.trackNumber.takeIf { it > 0 })
+                            .setDiscNumber(song.discNumber.takeIf { it > 0 }).setArtworkUri(song.artworkUri)
+                            .setExtras(buildCanonicalMetadataExtras(song, item.mediaMetadata.extras)).build()
+                    ).build())
                 }
-            )
-
-            mediaController?.let { controller ->
-                try {
-                    val currentIndex = controller.currentMediaItemIndex
-                    if (currentIndex != C.INDEX_UNSET &&
-                        currentIndex in 0 until controller.mediaItemCount
-                    ) {
-                        val currentItem = controller.getMediaItemAt(currentIndex)
-                        if (currentItem.mediaId == updatedSong.id) {
-                            val updatedMetadata = currentItem.mediaMetadata.buildUpon()
-                                .setTitle(updatedSong.title)
-                                .setArtist(updatedSong.artist)
-                                .setAlbumTitle(updatedSong.album)
-                                .setArtworkUri(updatedSong.artworkUri)
-                                .build()
-                            val updatedItem = currentItem.buildUpon()
-                                .setMediaMetadata(updatedMetadata)
-                                .build()
-                            controller.replaceMediaItem(currentIndex, updatedItem)
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to update media item metadata in mediaController", e)
-                }
-            }
-            
-            // Update in any playlists
-            _playlists.value = _playlists.value.map { playlist ->
-                playlist.copy(
-                    songs = playlist.songs.map { song ->
-                        if (song.id == updatedSong.id) updatedSong else song
-                    }
-                )
-            }
-            
-            // Grouping must read the edited library, not the previous cached song list.
-            repository.persistEditedSongs(updatedSongs)
-            _albums.value = repository.loadAlbums()
-            _artists.value = repository.loadArtists()
-            savePlaylists()
-            
+            } catch (error: Exception) { Log.w(TAG, "Could not refresh playback metadata", error) }
+        }
+        val current = _currentSong.value
+        if (previousCurrent != null && current?.id == previousCurrent.id &&
+            (current.title != previousCurrent.title || current.artist != previousCurrent.artist || current.album != previousCurrent.album)) {
+            currentFetchingSongId = null
+            currentLoadedLyricsSongId = null
+            fetchLyricsForCurrentSong()
+        }
+        savePlaylists()
+        if (replacements.any { (id, song) -> previousArt[id] != song.artworkUri })
             chromahub.rhythm.app.util.ArtworkInvalidation.request(getApplication<Application>())
-            Log.d(TAG, "Updated song metadata: ${updatedSong.title} by ${updatedSong.artist}")
+    }
+
+    private fun refreshEditedPageReferences(before: List<Song>, after: List<Song>, ids: Set<String>) {
+        val catalog = repository.catalog
+        val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(getApplication())
+        val old = before.filter { it.id in ids }
+        val new = after.filter { it.id in ids }
+        val sources = old.map { catalog.songKey(it) }.toSet()
+        val delimiters = if (appSettings.artistSeparatorEnabled.value)
+            chromahub.rhythm.app.util.ArtistSeparator.parseDelimiters(appSettings.artistSeparatorDelimiters.value) else emptyList()
+        fun artistKeys(song: Song): Set<String> = listOf(song.artist, catalog.effectiveAlbumArtist(song))
+            .flatMap { raw -> if (delimiters.isEmpty()) listOf(raw) else chromahub.rhythm.app.util.ArtistSeparator.splitArtists(raw, delimiters) }
+            .map(catalog::artistKey).toSet()
+        val affected = old + new
+        fun pageTrack(song: Song) = chromahub.rhythm.app.features.local.data.metadata.PageTrack(
+            song.title, song.artist, song.album, song.duration, song.year, song.genre, catalog.songKey(song))
+        affected.map { catalog.albumKey(it.album, catalog.effectiveAlbumArtist(it)) }.toSet().forEach { key ->
+            pages.relinkTracks(kr.co.metadata.crawler.EntityKind.ALBUM, key, sources,
+                new.filter { catalog.albumKey(it.album, catalog.effectiveAlbumArtist(it)) == key }.map(::pageTrack))
+        }
+        affected.flatMap(::artistKeys).toSet().forEach { key ->
+            pages.relinkTracks(kr.co.metadata.crawler.EntityKind.ARTIST, key, sources,
+                new.filter { key in artistKeys(it) }.map(::pageTrack))
         }
     }
 
@@ -3059,6 +3099,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun updateArtistArtwork(artist: Artist, newUri: Uri?, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
+          try {
             val updatedUri = repository.saveArtistArtwork(artist.name, newUri)
             
             // Now, update our in-memory list _artists
@@ -3071,6 +3112,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
             chromahub.rhythm.app.util.ArtworkInvalidation.request(getApplication<Application>())
             onComplete()
+          } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+          catch (error: Exception) {
+              Log.e(TAG, "Artist image could not be saved", error)
+              android.widget.Toast.makeText(getApplication(), R.string.page_operation_failed, android.widget.Toast.LENGTH_LONG).show()
+          }
         }
     }
 
@@ -3867,7 +3913,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
                     if (distinctDbSongEntities.isNotEmpty()) {
                         distinctDbSongEntities.chunked(500).forEach { chunk ->
-                            repository.songDao.upsertAll(chunk)
+                            repository.songDao.insertMissing(chunk)
                         }
                     }
                 }

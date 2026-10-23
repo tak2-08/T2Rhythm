@@ -51,10 +51,6 @@ import chromahub.rhythm.app.shared.presentation.components.icons.Icon
 import chromahub.rhythm.app.shared.presentation.components.icons.MaterialSymbolIcon
 import chromahub.rhythm.app.util.ImageUtils
 import chromahub.rhythm.app.util.MediaUtils
-import chromahub.rhythm.app.network.NetworkClient
-import chromahub.rhythm.app.network.YTMusicSearchRequest
-import chromahub.rhythm.app.network.YTMusicContext
-import chromahub.rhythm.app.network.YTMusicClient
 import chromahub.rhythm.app.network.extractAlbumImageUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -140,7 +136,12 @@ fun EditAlbumSheet(
 
     var isSaving by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
-    var isFetchingOnlineArt by remember { mutableStateOf(false) }
+    var showCatalogArtwork by remember { mutableStateOf(false) }
+    if (showCatalogArtwork) chromahub.rhythm.app.features.local.presentation.metadata.CatalogArtworkDialog(
+        initialQuery = "$albumTitle $albumArtist".trim(), initialKind = kr.co.metadata.crawler.EntityKind.ALBUM,
+        onDismiss = { showCatalogArtwork = false }, onSelect = { uri ->
+            selectedImageUri = uri; removeArtwork = false; showCatalogArtwork = false
+        })
     var showWarningDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -331,81 +332,11 @@ fun EditAlbumSheet(
                                     }
                                 }
 
-                                if (NetworkClient.isYTMusicApiEnabled()) {
+                                Column {
                                     Spacer(modifier = Modifier.height(12.dp))
                                     Button(
-                                        onClick = {
-                                            isFetchingOnlineArt = true
-                                            coroutineScope.launch(Dispatchers.IO) {
-                                                try {
-                                                    val apiService = NetworkClient.ytmusicApiService
-                                                    if (apiService != null) {
-                                                        val searchQuery = "${albumTitle.trim()} ${albumArtist.trim()}"
-                                                        var imageUrl: String? = null
-                                                        
-                                                        // Try searching with Album filter first
-                                                        val albumSearchRequest = YTMusicSearchRequest(
-                                                            context = YTMusicContext(YTMusicClient()),
-                                                            query = searchQuery,
-                                                            params = "EgWKAQIYAWoKEAoQAxAEEAkQBQ%3D%3D"
-                                                        )
-                                                        val albumResponse = apiService.search(request = albumSearchRequest)
-                                                        if (albumResponse.isSuccessful) {
-                                                            imageUrl = albumResponse.body()?.extractAlbumImageUrl()
-                                                        }
-                                                        
-                                                        // Fallback to Song filter if album filter yielded nothing
-                                                        if (imageUrl.isNullOrEmpty()) {
-                                                            val songSearchRequest = YTMusicSearchRequest(
-                                                                context = YTMusicContext(YTMusicClient()),
-                                                                query = searchQuery,
-                                                                params = "EgWKAQIIAWoKEAoQAxAEEAkQBQ%3D%3D"
-                                                            )
-                                                            val songResponse = apiService.search(request = songSearchRequest)
-                                                            if (songResponse.isSuccessful) {
-                                                                imageUrl = songResponse.body()?.extractAlbumImageUrl()
-                                                            }
-                                                        }
-
-                                                        if (!imageUrl.isNullOrEmpty()) {
-                                                            val okRequest = okhttp3.Request.Builder().url(imageUrl).build()
-                                                                val okResponse = NetworkClient.genericHttpClient.newCall(okRequest).execute()
-                                                                if (okResponse.isSuccessful) {
-                                                                    val bytes = okResponse.body.bytes()
-                                                                    val tempFile = File(context.cacheDir, "temp_artwork_fetched_album_${album.id}.jpg")
-                                                                    tempFile.writeBytes(bytes)
-                                                                    withContext(Dispatchers.Main) {
-                                                                        selectedImageUri = Uri.fromFile(tempFile)
-                                                                        removeArtwork = false
-                                                                        Toast.makeText(context, R.string.songinfobottomsheet_artwork_fetched_successfully_click, Toast.LENGTH_SHORT).show()
-                                                                    }
-                                                                } else {
-                                                                    withContext(Dispatchers.Main) {
-                                                                        Toast.makeText(context, R.string.songinfobottomsheet_failed_to_download_artwork_1, Toast.LENGTH_SHORT).show()
-                                                                    }
-                                                                }
-                                                            } else {
-                                                                withContext(Dispatchers.Main) {
-                                                                    Toast.makeText(context, R.string.songinfobottomsheet_no_artwork_found_for, Toast.LENGTH_SHORT).show()
-                                                                }
-                                                            }
-                                                        } else {
-                                                            withContext(Dispatchers.Main) {
-                                                                Toast.makeText(context, R.string.songinfobottomsheet_online_api_service_unavailable, Toast.LENGTH_SHORT).show()
-                                                            }
-                                                        }
-                                                } catch (e: Exception) {
-                                                    withContext(Dispatchers.Main) {
-                                                        Toast.makeText(context, context.getString(R.string.error_fetching_artwork, e.message ?: ""), Toast.LENGTH_LONG).show()
-                                                    }
-                                                } finally {
-                                                    withContext(Dispatchers.Main) {
-                                                        isFetchingOnlineArt = false
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        enabled = !isFetchingOnlineArt && !isSaving && albumTitle.isNotBlank() && albumArtist.isNotBlank(),
+                                        onClick = { showCatalogArtwork = true },
+                                        enabled = !isSaving,
                                         shape = RoundedCornerShape(14.dp),
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -413,14 +344,6 @@ fun EditAlbumSheet(
                                         ),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        if (isFetchingOnlineArt) {
-                                            ActionProgressLoader(
-                                                size = 18.dp,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(stringResource(R.string.songinfobottomsheet_fetching))
-                                        } else {
                                             Icon(
                                                 imageVector = MaterialSymbolIcon("cloud_download", filled = true),
                                                 contentDescription = null,
@@ -428,7 +351,6 @@ fun EditAlbumSheet(
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(stringResource(R.string.songinfobottomsheet_fetch_online_art))
-                                        }
                                     }
                                 }
                             }
@@ -752,80 +674,10 @@ fun EditAlbumSheet(
                                     }
                                 }
 
-                                if (NetworkClient.isYTMusicApiEnabled()) {
+                                Column {
                                     Button(
-                                        onClick = {
-                                            isFetchingOnlineArt = true
-                                            coroutineScope.launch(Dispatchers.IO) {
-                                                try {
-                                                    val apiService = NetworkClient.ytmusicApiService
-                                                    if (apiService != null) {
-                                                        val searchQuery = "${albumTitle.trim()} ${albumArtist.trim()}"
-                                                        var imageUrl: String? = null
-                                                        
-                                                        // Try searching with Album filter first
-                                                        val albumSearchRequest = YTMusicSearchRequest(
-                                                            context = YTMusicContext(YTMusicClient()),
-                                                            query = searchQuery,
-                                                            params = "EgWKAQIYAWoKEAoQAxAEEAkQBQ%3D%3D"
-                                                        )
-                                                        val albumResponse = apiService.search(request = albumSearchRequest)
-                                                        if (albumResponse.isSuccessful) {
-                                                            imageUrl = albumResponse.body()?.extractAlbumImageUrl()
-                                                        }
-                                                        
-                                                        // Fallback to Song filter if album filter yielded nothing
-                                                        if (imageUrl.isNullOrEmpty()) {
-                                                            val songSearchRequest = YTMusicSearchRequest(
-                                                                context = YTMusicContext(YTMusicClient()),
-                                                                query = searchQuery,
-                                                                params = "EgWKAQIIAWoKEAoQAxAEEAkQBQ%3D%3D"
-                                                            )
-                                                            val songResponse = apiService.search(request = songSearchRequest)
-                                                            if (songResponse.isSuccessful) {
-                                                                imageUrl = songResponse.body()?.extractAlbumImageUrl()
-                                                            }
-                                                        }
-
-                                                        if (!imageUrl.isNullOrEmpty()) {
-                                                            val okRequest = okhttp3.Request.Builder().url(imageUrl).build()
-                                                                val okResponse = NetworkClient.genericHttpClient.newCall(okRequest).execute()
-                                                                if (okResponse.isSuccessful) {
-                                                                    val bytes = okResponse.body.bytes()
-                                                                    val tempFile = File(context.cacheDir, "temp_artwork_fetched_album_${album.id}.jpg")
-                                                                    tempFile.writeBytes(bytes)
-                                                                    withContext(Dispatchers.Main) {
-                                                                        selectedImageUri = Uri.fromFile(tempFile)
-                                                                        removeArtwork = false
-                                                                        Toast.makeText(context, R.string.songinfobottomsheet_artwork_fetched_successfully_click, Toast.LENGTH_SHORT).show()
-                                                                    }
-                                                                } else {
-                                                                    withContext(Dispatchers.Main) {
-                                                                        Toast.makeText(context, R.string.songinfobottomsheet_failed_to_download_artwork_1, Toast.LENGTH_SHORT).show()
-                                                                    }
-                                                                }
-                                                            } else {
-                                                                withContext(Dispatchers.Main) {
-                                                                    Toast.makeText(context, R.string.songinfobottomsheet_no_artwork_found_for, Toast.LENGTH_SHORT).show()
-                                                                }
-                                                            }
-                                                        } else {
-                                                            withContext(Dispatchers.Main) {
-                                                                Toast.makeText(context, R.string.songinfobottomsheet_online_api_service_unavailable, Toast.LENGTH_SHORT).show()
-                                                            }
-                                                        }
-                                                } catch (e: Exception) {
-                                                    withContext(Dispatchers.Main) {
-                                                        Toast.makeText(context, context.getString(R.string.error_fetching_artwork, e.message ?: ""), Toast.LENGTH_LONG).show()
-                                                    }
-                                                } finally {
-                                                    withContext(Dispatchers.Main) {
-                                                        isFetchingOnlineArt = false
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        enabled = !isFetchingOnlineArt && !isSaving && albumTitle.isNotBlank() && albumArtist.isNotBlank(),
+                                        onClick = { showCatalogArtwork = true },
+                                        enabled = !isSaving,
                                         shape = RoundedCornerShape(14.dp),
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -833,14 +685,6 @@ fun EditAlbumSheet(
                                         ),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        if (isFetchingOnlineArt) {
-                                            ActionProgressLoader(
-                                                size = 18.dp,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(stringResource(R.string.songinfobottomsheet_fetching))
-                                        } else {
                                             Icon(
                                                 imageVector = MaterialSymbolIcon("cloud_download", filled = true),
                                                 contentDescription = null,
@@ -848,7 +692,6 @@ fun EditAlbumSheet(
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text(stringResource(R.string.songinfobottomsheet_fetch_online_art))
-                                        }
                                     }
                                 }
                             }

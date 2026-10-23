@@ -16,6 +16,10 @@ import chromahub.rhythm.app.features.local.data.database.entity.SongEntity
 
 @Dao
 interface PlaylistDao {
+    @Query("""SELECT p.id AS playlistId, p.name, s.uri FROM playlists p
+        INNER JOIN playlist_songs ps ON ps.playlistId = p.id INNER JOIN songs s ON s.id = ps.songId
+        WHERE p.id IN (:ids) ORDER BY p.dateCreated DESC, p.id, ps.orderIndex ASC""")
+    suspend fun getSharedPlaylistRows(ids: List<String>): List<SharedPlaylistRow>
     @Query("SELECT * FROM playlists ORDER BY dateCreated DESC")
     suspend fun getAllPlaylists(): List<PlaylistEntity>
 
@@ -75,3 +79,5 @@ interface PlaylistDao {
         insertPlaylistSongs(playlistSongs)
     }
 }
+
+data class SharedPlaylistRow(val playlistId: String, val name: String, val uri: String)

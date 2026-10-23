@@ -143,7 +143,26 @@ data class RecommendationContext(
     val motionGenres: Map<String, Double> = emptyMap(),
     val daylightGenres: Map<String, Double> = emptyMap(),
     val jointGenres: Map<String, Double> = emptyMap(),
-)
+) {
+    fun canonicalGenres(): RecommendationContext {
+        fun canonical(values: Map<String, Double>) = values.entries.filter { it.value.isFinite() }
+            .groupBy { AdaptiveRecommendation.normalizeGenre(it.key) }.filterKeys(String::isNotBlank)
+            .mapValues { (_, rows) -> rows.map { it.value }.average() }
+        return copy(hourlyGenres = canonical(hourlyGenres),
+            genreTransitions = canonical(genreTransitions),
+            placeGenres = canonical(placeGenres),
+            outputGenres = canonical(outputGenres),
+            weekdayGenres = canonical(weekdayGenres),
+            recentGenres = canonical(recentGenres),
+            weatherGenres = canonical(weatherGenres),
+            brightnessGenres = canonical(brightnessGenres),
+            volumeGenres = canonical(volumeGenres),
+            ambientGenres = canonical(ambientGenres),
+            motionGenres = canonical(motionGenres),
+            daylightGenres = canonical(daylightGenres),
+            jointGenres = canonical(jointGenres))
+    }
+}
 
 /** Deterministic, explainable ranking over lifetime history; never uploads listening data. */
 object PersonalRecommendation {
@@ -154,6 +173,7 @@ object PersonalRecommendation {
         now: Long = System.currentTimeMillis(),
         context: RecommendationContext = RecommendationContext(),
     ): List<RecommendationScore> {
+        val normalizedContext = context.canonicalGenres()
         val artist =
             history
                 .groupBy { it.artist }
@@ -161,7 +181,7 @@ object PersonalRecommendation {
         val genre =
             history
                 .filter { !it.genre.isNullOrBlank() }
-                .groupBy { it.genre }
+                .groupBy { AdaptiveRecommendation.normalizeGenre(it.genre) }
                 .mapValues { it.value.sumOf { h -> h.listenedMs }.toDouble() }
         val bySong = history.associateBy { it.songKey }
         val maxArtist = artist.values.maxOrNull()?.coerceAtLeast(1.0) ?: 1.0
@@ -169,11 +189,11 @@ object PersonalRecommendation {
         fun strength(value: Double, max: Double) =
             kotlin.math.ln(1 + value) / kotlin.math.ln(1 + max)
         return candidates
-            .filterNot { it.current || context.explicitFeedback[it.key] == 0.0 }
+            .filterNot { it.current || normalizedContext.explicitFeedback[it.key] == 0.0 }
             .map { c ->
                 val h = bySong[c.key]
                 val a = strength(artist[c.artist] ?: 0.0, maxArtist)
-                val g = strength(genre[c.genre] ?: 0.0, maxGenre)
+                val g = strength(genre[AdaptiveRecommendation.normalizeGenre(c.genre)] ?: 0.0, maxGenre)
                 val novelty =
                     if (h == null) 1.0
                     else
@@ -181,30 +201,30 @@ object PersonalRecommendation {
                             .coerceIn(0.0, 1.0)
                 val repeat = if (h == null) 0.0 else kotlin.math.ln(1 + h.plays.toDouble()) / 5.0
                 val hour =
-                    context.hourlyGenres[c.genre.orEmpty()]
-                        ?: context.hourlyGenres[AdaptiveRecommendation.normalizeGenre(c.genre)]
+                    normalizedContext.hourlyGenres[c.genre.orEmpty()]
+                        ?: normalizedContext.hourlyGenres[AdaptiveRecommendation.normalizeGenre(c.genre)]
                         ?: 0.0
                 val transition =
-                    context.genreTransitions[c.genre.orEmpty()]
-                        ?: context.genreTransitions[AdaptiveRecommendation.normalizeGenre(c.genre)]
+                    normalizedContext.genreTransitions[c.genre.orEmpty()]
+                        ?: normalizedContext.genreTransitions[AdaptiveRecommendation.normalizeGenre(c.genre)]
                         ?: 0.0
-                val skip = context.skipRates[c.key] ?: 0.0
-                val due = context.replayDue[c.key] ?: 0.0
+                val skip = normalizedContext.skipRates[c.key] ?: 0.0
+                val due = normalizedContext.replayDue[c.key] ?: 0.0
                 val newlyAdded =
                     if (h == null && c.addedAt > 0)
                         (1 - (now - c.addedAt).coerceAtLeast(0).toDouble() / (30 * 24 * 3600_000L))
                             .coerceIn(0.0, 1.0)
                     else 0.0
                 val normalizedGenre = AdaptiveRecommendation.normalizeGenre(c.genre)
-                val place = context.placeGenres[normalizedGenre] ?: 0.0
-                val output = context.outputGenres[normalizedGenre] ?: 0.0
-                val day = context.weekdayGenres[normalizedGenre] ?: 0.0
-                val completion = context.completionRates[c.key] ?: .5
-                val recent = context.recentGenres[normalizedGenre] ?: 0.0
-                val weather = context.weatherGenres[normalizedGenre] ?: 0.0
-                val brightness = context.brightnessGenres[normalizedGenre] ?: 0.0
-                val volume = context.volumeGenres[normalizedGenre] ?: 0.0
-                val ambient = context.ambientGenres[normalizedGenre] ?: 0.0
+                val place = normalizedContext.placeGenres[normalizedGenre] ?: 0.0
+                val output = normalizedContext.outputGenres[normalizedGenre] ?: 0.0
+                val day = normalizedContext.weekdayGenres[normalizedGenre] ?: 0.0
+                val completion = normalizedContext.completionRates[c.key] ?: .5
+                val recent = normalizedContext.recentGenres[normalizedGenre] ?: 0.0
+                val weather = normalizedContext.weatherGenres[normalizedGenre] ?: 0.0
+                val brightness = normalizedContext.brightnessGenres[normalizedGenre] ?: 0.0
+                val volume = normalizedContext.volumeGenres[normalizedGenre] ?: 0.0
+                val ambient = normalizedContext.ambientGenres[normalizedGenre] ?: 0.0
                 val features =
                     listOf(
                             a,
@@ -224,25 +244,25 @@ object PersonalRecommendation {
                             brightness,
                             volume,
                             ambient,
-                            context.motionGenres[normalizedGenre] ?: 0.0,
-                            context.daylightGenres[normalizedGenre] ?: 0.0,
+                            normalizedContext.motionGenres[normalizedGenre] ?: 0.0,
+                            normalizedContext.daylightGenres[normalizedGenre] ?: 0.0,
                             c.entityAffinity,
-                            context.jointGenres[normalizedGenre] ?: 0.0,
-                            c.acousticSimilarity * (context.jointGenres[normalizedGenre] ?: 0.0),
-                            completion * (context.jointGenres[normalizedGenre] ?: 0.0),
+                            normalizedContext.jointGenres[normalizedGenre] ?: 0.0,
+                            c.acousticSimilarity * (normalizedContext.jointGenres[normalizedGenre] ?: 0.0),
+                            completion * (normalizedContext.jointGenres[normalizedGenre] ?: 0.0),
                             novelty * recent,
                         )
                         .map { it.coerceIn(0.0, 1.0) }
                 val learned =
                     AdaptiveRecommendation.probability(
-                        context.learnedWeights.take(features.size) +
-                            List((features.size - context.learnedWeights.size).coerceAtLeast(0)) {
+                        normalizedContext.learnedWeights.take(features.size) +
+                            List((features.size - normalizedContext.learnedWeights.size).coerceAtLeast(0)) {
                                 0.0
                             },
                         features,
                     ) - .5
-                val confidence = context.learnedSamples.toDouble() / (context.learnedSamples + 30)
-                val joint = context.jointGenres[normalizedGenre] ?: 0.0
+                val confidence = normalizedContext.learnedSamples.toDouble() / (normalizedContext.learnedSamples + 30)
+                val joint = normalizedContext.jointGenres[normalizedGenre] ?: 0.0
                 val score =
                     profile.contextWeight * joint * (0.5 + 0.5 * completion) +
                         a * profile.artistWeight +
@@ -266,10 +286,10 @@ object PersonalRecommendation {
                         profile.learningWeight * confidence * learned +
                         .08 * c.entityAffinity +
                         profile.contextWeight *
-                            ((context.motionGenres[normalizedGenre] ?: 0.0) +
-                                (context.daylightGenres[normalizedGenre] ?: 0.0)) / 4 +
+                            ((normalizedContext.motionGenres[normalizedGenre] ?: 0.0) +
+                                (normalizedContext.daylightGenres[normalizedGenre] ?: 0.0)) / 4 +
                         .1 * (completion - .5) +
-                        .15 * (context.explicitFeedback[c.key] ?: .5)
+                        .15 * (normalizedContext.explicitFeedback[c.key] ?: .5)
                 RecommendationScore(
                     c.key,
                     score,

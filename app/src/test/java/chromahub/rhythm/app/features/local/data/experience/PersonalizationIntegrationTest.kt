@@ -40,7 +40,7 @@ class PersonalizationIntegrationTest {
         val scene = ListeningSituation(weather = weather, hour = 10, weekday = 3)
         val row = ListeningRecord("a", "a", "segment", "a", "a", "A", "Artist", "Album", "Pop", 0, 90_000, 90_000, 100_000, 0, 90_000, 1f, "pause", situation = scene)
         val context = AdaptiveRecommendation.contextPreference(listOf(row), scene, 90_000)
-        assertTrue(context.weatherGenres.getValue("pop") > 0)
+        assertTrue(context.weatherGenres.getValue("POP") > 0)
         assertTrue(context.completionRates.getValue("a") > .5)
         assertTrue(AdaptiveRecommendation.contextPreference(listOf(row), scene.copy(weather = null), 90_000).weatherGenres.isEmpty())
     }
@@ -79,9 +79,9 @@ class PersonalizationIntegrationTest {
         val row = ListeningRecord("a", "a", "segment", "a", "a", "A", "B", "C", "Pop", 0, 90_000, 90_000, 100_000, 0, 90_000, 1f, "pause", situation = scene)
         val matched = AdaptiveRecommendation.contextPreference(listOf(row), scene, 90_000)
         val different = AdaptiveRecommendation.contextPreference(listOf(row), scene.copy(brightnessSetting = 250, systemVolume = 15, ambientSound = sound.copy(rmsDbfs = -5.0)), 90_000)
-        assertTrue(matched.brightnessGenres.getValue("pop") > different.brightnessGenres.getValue("pop"))
-        assertTrue(matched.volumeGenres.getValue("pop") > different.volumeGenres.getValue("pop"))
-        assertTrue(matched.ambientGenres.getValue("pop") > different.ambientGenres.getValue("pop"))
+        assertTrue(matched.brightnessGenres.getValue("POP") > different.brightnessGenres.getValue("POP"))
+        assertTrue(matched.volumeGenres.getValue("POP") > different.volumeGenres.getValue("POP"))
+        assertTrue(matched.ambientGenres.getValue("POP") > different.ambientGenres.getValue("POP"))
         assertTrue(AdaptiveRecommendation.contextPreference(listOf(row), scene.copy(ambientSound = null), 90_000).ambientGenres.isEmpty())
     }
 

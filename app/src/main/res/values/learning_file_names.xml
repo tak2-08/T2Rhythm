@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="analysis_battery_title">Minimum battery for learning</string>
+    <string name="analysis_battery_hint" formatted="false">Automatic analysis and learning run while charging or above your selected battery level. The default is 75%; choose 50–95%. Heat, power saver, memory and device load can still pause work.</string>
+    <string name="analysis_battery_value">Battery %1$d%% or higher</string>
+    <string name="analysis_battery_reset" formatted="false">Use default · 75%</string>
+    <string name="genre_signal_weights" formatted="false">Waveform 50% · audio fingerprint 30% · lyrics 15% · title 5%</string>
+    <string name="genre_signal_hint">Missing inputs are left out. Text alone cannot produce a genre suggestion. Copies of the same recording share one vote; new models are checked on recordings excluded from their training.</string>
+    <string name="genre_validation_provisional">More distinct, labelled recordings are needed to evaluate genre accuracy.</string>
+    <string name="genre_validation_score">Recording cross-validation: %1$d recordings · %2$d%% correct</string>
+    <string name="genre_validation_kept">Kept the previous genre model because the candidate performed worse.</string>
+    <string name="file_names_title">Automatic audio filenames</string>
+    <string name="file_names_short">Name audio files using their embedded title and artist tags.</string>
+    <string name="file_names_auto">Automatically organize filenames</string>
+    <string name="file_names_hint">Uses the actual embedded title tag. Keeps the folder, audio extension and existing links. Files without a title, files playing now and inaccessible files are skipped. Existing files are never overwritten.</string>
+    <string name="file_names_artist_title">Artist - Title</string>
+    <string name="file_names_title_only">Title</string>
+    <string name="file_names_example">Example: %1$s</string>
+    <string name="file_names_preview">Preview filename changes</string>
+    <string name="file_names_progress">Checked %1$d tracks…</string>
+    <string name="file_names_applying">Changing file names…</string>
+    <string name="file_names_pending">%1$d files need permission or another attempt. Preview to review them.</string>
+    <string name="file_names_empty">No filenames to change. Files already organized, playing, unavailable or missing title tags are skipped.</string>
+    <string name="file_names_count">Selected %1$d / %2$d files</string>
+    <string name="file_names_batch">Review up to 500 changes per preview. After applying, preview again for more files.</string>
+    <string name="file_names_apply">Apply to %1$d files</string>
+    <string name="file_names_permission">Allow file changes and apply</string>
+    <string name="file_names_permission_denied">Files without permission were left unchanged. You can try again later.</string>
+    <string name="file_names_result">Renamed %1$d files · %2$d waiting or skipped</string>
+    <string name="file_names_failed">Could not complete the changes. Check file access and preview again.</string>
+</resources>

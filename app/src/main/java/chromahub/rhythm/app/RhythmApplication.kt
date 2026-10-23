@@ -73,6 +73,7 @@ class RhythmApplication : Application(), ImageLoaderFactory {
         val settings = AppSettings.getInstance(applicationContext)
         Log.d(TAG, "✓ AppSettings initialized")
         chromahub.rhythm.app.features.local.data.metadata.ArtworkPrivacyWorker.enqueue(this)
+        chromahub.rhythm.app.features.updates.UpdateMaintenanceWorker.enqueue(this)
         chromahub.rhythm.app.features.local.data.experience.AnalysisScheduling.install(this)
         chromahub.rhythm.app.features.local.data.experience.HistoryRetention.enqueue(this)
         chromahub.rhythm.app.features.local.data.experience.RecommendationTrainingWorker.enqueue(this)
@@ -162,6 +163,7 @@ class RhythmApplication : Application(), ImageLoaderFactory {
                 add(chromahub.rhythm.app.util.coil.StreamingArtworkKeyer())
                 add(chromahub.rhythm.app.util.coil.StreamingArtworkStringKeyer())
                 add(chromahub.rhythm.app.util.coil.AudioArtworkFetcher.Factory(applicationContext))
+                add(chromahub.rhythm.app.features.streaming.PrivateArtworkFetcher.Factory(applicationContext))
             }
             .memoryCache {
                 MemoryCache.Builder(this)

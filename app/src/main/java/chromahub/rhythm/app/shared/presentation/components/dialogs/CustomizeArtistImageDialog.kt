@@ -24,7 +24,9 @@ fun CustomizeArtistImageDialog(
     artistName: String,
     onDismiss: () -> Unit,
     onSelectImage: () -> Unit,
-    onResetImage: () -> Unit
+    onResetImage: () -> Unit,
+    onSearchOnline: (() -> Unit)? = null,
+    isAlbum: Boolean = false
 ) {
     val context = LocalContext.current
 
@@ -40,14 +42,14 @@ fun CustomizeArtistImageDialog(
         },
         title = {
             Text(
-                text = stringResource(R.string.customizeartistimage_title),
+                text = stringResource(if (isAlbum) R.string.entity_album_image_title else R.string.customizeartistimage_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
         },
         text = {
             Text(
-                text = stringResource(R.string.customizeartistimage_body_format, artistName),
+                text = artistName,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -60,6 +62,10 @@ fun CustomizeArtistImageDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                if (onSearchOnline != null) Button(
+                    onClick = { onSearchOnline(); onDismiss() },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                ) { Text(stringResource(R.string.entity_online_artwork)) }
                 Button(
                     onClick = {
                         onSelectImage()

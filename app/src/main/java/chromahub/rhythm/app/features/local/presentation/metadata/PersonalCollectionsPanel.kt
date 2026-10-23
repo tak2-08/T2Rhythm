@@ -33,6 +33,14 @@ fun PersonalCollectionsPanel(songs: List<Song>, favorites: List<String>, current
 @Composable
 fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, currentId: String?,
     onPlayQueue: (List<Song>, Int) -> Unit, onCreatePlaylist: (String, List<Song>) -> Unit, onMoveSection: () -> Unit = {}) {
+    val genreContext = LocalContext.current
+    val learningUi by chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(LocalContext.current).learningUiEnabled.collectAsState()
+    val genreRevision by chromahub.rhythm.app.features.local.data.discovery.GenreCorrections.revision.collectAsState()
+    var genreOptions by remember { mutableStateOf(emptyList<String>()) }
+    LaunchedEffect(songs, genreRevision) { try { genreOptions = withContext(Dispatchers.IO) {
+        chromahub.rhythm.app.features.local.data.discovery.GenreCorrections(genreContext).apply(songs)
+            .flatMap { chromahub.rhythm.app.util.GenreUtils.splitGenres(it.genre) }.distinctBy { it.lowercase(java.util.Locale.ROOT) }.sorted()
+    } } catch (cancel: CancellationException) { throw cancel } catch (_: Exception) { genreOptions = songs.flatMap { chromahub.rhythm.app.util.GenreUtils.splitGenres(it.genre) }.distinct() } }
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val context = LocalContext.current; val scope = rememberCoroutineScope()
     var message by remember { mutableStateOf<String?>(null) }
@@ -52,7 +60,7 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
     var drawer by remember { mutableStateOf(false) }
     var shelf by remember { mutableStateOf(emptyList<MixSnapshot>()) }
     val catalog = remember(songs) { songs.associateBy { it.uri.toString() } }
-    LaunchedEffect(songs, hour, refresh, selectedMix) {
+    LaunchedEffect(songs, hour, refresh, selectedMix, genreRevision) {
         val manualRefresh=refresh!=handledRefresh
         handledRefresh=refresh
         proposalBusy = true
@@ -95,7 +103,7 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
         PersonalCollection.REDISCOVERY -> R.string.personal_rediscovery; PersonalCollection.SIMILAR -> R.string.personal_similar
         PersonalCollection.FAVORITES -> R.string.personal_liked_mix; PersonalCollection.FEWER_REPEATS -> R.string.personal_fewer_repeats
     })
-    LaunchedEffect(selected, genre, sheetRefresh) {
+    LaunchedEffect(selected, genre, sheetRefresh, genreRevision) {
         val mode = selected ?: return@LaunchedEffect
         busy = true; message = null
         try {
@@ -143,10 +151,10 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
                 }
                 if (proposalBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    FilterChip(selected = reaction == 1.0, enabled = !proposalBusy && !ratingBusy && proposal.isNotEmpty(),
+                    if (learningUi) FilterChip(selected = reaction == 1.0, enabled = !proposalBusy && !ratingBusy && proposal.isNotEmpty(),
                         onClick = { rate(if (reaction == 1.0) null else 1.0) }, label = { Text(stringResource(R.string.personal_like)) },
                         leadingIcon = { Icon(MaterialSymbolIcon("thumb_up", filled = reaction == 1.0), null, Modifier.size(18.dp)) })
-                    FilterChip(selected = reaction == 0.0, enabled = !proposalBusy && !ratingBusy && proposal.isNotEmpty(),
+                    if (learningUi) FilterChip(selected = reaction == 0.0, enabled = !proposalBusy && !ratingBusy && proposal.isNotEmpty(),
                         onClick = { rate(if (reaction == 0.0) null else 0.0) }, label = { Text(stringResource(R.string.personal_dislike)) },
                         leadingIcon = { Icon(MaterialSymbolIcon("thumb_down", filled = reaction == 0.0), null, Modifier.size(18.dp)) })
                     Spacer(Modifier.weight(1f))
@@ -154,7 +162,7 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
                         snapshot?.let { RecommendationShelf.interacted(context,it.id) }; val picks = proposal.toList(); scope.launch(operationError) { withContext(Dispatchers.IO) { RecommendationLearning.get(context).selected(picks.first().uri.toString()) }; onPlayQueue(picks, 0) }
                     }) { Icon(MaterialSymbolIcon("play_arrow"), stringResource(R.string.action_play), Modifier.size(24.dp)) }
                 }
-                Text(stringResource(R.string.personal_feedback_short), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (learningUi) Text(stringResource(R.string.personal_feedback_short), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (!proposalBusy && proposal.isEmpty()) Text(stringResource(R.string.personal_collection_empty), style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -180,15 +188,9 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
             Text(label(selected!!), style = MaterialTheme.typography.headlineSmall)
             Text(stringResource(R.string.personal_collection_local), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (selected == PersonalCollection.DAYLIST) Text(java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE HH:mm", configuration.locales[0])), style = MaterialTheme.typography.labelLarge)
-            if (selected in setOf(PersonalCollection.FAVORITES, PersonalCollection.DAILY_MIX)) {
-                Box {
-                    OutlinedButton(onClick = { genresOpen = true }) { Text(genre ?: stringResource(R.string.personal_all_genres)) }
-                    DropdownMenu(expanded = genresOpen, onDismissRequest = { genresOpen = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.personal_all_genres)) }, onClick = { sheetSnapshot = null; genre = null; genresOpen = false })
-                        songs.mapNotNull { it.genre?.trim()?.takeIf(String::isNotBlank) }.distinct().sorted().forEach { value ->
-                            DropdownMenuItem(text = { Text(value) }, onClick = { sheetSnapshot = null; genre = value; genresOpen = false })
-                        }
-                    }
+            run {
+                OutlinedButton(onClick = { genresOpen = true }) {
+                    Text(genre ?: stringResource(R.string.personal_all_genres), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
             val currentCollectionId = sheetSnapshot?.feedbackKey.orEmpty()
@@ -197,7 +199,7 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
             }
             var sheetReaction by remember(currentCollectionId) { mutableStateOf<Double?>(null) }
             LaunchedEffect(currentCollectionId) { sheetReaction = withContext(Dispatchers.IO) { RecommendationLearning.get(context).model().collections[currentCollectionId] } }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (learningUi) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(1.0 to R.string.personal_like, 0.0 to R.string.personal_dislike).forEach { (value, label) ->
                     FilterChip(selected = sheetReaction == value, enabled = !busy && collection.isNotEmpty() && !ratingBusy, onClick = {
                         val next = if (sheetReaction == value) null else value; val keys = collection.map { it.uri.toString() }; ratingBusy = true
@@ -205,7 +207,7 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
                     }, label = { Text(stringResource(label)) })
                 }
             }
-            Text(stringResource(R.string.personal_feedback_toggle_hint), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (learningUi) Text(stringResource(R.string.personal_feedback_toggle_hint), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(enabled = !busy && collection.isNotEmpty(), onClick = {
@@ -233,6 +235,12 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
             }
         }
     }
+    if (genresOpen) GenreSelectionDialog(genreOptions, chromahub.rhythm.app.util.GenreUtils.splitGenres(genre).toSet(),
+        onDismiss = { genresOpen = false }, onApply = { values ->
+            sheetSnapshot = null; collection = emptyList(); busy = true
+            genre = values.sortedBy { it.lowercase(java.util.Locale.ROOT) }.joinToString(", ").ifEmpty { null }
+            sheetRefresh++
+        })
     if (drawer) ModalBottomSheet(onDismissRequest = { drawer = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Text(context.getString(R.string.personal_mix_shelf), Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.headlineSmall)
         Text(context.getString(R.string.personal_mix_shelf_hint), Modifier.padding(horizontal = 24.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)

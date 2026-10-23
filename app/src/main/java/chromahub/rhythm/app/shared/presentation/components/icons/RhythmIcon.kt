@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -197,18 +198,21 @@ fun Icon(
             size
         }
         val glyphSize = slotSize * MaterialSymbolGlyphScale
+        // Font-backed icons occupy a dp slot, like vector icons. Text accessibility scaling
+        // must not enlarge the glyph beyond that slot and clip its lower/right edge.
+        val glyphTextSize = with(LocalDensity.current) { glyphSize.toSp() }
 
         androidx.compose.material3.Text(
             text = icon.name,
             fontFamily = fontFamily,
-            fontSize = glyphSize.value.sp,
+            fontSize = glyphTextSize,
             color = tint,
             textAlign = TextAlign.Center,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Clip,
             style = TextStyle(
-                lineHeight = glyphSize.value.sp,
+                lineHeight = glyphTextSize,
                 platformStyle = PlatformTextStyle(includeFontPadding = false)
             )
         )

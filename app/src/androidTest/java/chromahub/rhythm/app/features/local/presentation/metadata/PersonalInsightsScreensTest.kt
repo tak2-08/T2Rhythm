@@ -54,10 +54,10 @@ class PersonalInsightsScreensTest {
         compose.onNodeWithText(ctx.getString(R.string.discovery_albums)).performClick()
         compose.onNodeWithText(ctx.getString(R.string.download_album_name)).assertIsDisplayed()
     }
-    @Test fun algorithmManagementSeparatesPatternsLearningAndHistory() {
+    @Test fun algorithmTrainingIsSeparateFromServiceHistory() {
         val ctx = context
-        compose.setContent { CompositionLocalProvider(LocalContext provides ctx, LocalConfiguration provides ctx.resources.configuration) { MaterialTheme { AlgorithmManagement {} } } }
-        compose.onNodeWithText(ctx.getString(R.string.algorithm_title)).assertIsDisplayed()
+        compose.setContent { CompositionLocalProvider(LocalContext provides ctx, LocalConfiguration provides ctx.resources.configuration) { MaterialTheme { AlgorithmManagement(training = true) {} } } }
+        compose.onNodeWithText(ctx.getString(R.string.algorithm_training_title)).assertIsDisplayed()
         compose.onNodeWithText(ctx.getString(R.string.algorithm_learning)).performClick()
         compose.onNodeWithText(ctx.getString(R.string.algorithm_limits)).assertExists()
         capture("insights-algorithms.png")

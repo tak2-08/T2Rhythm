@@ -158,6 +158,7 @@ fun MusicVideoStatus(controls: MusicVideoControls) {
 @Composable
 fun MusicVideoSession(song: Song, controls: MusicVideoControls) {
     val context = LocalContext.current; val scope = rememberCoroutineScope()
+    val learningUi by chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).learningUiEnabled.collectAsState()
     val repository = remember { MusicVideoRepository(context) }
     val key = repository.key(song)
     var video by controls.video
@@ -214,7 +215,7 @@ fun MusicVideoSession(song: Song, controls: MusicVideoControls) {
             }
         }
     }
-    if (feedback) AlertDialog(onDismissRequest = { feedback = false }, title = { Text(stringResource(R.string.context_feedback)) },
+    if (feedback && learningUi) AlertDialog(onDismissRequest = { feedback = false }, title = { Text(stringResource(R.string.context_feedback)) },
         text = { Column {
             Text(stringResource(R.string.context_feedback_hint))
             TextButton(onClick = { scope.launch(videoFailureHandler) { withContext(Dispatchers.IO) { chromahub.rhythm.app.features.local.data.experience.PersonalCollections.snooze(context, song.uri.toString(), song.title) }; feedback = false } }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.personal_snooze)) }

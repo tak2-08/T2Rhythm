@@ -963,6 +963,25 @@ class AppSettings private constructor(context: Context) {
 
     private val _libraryCombineDiscs = MutableStateFlow(prefs.getBoolean(KEY_LIBRARY_COMBINE_DISCS, false))
     val libraryCombineDiscs: StateFlow<Boolean> = _libraryCombineDiscs.asStateFlow()
+    private val _useFolderNameAsAlbum = MutableStateFlow(prefs.getBoolean("use_folder_name_as_album", false))
+    private val _analysisMinimumBattery = MutableStateFlow(prefs.getInt("analysis_minimum_battery", 75).coerceIn(50, 95))
+    val analysisMinimumBattery: StateFlow<Int> = _analysisMinimumBattery.asStateFlow()
+    fun setAnalysisMinimumBattery(value: Int) {
+        val bounded = value.coerceIn(50, 95)
+        prefs.edit { putInt("analysis_minimum_battery", bounded) }
+        _analysisMinimumBattery.value = bounded
+    }
+    val useFolderNameAsAlbum: StateFlow<Boolean> = _useFolderNameAsAlbum.asStateFlow()
+    private val _autoFileNames = MutableStateFlow(prefs.getBoolean("auto_file_names", false))
+    val autoFileNames: StateFlow<Boolean> = _autoFileNames.asStateFlow()
+    private val _fileNameFormat = MutableStateFlow(prefs.getString("file_name_format", "ARTIST_TITLE").takeIf { it in setOf("ARTIST_TITLE", "TITLE") } ?: "ARTIST_TITLE")
+    val fileNameFormat: StateFlow<String> = _fileNameFormat.asStateFlow()
+    fun setAutoFileNames(enabled: Boolean) { prefs.edit { putBoolean("auto_file_names", enabled) }; _autoFileNames.value = enabled }
+    fun setFileNameFormat(format: String) { require(format in setOf("ARTIST_TITLE", "TITLE")); prefs.edit { putString("file_name_format", format) }; _fileNameFormat.value = format }
+    fun setUseFolderNameAsAlbum(enabled: Boolean) {
+        prefs.edit { putBoolean("use_folder_name_as_album", enabled) }
+        _useFolderNameAsAlbum.value = enabled
+    }
     
     // Player Chip Order (Add to Playlist and Edit chips are not reorderable - they stay fixed)
     private val defaultChipOrder = listOf("FAVORITE", "SPEED", "EQUALIZER", "SLEEP_TIMER", "LYRICS", "ALBUM", "ARTIST", "SHARE")
@@ -1929,6 +1948,14 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
     val crashLogHistory: StateFlow<List<CrashLogEntry>> = _crashLogHistory.asStateFlow()
     
     // Haptic Feedback Settings
+    private val _learningUiEnabled = MutableStateFlow(prefs.getBoolean("learning_ui_enabled", true))
+    val learningUiEnabled: StateFlow<Boolean> = _learningUiEnabled.asStateFlow()
+
+    fun setLearningUiEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("learning_ui_enabled", enabled).apply()
+        _learningUiEnabled.value = enabled
+    }
+
     private val _hapticFeedbackEnabled = MutableStateFlow(prefs.getBoolean(KEY_HAPTIC_FEEDBACK_ENABLED, true))
     val hapticFeedbackEnabled: StateFlow<Boolean> = _hapticFeedbackEnabled.asStateFlow()
     
@@ -5259,7 +5286,7 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
                             
                             if (songEntitiesToInsert.isNotEmpty()) {
                                 val distinctSongs = songEntitiesToInsert.distinctBy { it.id }
-                                songDao.insertAll(distinctSongs)
+                                songDao.insertMissing(distinctSongs)
                                 Log.d("AppSettings", "Restored ${distinctSongs.size} unique song metadata records directly to Room database")
                             }
                         }
@@ -5513,6 +5540,10 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
         _artistCollaborationMode.value = prefs.getBoolean(KEY_ARTIST_COLLABORATION_MODE, false)
         _songsSortOrder.value = prefs.getString(KEY_SONGS_SORT_ORDER, "TITLE_ASC") ?: "TITLE_ASC"
         _libraryCombineDiscs.value = prefs.getBoolean(KEY_LIBRARY_COMBINE_DISCS, false)
+        _useFolderNameAsAlbum.value = prefs.getBoolean("use_folder_name_as_album", false)
+        _analysisMinimumBattery.value = prefs.getInt("analysis_minimum_battery", 75).coerceIn(50, 95)
+        _autoFileNames.value = prefs.getBoolean("auto_file_names", false)
+        _fileNameFormat.value = prefs.getString("file_name_format", "ARTIST_TITLE").takeIf { it in setOf("ARTIST_TITLE", "TITLE") } ?: "ARTIST_TITLE"
         _preferSongArtwork.value = if (prefs.contains(KEY_PREFER_SONG_ARTWORK)) {
             prefs.getBoolean(KEY_PREFER_SONG_ARTWORK, true)
         } else {
@@ -5683,6 +5714,7 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
         } catch (e: Exception) { emptyList() }
         
         // Other settings
+        _learningUiEnabled.value = prefs.getBoolean("learning_ui_enabled", true)
         _hapticFeedbackEnabled.value = prefs.getBoolean(KEY_HAPTIC_FEEDBACK_ENABLED, true)
         _useCustomNotification.value = prefs.getBoolean(KEY_USE_CUSTOM_NOTIFICATION, false)
         _rhythmGuardAlertNotificationsEnabled.value = prefs.getBoolean(KEY_RHYTHM_GUARD_ALERT_NOTIFICATIONS_ENABLED, true)

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="entity_edit_description">Edit description</string>
+    <string name="entity_edit_artwork">Change %1$s image</string>
+    <string name="entity_edit_tags">Edit album information</string>
+    <string name="entity_online_artwork">Find images online</string>
+    <string name="entity_album_image_title">Change album image</string>
+    <string name="entity_image_preview">Preview image</string>
+    <string name="entity_image_zoom">View full image</string>
+    <string name="entity_artwork_search">Find artwork</string>
+    <string name="entity_artwork_query">Name or artist</string>
+    <string name="entity_artwork_hint">Choose an image to preview before applying it.</string>
+    <string name="entity_artwork_use">Use this image</string>
+    <string name="entity_artwork_missing">No image is available for this result. Try another result.</string>
+    <string name="entity_artwork_selected">Image selected. Save your changes to apply it.</string>
+    <string name="catalog_lyrics_optional">Lyrics are optional. Select them to replace the current lyrics when you save.</string>
+    <string name="catalog_lyrics_staged">Selected lyrics will be applied when you save.</string>
+    <string name="catalog_lyrics_remove">Keep current lyrics</string>
+    <string name="catalog_import_failed">Could not save the selected lyrics. Other saved song information is retained. Please retry.</string>
+    <string name="entity_image_load_failed">Image unavailable</string>
+    <string name="entity_edit_title">Edit %1$s</string>
+</resources>

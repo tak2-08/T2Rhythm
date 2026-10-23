@@ -8,7 +8,7 @@ import chromahub.rhythm.app.features.local.di.LocalMusicModule
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.*
 
-/** Incremental, charging-only learning. Suggested genres are never treated as ground truth. */
+/** Incremental, power-aware learning. Suggested genres are never treated as ground truth. */
 class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
     CoroutineWorker(context, params) {
     override suspend fun doWork(): Result =
@@ -19,8 +19,13 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
             val state =
                 applicationContext.getSharedPreferences("enrichment_progress", Context.MODE_PRIVATE)
             try {
+                if (state.getInt("genre_pipeline", 0) < 2) {
+                    check(state.edit().putInt("genre_pipeline", 2).putString("phase", "TRAIN").putInt("offset", 0).commit())
+                    AudioAnalysisWorker.enqueue(applicationContext)
+                }
                 val repository = LocalMusicModule.provideMusicRepository(applicationContext)
-                val songs = repository.loadSongs().sortedBy { it.uri.toString() }
+                val corrections = GenreCorrections(applicationContext)
+                val songs = corrections.apply(repository.loadSongs()).sortedBy { it.uri.toString() }
                 val ledger = ListeningLedger.get(applicationContext)
                 val store = EnrichmentStore(applicationContext)
                 val databaseMissing =
@@ -30,6 +35,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                     if (databaseMissing) 0 else state.getInt("offset", 0).coerceIn(0, songs.size)
                 val batch = songs.drop(begin).take(128)
                 EnrichmentLearningIndex(applicationContext).use { index ->
+                    index.reconcile(songs, budget::blockingCheckpoint)
                     if (phase == "TRAIN")
                         batch.forEachIndexed { i, song ->
                             budget.checkpoint()
@@ -41,10 +47,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                             val lyrics = repository.peekLocalLyrics(song)
                             val lines = LocalLyricAlignment.parse(lyrics?.syncedLyrics.orEmpty())
                             val label =
-                                song.genre?.trim()?.lowercase(java.util.Locale.ROOT)?.takeIf {
-                                    it.isNotEmpty() &&
-                                        it.lowercase() !in setOf("unknown", "<unknown>", "알 수 없음")
-                                }
+                                chromahub.rhythm.app.util.GenreUtils.splitGenres(song.genre).joinToString(", ").ifEmpty { null }
                             val timing =
                                 if (
                                     feature != null &&
@@ -66,6 +69,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                                 feature?.let(AudioVectors::describe),
                                 timing,
                                 EnrichmentStore.signature(song),
+                                feature?.let { GenreSignalFeatures.extract(it, song.title, lyrics) },
                             )
                             check(state.edit().putInt("offset", begin + i + 1).commit())
                         }
@@ -82,8 +86,10 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                         return@withContext Result.success()
                     }
                     val candidate = index.model(store.list(1000), budget::blockingCheckpoint,
-                        LyricTimingFeedback(applicationContext).examples())
-                    val model = TimingValidation.select(applicationContext, candidate, store.model(), budget::blockingCheckpoint)
+                        LyricTimingFeedback(applicationContext).examples(), corrections.examples(songs), corrections.read().map { it.songKey }.toSet())
+                    val previous = store.model()
+                    val timed = TimingValidation.select(applicationContext, candidate, previous, budget::blockingCheckpoint)
+                    val model = GenreValidation.select(applicationContext, timed, previous, budget::blockingCheckpoint)
                     store.saveModel(model)
                     TimingRetryQueue(applicationContext).schedule(model)
                     for ((i, song) in batch.withIndex()) {
@@ -94,13 +100,11 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                                 ledger.feature(key, "${song.dateModified}:${song.duration}")
                                     ?: return@inferSong
                             if (
-                                song.genre.isNullOrBlank() ||
-                                    song.genre.lowercase() in
-                                        setOf("unknown", "<unknown>", "알 수 없음")
+                                chromahub.rhythm.app.util.GenreUtils.splitGenres(song.genre).isEmpty()
                             ) {
                                 LocalGenreClassifier.predict(
                                         key,
-                                        AudioVectors.describe(feature),
+                                        GenreSignalFeatures.extract(feature, song.title, repository.peekLocalLyrics(song)),
                                         model.examples,
                                     )
                                     ?.let { guess ->
@@ -110,7 +114,7 @@ class EnrichmentLearningWorker(context: Context, params: WorkerParameters) :
                                                 "GENRE",
                                                 guess.genre,
                                                 guess.confidence,
-                                                "local_neighbors",
+                                                "multimodal_neighbors_v1",
                                                 guess.neighbors.size,
                                                 examples = guess.neighbors,
                                             )

@@ -112,6 +112,7 @@ class AssetIntegrityRegressionTest {
             val report = ListeningReports.read(ledger, window)
             assertEquals(500L, report.tracks.single { it.key == key }.listenedMs)
             assertEquals(1, report.tracks.single { it.key == key }.plays)
+            assertEquals("POP", report.genres.single().first)
         } finally { ledger.writableDatabase.delete("records", "id=?", arrayOf(key)) }
     }
 }

@@ -1117,6 +1117,9 @@ class ListeningLedger private constructor(private val context: Context) :
         revision.update { it + 1 }
     }
 
+    /** A short projection stays consistent with append/compaction without loading raw records. */
+    fun <T> readSnapshot(block: (SQLiteDatabase) -> T): T = synchronized(lock) { block(readableDatabase) }
+
     fun state(key: String): String? =
         readableDatabase.rawQuery("SELECT value FROM state WHERE key = ?", arrayOf(key)).use {
             if (it.moveToFirst()) it.getString(0) else null

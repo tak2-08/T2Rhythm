@@ -15,10 +15,11 @@ import java.io.File
 object RecommendationShelf {
     val selection = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     private val gson = Gson()
+    private fun canonical(snapshot: MixSnapshot) = snapshot.copy(genre = chromahub.rhythm.app.util.GenreUtils.splitGenres(snapshot.genre).joinToString(", ").ifEmpty { null })
     private fun root(context: Context) = File(context.filesDir, "music_metadata/personalization/mixes").apply { mkdirs() }
     private fun read(file: File): MixSnapshot? = runCatching {
         require(file.length() in 1..1_000_000)
-        gson.fromJson(file.readText(), MixSnapshot::class.java).also { require(it.id.matches(Regex("[a-f0-9-]{36}")) && it.songKeys.size in 1..500) }
+        canonical(gson.fromJson(file.readText(), MixSnapshot::class.java)).also { require(it.id.matches(Regex("[a-f0-9-]{36}")) && it.songKeys.size in 1..500) }
     }.getOrNull()
     fun current(context: Context): MixSnapshot? {
         val id = context.getSharedPreferences("recommendation_shelf", Context.MODE_PRIVATE).getString("current", null) ?: return null
@@ -30,8 +31,8 @@ object RecommendationShelf {
     @Synchronized fun create(context: Context, mode: PersonalCollection, genre: String?, keys: List<String>, seed: Long): MixSnapshot? {
         if (keys.isEmpty()) return null
         val selected = keys.distinct().take(500)
-        val snapshot = MixSnapshot(java.util.UUID.randomUUID().toString(), mode, genre, System.currentTimeMillis(), seed, selected,
-            RecommendationLearning.get(context).captureFeatures(selected))
+        val snapshot = canonical(MixSnapshot(java.util.UUID.randomUUID().toString(), mode, genre, System.currentTimeMillis(), seed, selected,
+            RecommendationLearning.get(context).captureFeatures(selected)))
         PersonalArchive.atomicWrite(File(root(context), "${snapshot.id}.json"), gson.toJson(snapshot).toByteArray())
         select(context, snapshot)
         PersonalArchive.enqueue(context)

@@ -100,6 +100,9 @@ import chromahub.rhythm.app.util.RhythmLyricsParser
 import chromahub.rhythm.app.util.LrcUtils
 import chromahub.rhythm.app.util.SemanticLyrics
 import android.content.SharedPreferences
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.withLock
 import androidx.room.withTransaction
 import chromahub.rhythm.app.features.local.data.database.RhythmDatabase
 import chromahub.rhythm.app.features.local.data.database.entity.ArtistEntity
@@ -253,13 +256,7 @@ class MusicRepository(context: Context) {
      * Call this when the ViewModel modifies (e.g. merges metadata) into the song list.
      */
     suspend fun persistEditedSongs(songs: List<Song>) = withContext(Dispatchers.IO) {
-        val previous = cachedSongs
-        val previousArtists = previous?.associate { it.id to (it.artist to it.albumArtist) }
-        val artistsChanged = previousArtists == null || previousArtists.size != songs.size ||
-            songs.any { previousArtists[it.id] != (it.artist to it.albumArtist) }
-        // Retain incremental writes for a single cover/title edit in a large library.
-        saveSongsToRoom(songs, clearArtistCache = false, previousSongs = previous)
-        if (artistsChanged) roomDb.artistDao().deleteAll()
+        saveSongsToRoom(songs, clearArtistCache = false)
     }
 
     fun updateAndPersistSongs(songs: List<Song>) {
@@ -273,12 +270,22 @@ class MusicRepository(context: Context) {
         }
     }
 
+    private val songWriteMutex = Mutex()
+
     private suspend fun saveSongsToRoom(
-        songs: List<Song>,
+        incomingSongs: List<Song>,
         clearArtistCache: Boolean = true,
         previousSongs: List<Song>? = cachedSongs
-    ) {
+    ) = songWriteMutex.withLock {
         try {
+            // Delayed background snapshots must respect the latest explicit edits.
+            val songs = storedSongs(incomingSongs)
+            val previous = cachedSongs ?: previousSongs
+            val previousById = previous.orEmpty().associateBy { it.id }
+            val groupingChanged = previous == null || previous.size != songs.size || songs.any {
+                val old = previousById[it.id]
+                old == null || old.artist != it.artist || old.albumArtist != it.albumArtist || old.album != it.album
+            }
             // Load existing artwork URIs from DB to check for lossless versions
             val existingSongs = runCatching { songDao.getAllSongs().associate { it.id to it.artworkUri } }.getOrNull() ?: emptyMap()
 
@@ -347,17 +354,16 @@ class MusicRepository(context: Context) {
 
             val canUseIncrementalUpdate =
                 !clearArtistCache &&
-                        previousSongs != null &&
-                        previousSongs.size == songs.size &&
-                        previousSongs.map { it.id }.toSet() == songs.map { it.id }.toSet()
+                        previous != null &&
+                        previous.size == songs.size &&
+                        previous.map { it.id }.toSet() == songs.map { it.id }.toSet()
 
             if (canUseIncrementalUpdate) {
-                val previousById = previousSongs.associateBy { it.id }
                 val changedSongs = songs.filter { previousById[it.id] != it }
 
                 if (changedSongs.isEmpty()) {
                     Log.d(TAG, "Skipping Room save because the incremental snapshot is unchanged")
-                    return
+                    return@withLock
                 }
 
                 val chunkSize = 200
@@ -371,6 +377,7 @@ class MusicRepository(context: Context) {
                         roomDb.songArtistDao().deleteBySongIds(chunkSongIds)
                         roomDb.songArtistDao().insertAll(relationshipSets.albumArtistRelationships)
                         roomDb.songArtistDao().insertAll(relationshipSets.trackArtistRelationships)
+                        if (groupingChanged) roomDb.artistDao().deleteAll()
                     }
                     yield()
                 }
@@ -388,8 +395,8 @@ class MusicRepository(context: Context) {
                     roomDb.songArtistDao()
                         .replaceAll(relationshipSets.trackArtistRelationships, false)
 
-                    if (clearArtistCache) {
-                        // Clear artist cache since songs have changed
+                    if (clearArtistCache || groupingChanged) {
+                        // Artist membership and album counts depend on all these tags.
                         roomDb.artistDao().deleteAll()
                     }
                 }
@@ -406,8 +413,11 @@ class MusicRepository(context: Context) {
 
             cachedSongs = songs
             cacheTimestamp = System.currentTimeMillis()
-        } catch (e: Exception) {
+            if (previous != songs) cachedFolderTree = null
+        } catch (cancel: CancellationException) { throw cancel }
+        catch (e: Exception) {
             Log.e(TAG, "Failed to save songs to Room database", e)
+            throw e
         }
     }
 
@@ -866,17 +876,24 @@ class MusicRepository(context: Context) {
             cachedSongs != null && 
             System.currentTimeMillis() - cacheTimestamp < CACHE_VALIDITY_MS) {
             Log.d(TAG, "Returning cached songs (${cachedSongs!!.size})")
-            return@withContext storedSongs(cachedSongs!!)
+            val raw = cachedSongs!!
+            val effective = storedSongs(raw)
+            if (effective != raw) saveSongsToRoom(effective, clearArtistCache = false, previousSongs = raw)
+            return@withContext effective
         }
         
         // On cold start (no in-memory cache), try loading from Room cache
         if (!shouldForceRefresh && cachedSongs == null) {
             val diskCached = loadSongsFromRoom()
             if (diskCached != null) {
-                cachedSongs = storedSongs(diskCached)
+                val effective = storedSongs(diskCached)
+                // Old versions may have persisted an automatic value over a manual selection.
+                // Repair Room too, so SQL search and relationships see the same restored tags.
+                if (effective != diskCached) saveSongsToRoom(effective, clearArtistCache = false, previousSongs = diskCached)
+                cachedSongs = effective
                 cacheTimestamp = System.currentTimeMillis()
                 Log.d(TAG, "Restored ${diskCached.size} songs from Room cache")
-                return@withContext storedSongs(diskCached)
+                return@withContext effective
             }
             cachedSongs = emptyList()
             cacheTimestamp = System.currentTimeMillis()
@@ -2444,14 +2461,7 @@ class MusicRepository(context: Context) {
     private var cachedFolderTree: FolderNode? = null
     private var cachedFolderTreeSongsHash: Int = 0
 
-    private fun fastSongsHash(songs: List<Song>): Int {
-        var hash = songs.size
-        val step = maxOf(1, songs.size / 100)
-        for (i in songs.indices step step) {
-            hash = 31 * hash + songs[i].id.hashCode()
-        }
-        return hash
-    }
+    private fun fastSongsHash(songs: List<Song>): Int = songs.hashCode()
 
     suspend fun getFolderTree(): FolderNode = withContext(Dispatchers.IO) {
         val songs = loadSongs()
@@ -2562,6 +2572,10 @@ class MusicRepository(context: Context) {
         if (appSettings.artistArtworkSource.value == chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.DISABLED) return@withContext artists
         artists.map { artist ->
             val key = catalog.artistKey(artist.name)
+            val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context)
+            val page = pages.read(kr.co.metadata.crawler.EntityKind.ARTIST, key)
+            if (page?.imageEdited == true && page.image == null) return@map artist.copy(artworkUri = null)
+            pages.image(page)?.let { return@map artist.copy(artworkUri = it) }
             var uri = artist.artworkUri?.takeIf(catalog::usableArtwork) ?: artistImageCache[artist.name]?.takeIf(catalog::usableArtwork)
                 ?: catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ARTIST, key))
             if (uri == null && appSettings.artistArtworkSource.value != chromahub.rhythm.app.shared.data.model.ArtistArtworkSource.API_ONLY) {
@@ -2581,6 +2595,10 @@ class MusicRepository(context: Context) {
     suspend fun fetchAlbumArtwork(albums: List<Album>): List<Album> = withContext(Dispatchers.IO) {
         albums.map { album ->
             val key = catalog.albumKey(album.title, album.artist)
+            val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context)
+            val page = pages.read(kr.co.metadata.crawler.EntityKind.ALBUM, key)
+            if (page?.imageEdited == true && page.image == null) return@map album.copy(artworkUri = null)
+            pages.image(page)?.let { return@map album.copy(artworkUri = it) }
             var uri = album.artworkUri?.takeIf(catalog::usableArtwork) ?: albumImageCache["${album.artist}:${album.title}"]?.takeIf(catalog::usableArtwork)
                 ?: catalog.image(catalog.read(kr.co.metadata.crawler.EntityKind.ALBUM, key))
             if (uri == null && catalog.preferences.options.value.artwork) uri = catalog.fetchedImage(kr.co.metadata.crawler.EntityKind.ALBUM, key, album.title, album.artist)
@@ -2606,6 +2624,9 @@ class MusicRepository(context: Context) {
     suspend fun loadArtistDescription(name: String, fetch: Boolean = true): String? = withContext(Dispatchers.IO) {
         val kind = kr.co.metadata.crawler.EntityKind.ARTIST
         val key = catalog.artistKey(name)
+        val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context)
+        val page = pages.read(kind, key)
+        if (page?.edited == true || !page?.description.isNullOrBlank()) return@withContext page!!.description.takeIf(String::isNotBlank)
         val fields = setOf(kr.co.metadata.crawler.CatalogField.ARTIST_DESCRIPTION, kr.co.metadata.crawler.CatalogField.ARTIST_DEBUT_DATE, kr.co.metadata.crawler.CatalogField.ARTIST_GENRES)
         val record = if (fetch && catalog.preferences.options.value.profiles) catalog.collect(kind, key, name, null, fields) else catalog.read(kind, key)
         var description = record?.document?.get(kr.co.metadata.crawler.CatalogField.ARTIST_DESCRIPTION)
@@ -2613,29 +2634,39 @@ class MusicRepository(context: Context) {
             description = WikipediaProvider.getAlbumDescription(name, null)
             description?.let { catalog.cacheDescription(kind, key, it) }
         }
-        listOfNotNull(description,
+        val result = listOfNotNull(description,
             record?.document?.get(kr.co.metadata.crawler.CatalogField.ARTIST_DEBUT_DATE)?.let { context.getString(R.string.catalog_debut_date) + ": " + it },
-            record?.document?.get(kr.co.metadata.crawler.CatalogField.ARTIST_GENRES)?.let { context.getString(R.string.bottomsheet_genre) + ": " + it })
+            record?.document?.get(kr.co.metadata.crawler.CatalogField.ARTIST_GENRES)?.let { context.getString(R.string.bottomsheet_genre) + ": " + chromahub.rhythm.app.util.GenreUtils.splitGenres(it).joinToString(", ") })
             .joinToString("\n\n").takeIf(String::isNotBlank)
+        if (result != null) pages.capture(kind, key, name, "", result).description.takeIf(String::isNotBlank)
+        else page?.description?.takeIf(String::isNotBlank)
     }
 
     suspend fun loadAlbumDescription(name: String, artist: String?, fetch: Boolean = true): String? = withContext(Dispatchers.IO) {
         val kind = kr.co.metadata.crawler.EntityKind.ALBUM
         val key = catalog.albumKey(name, artist.orEmpty())
-        catalog.read(kind, key)?.document?.get(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION)?.let { return@withContext it }
-        if (!fetch) return@withContext null
-        if (catalog.preferences.options.value.profiles) catalog.collect(kind, key, name, artist, setOf(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION))?.document?.get(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION)?.let { return@withContext it }
-        if (!catalog.descriptionLookupAllowed(kind, key)) return@withContext null
+        val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context)
+        val page = pages.read(kind, key)
+        if (page?.edited == true || !page?.description.isNullOrBlank()) return@withContext page!!.description.takeIf(String::isNotBlank)
+        fun stored(text: String?) = text?.let { pages.capture(kind, key, name, artist.orEmpty(), it).description }
+            ?: page?.description?.takeIf(String::isNotBlank)
+        catalog.read(kind, key)?.document?.get(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION)?.let { return@withContext stored(it) }
+        if (!fetch) return@withContext stored(null)
+        if (catalog.preferences.options.value.profiles) catalog.collect(kind, key, name, artist, setOf(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION))?.document?.get(kr.co.metadata.crawler.CatalogField.ALBUM_DESCRIPTION)?.let { return@withContext stored(it) }
+        if (!catalog.descriptionLookupAllowed(kind, key)) return@withContext stored(null)
         var description: String? = null
         if (appSettings.integrationsEnabled.value && appSettings.appleCanvasEnabled.value && artist != null) {
             description = chromahub.rhythm.app.network.AppleMusicCanvasProvider.getAlbumDescription(name, artist)
         }
         if (description.isNullOrBlank() && NetworkClient.isWikipediaApiEnabled()) description = WikipediaProvider.getAlbumDescription(name, artist)
         description?.let { catalog.cacheDescription(kind, key, it) }
-        description
+        stored(description)
     }
 
-    fun storedSongs(songs: List<Song>): List<Song> = songs.map { catalog.apply(it) }
+    fun storedSongs(songs: List<Song>): List<Song> {
+        val names = chromahub.rhythm.app.core.domain.scan.AlbumNameResolver(context)
+        return songs.map { catalog.apply(names.apply(it)) }
+    }
     fun peekLocalLyrics(song: Song): LyricsData? = autoLyrics.read(song)?.takeUnless { it.isErrorMessage() }
         ?: findLocalLyrics(song.artist, song.title, song.id, song.uri)?.takeIf { it.hasLyrics() && !it.isErrorMessage() }
         ?: getEmbeddedLyrics(song.uri)?.takeIf { it.hasLyrics() && !it.isErrorMessage() }
@@ -4602,6 +4633,18 @@ class MusicRepository(context: Context) {
             Log.d(TAG, "===== FORCE REFRESH - BYPASSING IN-MEMORY CACHE =====")
         }
 
+        // Explicitly selected lyrics remain authoritative across restarts and source preferences.
+        if (!forceOnline) {
+            val localSong = cachedSongs?.firstOrNull { it.id == songId || (songUri != null && it.uri == songUri) }
+                ?: songUri?.let { Song(songId.orEmpty(), title, artist, "", duration = 0, uri = it) }
+            val reviewed = localSong?.let(autoLyrics::readReviewed)
+                ?: localSong?.takeIf { it.path == null && it.uri.scheme == "file" }?.copy(path = localSong.uri.path)?.let(autoLyrics::readReviewed)
+            reviewed?.let {
+                lyricsCache[cacheKey] = reviewed
+                return@withContext reviewed
+            }
+        }
+
         // Define source fetchers
         val fetchFromLocal: suspend () -> LyricsData? = {
             cachedSongs?.firstOrNull { it.id == songId || (songUri != null && it.uri == songUri) }?.let(autoLyrics::read)
@@ -5986,36 +6029,18 @@ class MusicRepository(context: Context) {
      * If artworkUri is null, removes custom image and updates database.
      */
     suspend fun saveArtistArtwork(artistName: String, artworkUri: Uri?): Uri? = withContext(Dispatchers.IO) {
-        try {
-            val fileName = kr.co.metadata.crawler.CatalogFileStore.hash(catalog.artistKey(artistName)) + ".jpg"
-            val imageDir = File(context.filesDir, "artist_images")
-            if (!imageDir.exists()) {
-                imageDir.mkdirs()
-            }
-            val file = File(imageDir, fileName)
-
-            if (artworkUri == null) {
-                if (file.exists()) {
-                    file.delete()
-                }
-                artistImageCache.remove(artistName)
-                roomDb.artistDao().updateArtworkForArtist(artistName, null)
-                null
-            } else {
-                context.contentResolver.openInputStream(artworkUri)?.use { inputStream ->
-                    file.outputStream().use { outputStream ->
-                        inputStream.copyTo(outputStream)
-                    }
-                }
-                val newUri = Uri.fromFile(file).buildUpon().appendQueryParameter("t", System.currentTimeMillis().toString()).build()
-                artistImageCache[artistName] = newUri
-                roomDb.artistDao().updateArtworkForArtist(artistName, newUri.toString())
-                newUri
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to save artist artwork", e)
+        val kind = kr.co.metadata.crawler.EntityKind.ARTIST
+        val key = catalog.artistKey(artistName)
+        val pages = chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context)
+        val old = pages.read(kind, key)
+        val updated = if (artworkUri == null) {
+            pages.resetImage(kind, key)
+            File(context.filesDir, "artist_images/${kr.co.metadata.crawler.CatalogFileStore.hash(key)}.jpg").delete()
             null
-        }
+        } else pages.save(kind, key, artistName, "", old?.description.orEmpty(), artworkUri, edited = false).let(pages::image)
+        if (updated == null) artistImageCache.remove(artistName) else artistImageCache[artistName] = updated
+        roomDb.artistDao().updateArtworkForArtist(artistName, updated?.toString())
+        updated
     }
 
     /**
@@ -6278,6 +6303,16 @@ class MusicRepository(context: Context) {
     /**
      * Clears cached lyrics for a specific song (both in-memory and on-disk)
      */
+    fun refreshLyricsForMetadataChange(before: Song, after: Song) {
+        synchronized(lyricsCache) {
+            listOf(before, after).forEach { song ->
+                lyricsCache.remove("${song.id}:${song.artist}:${song.title}".lowercase())
+                lyricsCache.remove("${song.artist}:${song.title}".lowercase())
+            }
+        }
+        autoLyrics.invalidateUnreviewedForMetadata(after)
+    }
+
     fun clearLyricsCacheForSong(artist: String, title: String, songId: String?) {
         try {
             val keysToRemove = mutableListOf<String>()

@@ -6,7 +6,7 @@ import kotlin.math.*
 
 @Keep
 data class AudioFeatures(
-    val version: Int = 3,
+    val version: Int = 4,
     val songKey: String,
     val pcmSha256: String,
     val sampleRate: Int,
@@ -24,6 +24,7 @@ data class AudioFeatures(
     val estimatedKey: String? = null,
     val keyConfidence: Double = 0.0,
     val alignmentEnvelope: List<Double> = emptyList(),
+    val acousticFingerprint: List<Double>? = null,
 )
 
 /** Bounded streaming analysis: no complete PCM waveform is ever held in memory. */
@@ -40,6 +41,7 @@ class SignalAnalysis(private val sampleRate: Int, private val expectedDurationMs
     private var windowCount = 0
     private var nextWindowAt = 0L
     private val chroma = DoubleArray(12)
+    private val fingerprint = DoubleArray(96)
     private val envelope = ArrayList<Double>()
     private var envelopeSquares = 0.0
     private var envelopeCount = 0
@@ -90,6 +92,11 @@ class SignalAnalysis(private val sampleRate: Int, private val expectedDurationMs
             val frequency = i.toDouble() * sampleRate / real.size
             val band = edges.indexOfFirst { frequency < it }.takeIf { it >= 0 } ?: 7
             bands[band] += real[i] * real[i] + imaginary[i] * imaginary[i]
+            if (frequency in 65.0..8000.0) {
+                val section = (samples * 8 / (expectedDurationMs * sampleRate / 1000).coerceAtLeast(1)).coerceIn(0, 7).toInt()
+                val spectralBin = (ln(frequency / 65.0) / ln(8000.0 / 65.0) * 12).toInt().coerceIn(0, 11)
+                fingerprint[section * 12 + spectralBin] += sqrt(real[i] * real[i] + imaginary[i] * imaginary[i])
+            }
             if (frequency in 65.0..2000.0) {
                 val midi = (69 + 12 * log2(frequency / 440)).roundToInt()
                 chroma[((midi % 12) + 12) % 12] += sqrt(real[i] * real[i] + imaginary[i] * imaginary[i])
@@ -108,7 +115,8 @@ class SignalAnalysis(private val sampleRate: Int, private val expectedDurationMs
             waveform = waveEnergy.indices.map { if (waveCounts[it] == 0L) 0.0 else sqrt(waveEnergy[it] / waveCounts[it]) },
             estimatedBpm = tempo.first, tempoConfidence = tempo.second,
             estimatedKey = keyEstimate.first, keyConfidence = keyEstimate.second,
-            alignmentEnvelope = envelope.chunked(10).map { it.average() })
+            alignmentEnvelope = envelope.chunked(10).map { it.average() },
+            acousticFingerprint = AudioVectors.normalize(fingerprint.map { sqrt(it) }).map { (it * 10000).roundToInt() / 10000.0 })
     }
     companion object {
         /** These are DSP estimates, not authoritative tags or neural audio embeddings. */
@@ -139,7 +147,7 @@ class SignalAnalysis(private val sampleRate: Int, private val expectedDurationMs
             return if (best.third < .5 || confidence < .1) null to confidence else "${notes[best.first]} ${best.second}" to confidence
         }
         fun similarity(a: AudioFeatures?, b: AudioFeatures?): Double {
-            if (a == null || b == null || a.version !in 1..3 || b.version !in 1..3) return 0.0
+            if (a == null || b == null || a.version !in 1..4 || b.version !in 1..4) return 0.0
             if (a.pcmSha256 == b.pcmSha256) return 1.0
             val spectral = a.spectralBands.zip(b.spectralBands).sumOf { (x, y) -> sqrt(x * y) }.coerceIn(0.0, 1.0)
             val energy = exp(-abs(a.rmsDb - b.rmsDb) / 12)

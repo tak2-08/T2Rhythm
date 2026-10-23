@@ -173,6 +173,9 @@ fun ArtistDetailScreen(
         mutableStateOf(artist?.artworkUri)
     }
     var showCustomizeImageDialog by remember { mutableStateOf(false) }
+    var showEntityEditMenu by remember { mutableStateOf(false) }
+    var showEntityDescription by remember { mutableStateOf(false) }
+    var showOnlineArtistImage by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -193,9 +196,11 @@ fun ArtistDetailScreen(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
             },
+            onSearchOnline = { showOnlineArtistImage = true },
             onResetImage = {
                 viewModel.updateArtistArtwork(artist, null) {
                     currentArtworkUri = null
+                    viewModel.refreshArtistImage(artist.id)
                 }
             }
         )
@@ -283,13 +288,32 @@ fun ArtistDetailScreen(
     val isShuffleActive by viewModel.isShuffleEnabled.collectAsState()
 
     val catalogRevision by chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).changes.collectAsState()
-    // Artist description from Wikipedia if enabled
+    val entityPages = remember { chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context) }
+    val entityPageKey = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).artistKey(artistName)
+    val pageRevision by remember(entityPageKey) { entityPages.changes(kr.co.metadata.crawler.EntityKind.ARTIST, entityPageKey) }.collectAsState()
     var artistDescription by remember(artistName) { mutableStateOf<String?>(null) }
     var isDescriptionLoading by remember(artistName) { mutableStateOf(false) }
+    val artistArtworkSource by appSettings.artistArtworkSource.collectAsState()
+    val storedPage = chromahub.rhythm.app.features.local.presentation.metadata.rememberEntityPage(
+        kr.co.metadata.crawler.EntityKind.ARTIST, entityPageKey, artistName, description = artistDescription,
+        artwork = currentArtworkUri.takeUnless { artistArtworkSource == ArtistArtworkSource.DISABLED }, songs = rawArtistSongs, albums = artistAlbums)
+    if (showEntityEditMenu) chromahub.rhythm.app.features.local.presentation.metadata.EntityEditMenu(
+        kr.co.metadata.crawler.EntityKind.ARTIST, artistName, onDismiss = { showEntityEditMenu = false },
+        onDescription = { showEntityEditMenu = false; showEntityDescription = true },
+        onArtwork = { showEntityEditMenu = false; showCustomizeImageDialog = true })
+    if (showEntityDescription) chromahub.rhythm.app.features.local.presentation.metadata.EntityDescriptionEditor(
+        kr.co.metadata.crawler.EntityKind.ARTIST, entityPageKey, artistName, description = artistDescription,
+        onDismiss = { showEntityDescription = false })
+    if (showOnlineArtistImage) chromahub.rhythm.app.features.local.presentation.metadata.CatalogArtworkDialog(
+        initialQuery = artistName, initialKind = kr.co.metadata.crawler.EntityKind.ARTIST,
+        onDismiss = { showOnlineArtistImage = false }, onSelect = { uri ->
+            showOnlineArtistImage = false
+            artist?.let { selected -> viewModel.updateArtistArtwork(selected, uri) { currentArtworkUri = uri } }
+        })
 
-    LaunchedEffect(artistName, catalogRevision) {
-        chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(context)
-            .loadArtistDescription(artistName, fetch = false)?.let { artistDescription = it }
+    LaunchedEffect(artistName, catalogRevision, pageRevision) {
+        artistDescription = chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(context)
+            .loadArtistDescription(artistName, fetch = false)
     }
 
     LaunchedEffect(artistName, wikipediaApiActive) {
@@ -320,8 +344,7 @@ fun ArtistDetailScreen(
     }
 
     val totalDuration = remember(rawArtistSongs) { rawArtistSongs.sumOf { it.duration } }
-    val artistArtworkSource by appSettings.artistArtworkSource.collectAsState()
-    val displayArtworkUri = if (artistArtworkSource == ArtistArtworkSource.DISABLED) null else (currentArtworkUri ?: rawArtistSongs.firstNotNullOfOrNull { it.artworkUri })
+    val displayArtworkUri = if (artistArtworkSource == ArtistArtworkSource.DISABLED) null else if (storedPage?.imageEdited == true) entityPages.image(storedPage) else (entityPages.image(storedPage) ?: currentArtworkUri ?: rawArtistSongs.firstNotNullOfOrNull { it.artworkUri })
     val backgroundColor = MaterialTheme.colorScheme.background
     val artistArtShape = rememberExpressiveShapeFor(
         target = ExpressiveShapeTarget.ARTIST_ART,
@@ -505,7 +528,7 @@ fun ArtistDetailScreen(
                                             .padding(8.dp)
                                             .clickable {
                                                 HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                                showCustomizeImageDialog = true
+                                                showEntityEditMenu = true
                                             },
                                         shape = CircleShape,
                                         color = MaterialTheme.colorScheme.primaryContainer,
@@ -916,7 +939,7 @@ fun ArtistDetailScreen(
                                                     contentDescription = stringResource(R.string.content_desc_customize_artwork),
                                                     onClick = {
                                                         HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                                        showCustomizeImageDialog = true
+                                                        showEntityEditMenu = true
                                                     }
                                                 ),
                                                 HeaderAction(

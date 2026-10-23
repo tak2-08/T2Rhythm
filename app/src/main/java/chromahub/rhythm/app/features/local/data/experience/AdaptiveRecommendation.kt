@@ -67,7 +67,8 @@ object AdaptiveRecommendation {
         }
     }
 
-    fun normalizeGenre(genre: String?) = genre?.trim()?.lowercase(java.util.Locale.ROOT).orEmpty()
+    fun normalizeGenre(genre: String?) = chromahub.rhythm.app.util.GenreUtils.splitGenres(genre)
+        .joinToString(", ")
 
     /** Confidence smoothing prevents one accidental skip or sparse place from dominating. */
     fun contextPreference(

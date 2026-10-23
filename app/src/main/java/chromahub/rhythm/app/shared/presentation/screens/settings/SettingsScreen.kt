@@ -106,6 +106,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.material3.SheetValue
 import androidx.compose.runtime.Composable
@@ -160,7 +161,12 @@ import chromahub.rhythm.app.shared.presentation.components.SettingsPalettes
 
 // Define routes for navigation
 object SettingsRoutes {
+    const val PRIVATE_STREAMING = "private_streaming"
     const val ALGORITHM_MANAGEMENT = "algorithm_management"
+    const val LEARNING_POWER = "learning_power"
+    const val FILE_NAMES = "file_names"
+    const val ALGORITHM_TRAINING = "algorithm_training"
+    const val LEARNING_UI = "learning_ui"
     const val DOWNLOAD_CENTER = "download_center"
     const val VIDEO_LIBRARY = "video_library"
     const val CATALOG_LIBRARY = "catalog_library_settings"
@@ -235,6 +241,20 @@ fun SettingsScreen(
     val hapticFeedback = LocalHapticFeedback.current
     val context = LocalContext.current
     val appSettings = AppSettings.getInstance(context)
+    val learningUi by appSettings.learningUiEnabled.collectAsState()
+    val learningBattery by appSettings.analysisMinimumBattery.collectAsState()
+    var showLearningPower by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    if (showLearningPower) chromahub.rhythm.app.features.local.presentation.metadata.AnalysisPowerDialog { showLearningPower = false }
+    var showFileNames by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    if (showFileNames) chromahub.rhythm.app.features.local.presentation.metadata.FileNameSettings { showFileNames = false }
+    var showTraining by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    var showLearningOptions by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(learningUi) { if (!learningUi) showTraining = false }
+    if (showTraining && learningUi) chromahub.rhythm.app.features.local.presentation.metadata.AlgorithmManagement(training = true, onDismiss = { showTraining = false })
+    if (showLearningOptions) AlertDialog(onDismissRequest = { showLearningOptions = false },
+        title = { Text(stringResource(R.string.learning_ui_title)) },
+        text = { Column { Text(stringResource(R.string.learning_ui_hint)); Switch(learningUi, onCheckedChange = appSettings::setLearningUiEnabled) } },
+        confirmButton = { TextButton(onClick = { showLearningOptions = false }) { Text(stringResource(android.R.string.ok)) } })
     var showAlgorithms by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var showVideos by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     if (showVideos) chromahub.rhythm.app.features.local.presentation.metadata.VideoLibraryManager(onDismiss = { showVideos = false })
@@ -262,7 +282,7 @@ fun SettingsScreen(
     var searchQuery by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     val searchFocus = androidx.compose.ui.platform.LocalFocusManager.current
     val searchKeyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    val searchIndex = remember(context) { buildSettingsSearchIndex(context) }
+    val searchIndex = remember(context, learningUi) { buildSettingsSearchIndex(context).filter { learningUi || it.route != SettingsRoutes.ALGORITHM_TRAINING } }
     val searchResults = remember(searchQuery, searchIndex) { 
         searchSettings(searchQuery, searchIndex) 
     }
@@ -401,6 +421,7 @@ fun SettingsScreen(
                 title = context.getString(R.string.settings_section_library_content),
                 items = listOf(
                     SettingItem(RhythmIcons.Folder, context.getString(R.string.settings_media_scan_title), context.getString(R.string.settings_media_scan_desc), palette = SettingsPalettes.Amber, onClick = { onNavigateTo(SettingsRoutes.MEDIA_SCAN) }),
+                    SettingItem(MaterialSymbolIcon("drive_file_rename_outline"), context.getString(R.string.file_names_title), context.getString(R.string.file_names_short), palette = SettingsPalettes.Teal, onClick = { showFileNames = true }),
                     SettingItem(RhythmIcons.Artist, context.getString(R.string.settings_artist_parsing), context.getString(R.string.settings_artist_parsing_desc), palette = SettingsPalettes.Rose, onClick = { onNavigateTo(SettingsRoutes.ARTIST_SEPARATORS) }),
                     SettingItem(MaterialSymbolIcon("playlist_add_check_circle"), context.getString(R.string.settings_playlists_title), context.getString(R.string.settings_playlists_desc), palette = SettingsPalettes.Coral, onClick = { onNavigateTo(SettingsRoutes.PLAYLISTS) }),
                     SettingItem(RhythmIcons.Library, context.getString(R.string.settings_library_settings), context.getString(R.string.settings_library_settings_desc), palette = SettingsPalettes.Teal, onClick = { onNavigateTo(SettingsRoutes.LIBRARY_SETTINGS) })
@@ -414,6 +435,7 @@ fun SettingsScreen(
                     // API Management/Integrations is available in both LOCAL and STREAMING modes
                     add(SettingItem(MaterialSymbolIcon("library_music"), context.getString(R.string.catalog_library_title), context.getString(R.string.catalog_library_hint), palette = SettingsPalettes.Emerald, onClick = { onNavigateTo(SettingsRoutes.CATALOG_LIBRARY) }))
                     add(SettingItem(MaterialSymbolIcon("hub"), context.getString(R.string.settings_api_management), context.getString(R.string.settings_api_management_desc), palette = SettingsPalettes.Slate, onClick = { onNavigateTo(SettingsRoutes.API_MANAGEMENT) }))
+                    add(SettingItem(MaterialSymbolIcon("phonelink_lock"), context.getString(R.string.streaming_title), context.getString(R.string.streaming_hint), palette = SettingsPalettes.Teal, onClick = { onNavigateTo(SettingsRoutes.PRIVATE_STREAMING) }))
                 }
             ),
             // 7. Data & Storage - split into shared and local-only items
@@ -421,6 +443,9 @@ fun SettingsScreen(
                 title = context.getString(R.string.settings_section_storage_data),
                 items = buildList {
                     add(SettingItem(MaterialSymbolIcon("neurology"), context.getString(R.string.algorithm_title), context.getString(R.string.algorithm_hint), palette = SettingsPalettes.Purple, onClick = { showAlgorithms = true }))
+                    add(SettingItem(MaterialSymbolIcon("battery_charging_full"), context.getString(R.string.analysis_battery_title), context.getString(R.string.analysis_battery_value, learningBattery), palette = SettingsPalettes.Lime, onClick = { showLearningPower = true }))
+                    add(SettingItem(MaterialSymbolIcon("visibility"), context.getString(R.string.learning_ui_title), context.getString(R.string.learning_ui_hint), toggleState = learningUi, onToggleChange = appSettings::setLearningUiEnabled))
+                    if (learningUi) add(SettingItem(MaterialSymbolIcon("model_training"), context.getString(R.string.algorithm_training_title), context.getString(R.string.algorithm_training_hint), palette = SettingsPalettes.Purple, onClick = { showTraining = true }))
                     add(SettingItem(MaterialSymbolIcon("video_library"), context.getString(R.string.video_library_title), context.getString(R.string.video_library_hint), palette = SettingsPalettes.SkyBlue, onClick = { showVideos = true }))
                     add(SettingItem(MaterialSymbolIcon("download"), context.getString(R.string.discovery_downloads), context.getString(R.string.discovery_downloads_short), palette = SettingsPalettes.SkyBlue, onClick = { showDownloads = true }))
                     // Listening Stats and Rhythm Guard are shared across LOCAL and STREAMING modes
@@ -483,7 +508,11 @@ fun SettingsScreen(
                     searchFocus.clearFocus()
                     searchKeyboard?.hide()
                     when (result.route) {
+                        SettingsRoutes.ALGORITHM_TRAINING -> if (learningUi) showTraining = true
+                        SettingsRoutes.LEARNING_UI -> showLearningOptions = true
                         SettingsRoutes.ALGORITHM_MANAGEMENT -> showAlgorithms = true
+                        SettingsRoutes.LEARNING_POWER -> showLearningPower = true
+                        SettingsRoutes.FILE_NAMES -> showFileNames = true
                         SettingsRoutes.DOWNLOAD_CENTER -> showDownloads = true
                         SettingsRoutes.VIDEO_LIBRARY -> showVideos = true
                         null -> Unit
@@ -1165,6 +1194,7 @@ fun SettingsScreenWrapper(
                         SettingsRoutes.DEFAULT_PLAYLISTS -> DefaultPlaylistsSettingsScreen(
                             onBackClick = handleBack
                         )
+                        SettingsRoutes.PRIVATE_STREAMING -> chromahub.rhythm.app.features.streaming.StreamingScreen(onBackClick = handleBack, musicViewModel = musicViewModel)
                         SettingsRoutes.CATALOG_LIBRARY -> chromahub.rhythm.app.features.local.presentation.metadata.CatalogLibrarySettingsScreen(onBackClick = handleBack)
                         SettingsRoutes.MEDIA_SCAN -> MediaScanSettingsScreen(onBackClick = handleBack)
                         SettingsRoutes.ARTIST_SEPARATORS -> ArtistSeparatorsSettingsScreen(onBackClick = handleBack)
@@ -1312,6 +1342,7 @@ fun SettingsScreenWrapper(
                 SettingsRoutes.DEFAULT_PLAYLISTS -> DefaultPlaylistsSettingsScreen(
                     onBackClick = handleBack
                 )
+                SettingsRoutes.PRIVATE_STREAMING -> chromahub.rhythm.app.features.streaming.StreamingScreen(onBackClick = handleBack, musicViewModel = musicViewModel)
                 SettingsRoutes.CATALOG_LIBRARY -> chromahub.rhythm.app.features.local.presentation.metadata.CatalogLibrarySettingsScreen(onBackClick = handleBack)
                         SettingsRoutes.MEDIA_SCAN -> MediaScanSettingsScreen(onBackClick = handleBack)
                 SettingsRoutes.ARTIST_SEPARATORS -> ArtistSeparatorsSettingsScreen(onBackClick = handleBack)

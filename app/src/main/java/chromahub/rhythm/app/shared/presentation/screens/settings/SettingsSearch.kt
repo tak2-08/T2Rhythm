@@ -99,6 +99,14 @@ data class SearchableSettingItem(
  */
 fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
     return buildList {
+        add(SearchableSettingItem("file_names", context.getString(R.string.file_names_title), context.getString(R.string.file_names_short),
+            listOf("filename", "rename", "metadata", "파일명", "이름", "자동", "정리", "메타데이터"), MaterialSymbolIcon("drive_file_rename_outline"), SettingsRoutes.FILE_NAMES, context.getString(R.string.settings_section_library_content)))
+        add(SearchableSettingItem("learning_power", context.getString(R.string.analysis_battery_title), context.getString(R.string.analysis_battery_hint),
+            listOf("battery", "learning", "75", "50", "95", "배터리", "학습", "분석", "잔량"), MaterialSymbolIcon("battery_charging_full"), SettingsRoutes.LEARNING_POWER, context.getString(R.string.settings_section_storage_data)))
+        add(SearchableSettingItem("algorithm_training", context.getString(R.string.algorithm_training_title), context.getString(R.string.algorithm_training_hint),
+            listOf("training", "teach", "genre", "학습", "장르", "교정", "가르치기"), MaterialSymbolIcon("model_training"), SettingsRoutes.ALGORITHM_TRAINING, context.getString(R.string.settings_section_storage_data)))
+        add(SearchableSettingItem("learning_ui", context.getString(R.string.learning_ui_title), context.getString(R.string.learning_ui_hint),
+            listOf("training", "learning", "hide", "show", "학습", "UI", "숨기기", "표시"), MaterialSymbolIcon("visibility"), SettingsRoutes.LEARNING_UI, context.getString(R.string.settings_section_storage_data)))
         add(SearchableSettingItem("algorithm_management", context.getString(R.string.algorithm_title), context.getString(R.string.algorithm_hint),
             listOf("algorithm", "learning", "training", "patterns", "lyrics", "AI", "volume", "location", "알고리즘", "학습", "가사", "매핑", "볼륨", "위치", "추천"),
             MaterialSymbolIcon("neurology"), SettingsRoutes.ALGORITHM_MANAGEMENT, context.getString(R.string.settings_section_storage_data)))
@@ -114,6 +122,9 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
         add(SearchableSettingItem("hybrid_scan", context.getString(R.string.catalog_hybrid_mode), context.getString(R.string.catalog_hybrid_hint),
             listOf("hybrid", "whitelist", "blacklist", "include", "exclude", "하이브리드", "화이트리스트", "블랙리스트", "포함", "제외"),
             RhythmIcons.FilterList, SettingsRoutes.MEDIA_SCAN, context.getString(R.string.settings_media_scan)))
+        add(SearchableSettingItem("private_streaming", context.getString(R.string.streaming_title), context.getString(R.string.streaming_hint),
+            listOf("streaming", "server", "Rhythm Go", "share", "VPN", "스트리밍", "서버", "공유", "친구", "서브폰"),
+            MaterialSymbolIcon("phonelink_lock"), SettingsRoutes.PRIVATE_STREAMING, context.getString(R.string.settings_section_notifications_services)))
         // ======================== MAIN SETTINGS SCREEN ========================
 
         // Look & Feel Section
@@ -815,6 +826,16 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             route = SettingsRoutes.LIBRARY_SETTINGS,
             parentScreen = context.getString(R.string.settings_library_settings),
             settingKey = "libraryTabOrder"
+        ))
+        add(SearchableSettingItem(
+            id = "folder_album_names",
+            title = context.getString(R.string.folder_album_title),
+            description = context.getString(R.string.folder_album_hint),
+            keywords = listOf("folder", "album", "폴더", "앨범명", "누락"),
+            icon = MaterialSymbolIcon("folder"),
+            route = SettingsRoutes.LIBRARY_SETTINGS,
+            parentScreen = context.getString(R.string.settings_library_settings),
+            settingKey = "useFolderNameAsAlbum"
         ))
         add(SearchableSettingItem(
             id = "library_combine_discs",

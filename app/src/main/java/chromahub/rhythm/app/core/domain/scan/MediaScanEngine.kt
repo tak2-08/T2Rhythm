@@ -14,6 +14,9 @@ import android.util.Log
 import androidx.room.withTransaction
 import chromahub.rhythm.app.features.local.data.database.RhythmDatabase
 import chromahub.rhythm.app.features.local.data.database.entity.SongEntity
+import chromahub.rhythm.app.features.local.data.database.entity.toSong
+import chromahub.rhythm.app.features.local.data.database.entity.toEntity
+import chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService
 import chromahub.rhythm.app.shared.data.model.AppSettings
 import chromahub.rhythm.app.shared.data.model.MediaScanMode
 import chromahub.rhythm.app.shared.data.model.ScanPhase
@@ -57,6 +60,8 @@ class MediaScanEngine(
             }
         }
     }
+
+    private val albumNames = AlbumNameResolver(context)
 
     private val _scanProgress = MutableStateFlow(ScanProgress(0, 0, ScanPhase.Idle))
     val scanProgress: StateFlow<ScanProgress> = _scanProgress.asStateFlow()
@@ -223,7 +228,8 @@ class MediaScanEngine(
                             )
                         }
                         val contentUri = Uri.withAppendedPath(collection, id).toString()
-                        scannedSongs.add(existing.copy(id = id, uri = contentUri, artworkUri = existingArt))
+                        scannedSongs.add(existing.copy(id = id, uri = contentUri, artworkUri = existingArt,
+                            album = albumNames.resolve(existing.album, existing.path, Uri.parse(contentUri), dateModified)))
                         seenIds.add(id)
                     } else {
                         val rawTitle = cursor.getString(colTitle) ?: "Unknown Title"
@@ -338,6 +344,8 @@ class MediaScanEngine(
                             defaultArtworkUri
                         }
 
+                        album = albumNames.resolve(album, path, Uri.withAppendedPath(collection, id), dateModified)
+
                         val dateAdded = dateAddedResolver.resolveDateAdded(
                             songId = id,
                             filePath = path,
@@ -389,6 +397,15 @@ class MediaScanEngine(
             // Sync with Room DB atomically
             _scanProgress.value = ScanProgress(scannedSongs.size, scannedSongs.size, ScanPhase.SavingDb, 0)
             database.withTransaction {
+                // Project explicit edits after acquiring the DB writer. A scan that started
+                // before the edit must not publish old MediaStore tags after that edit commits.
+                val catalog = CatalogEnrichmentService.get(context)
+                val projected = scannedSongs.map { catalog.apply(it.toSong()).toEntity() }
+                scannedSongs.clear(); scannedSongs.addAll(projected)
+                val oldById = allExistingSongs.associateBy { it.id }
+                val groupingChanged = scannedSongs.any { song -> oldById[song.id]?.let {
+                    it.artist != song.artist || it.albumArtist != song.albumArtist || it.album != song.album
+                } ?: true }
                 if (forceRefresh) {
                     database.songDao().replaceAll(scannedSongs)
                     database.artistDao().deleteAll()
@@ -401,7 +418,7 @@ class MediaScanEngine(
                         database.songArtistDao().deleteBySongIds(staleSongIds.toList())
                     }
                     database.songDao().upsertAll(scannedSongs)
-                    if (staleSongIds.isNotEmpty() || newSongIds.isNotEmpty()) {
+                    if (staleSongIds.isNotEmpty() || newSongIds.isNotEmpty() || groupingChanged) {
                         database.artistDao().deleteAll()
                         database.songArtistDao().deleteAll()
                     }
@@ -409,6 +426,8 @@ class MediaScanEngine(
             }
 
             appSettings.setLastScanTimestamp(System.currentTimeMillis())
+            chromahub.rhythm.app.features.local.data.metadata.EntityPageMaterializationWorker.enqueue(context)
+            chromahub.rhythm.app.features.local.data.metadata.FileNameWorker.enqueue(context)
             try {
                 context.getSharedPreferences("library_scan_metadata", Context.MODE_PRIVATE)
                     .edit { putInt("last_scan_mediastore_count", rawMediaStoreCount) }

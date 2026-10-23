@@ -1,0 +1,18 @@
+<resources>
+    <string name="update_history_title">업데이트 내역</string>
+    <string name="update_history_summary">설치한 버전과 변경 내용을 확인하세요. 설치 성공을 확인하면 앱에서 받은 APK를 자동으로 정리합니다.</string>
+    <string name="update_history_manage">업데이트 내역 관리</string>
+    <string name="update_history_tracking">기록을 시작한 이후 이 기기에서 확인한 내역을 최대 100개 보관합니다. 설치를 취소하면 다시 시도할 수 있도록 APK를 유지합니다.</string>
+    <string name="update_history_empty">아직 기록된 업데이트가 없습니다.</string>
+    <string name="update_history_from">이전 버전: %1$s</string>
+    <string name="update_history_ready">다운로드 완료 · 설치 가능</string>
+    <string name="update_history_requested">설치 화면 열림 · 완료 확인 대기</string>
+    <string name="update_history_installed">설치 완료</string>
+    <string name="update_history_superseded">더 새로운 버전으로 대체됨</string>
+    <string name="update_history_apk_removed">설치 APK 정리 완료</string>
+    <string name="update_history_clear">전체 기록 지우기</string>
+    <string name="update_history_remove">기록 삭제</string>
+    <string name="update_history_delete_hint">기록만 삭제합니다. 설치된 앱 버전과 음악은 유지되며, 설치가 끝난 APK는 계속 자동 정리됩니다.</string>
+    <string name="update_history_no_notes">이 업데이트에 저장된 변경 내용이 없습니다.</string>
+    <string name="update_history_error">기록 변경을 저장하지 못했습니다. 다시 시도해 주세요.</string>
+</resources>

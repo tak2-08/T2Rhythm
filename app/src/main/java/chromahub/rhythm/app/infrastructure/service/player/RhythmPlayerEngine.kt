@@ -548,7 +548,7 @@ class RhythmPlayerEngine(
         val baseDataSourceFactory = DefaultDataSource.Factory(context, cacheDataSourceFactory)
 
         val resolvingDataSourceFactory = ResolvingDataSource.Factory(
-            baseDataSourceFactory,
+            chromahub.rhythm.app.features.streaming.PrivateStreamDataSource.Factory(context, baseDataSourceFactory),
             object : ResolvingDataSource.Resolver {
                 override fun resolveDataSpec(dataSpec: DataSpec): DataSpec {
                     return chromahub.rhythm.app.features.local.data.discovery.StreamingAudio.resolve(dataSpec)

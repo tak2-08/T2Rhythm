@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="catalog_all_sources">All</string>
+    <string name="folder_album_title">Use folder names for missing albums</string>
+    <string name="folder_album_hint">Use the folder name when a track has no album tag. Off by default. Changing this refreshes your library.</string>
+    <string name="page_edit">Edit page</string>
+    <string name="page_export">Save page file</string>
+    <string name="page_import">Import page file</string>
+    <string name="page_description">About</string>
+    <string name="page_choose_image">Choose page image</string>
+    <string name="page_image_selected">Image selected</string>
+    <string name="page_remove_image">Remove page image</string>
+    <string name="page_save">Save</string>
+    <string name="page_exported">About text and artwork saved in a page file.</string>
+    <string name="page_imported">Page imported and stored on this device.</string>
+    <string name="page_operation_failed">Could not finish the page operation. Check the file and available storage, then retry.</string>
+    <string name="player_release_date">Release date</string>
+</resources>

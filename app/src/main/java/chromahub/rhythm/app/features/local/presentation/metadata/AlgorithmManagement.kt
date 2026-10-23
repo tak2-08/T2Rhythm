@@ -24,13 +24,16 @@ private data class AlgorithmSnapshot(
     val reviews: List<TimingReview> = emptyList(),
     val trainedAt: Long = 0,
     val bytes: Long = 0,
+    val genreValidation: GenreValidationResult? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun AlgorithmManagement(onDismiss: () -> Unit) {
+fun AlgorithmManagement(training: Boolean = false, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    var tab by remember { mutableIntStateOf(0) }
+    val learningUi by chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).learningUiEnabled.collectAsState()
+    if (training && !learningUi) { LaunchedEffect(Unit) { onDismiss() }; return }
+    var tab by remember(training) { mutableIntStateOf(0) }
     var dimension by remember { mutableStateOf("volume") }
     var snapshot by remember { mutableStateOf(AlgorithmSnapshot()) }
     val (patterns, model, recommendation, validation, reviews, trainedAt, bytes) = snapshot
@@ -57,6 +60,7 @@ fun AlgorithmManagement(onDismiss: () -> Unit) {
                         File(context.cacheDir, "enrichment-model.json").lastModified()),
                     File(context.filesDir, "music_metadata/personalization/learning").walkTopDown().filter { it.isFile }.sumOf { it.length() } +
                         listOf("enrichment-model.json", "enrichment-learning.db").sumOf { File(context.cacheDir, it).length() },
+                    GenreValidation.read(context),
                 )
             }
             snapshot = loaded; failed = false
@@ -66,9 +70,13 @@ fun AlgorithmManagement(onDismiss: () -> Unit) {
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column {
-            Text(stringResource(R.string.algorithm_title), Modifier.padding(horizontal = 24.dp, vertical = 12.dp), style = MaterialTheme.typography.headlineSmall)
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(stringResource(if (training) R.string.algorithm_training_title else R.string.algorithm_title),
+                    Modifier.weight(1f).padding(vertical = 12.dp), style = MaterialTheme.typography.headlineSmall)
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.ui_close)) }
+            }
             PrimaryTabRow(selectedTabIndex = tab) {
-                listOf(R.string.algorithm_patterns, R.string.algorithm_learning, R.string.algorithm_data).forEachIndexed { i, title ->
+                (if (training) listOf(R.string.genre_training_title, R.string.algorithm_learning) else listOf(R.string.algorithm_patterns, R.string.algorithm_data)).forEachIndexed { i, title ->
                     Tab(tab == i, onClick = { tab = i }, text = { Text(stringResource(title)) })
                 }
             }
@@ -78,7 +86,15 @@ fun AlgorithmManagement(onDismiss: () -> Unit) {
                     Text(stringResource(R.string.usability_load_failed), color = MaterialTheme.colorScheme.error)
                     TextButton(onClick = { retry++ }) { Text(stringResource(R.string.mv_retry)) }
                 }
-                if (tab == 0) {
+                if (training && tab == 0) {
+                    item { Text(stringResource(R.string.genre_signal_weights), style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.genre_signal_hint), style = MaterialTheme.typography.bodySmall)
+                        val report = snapshot.genreValidation
+                        Text(if (report?.accuracy == null) stringResource(R.string.genre_validation_provisional)
+                            else stringResource(R.string.genre_validation_score, report.recordings, (report.accuracy * 100).toInt()), style = MaterialTheme.typography.bodySmall)
+                        if (report?.promoted == false) Text(stringResource(R.string.genre_validation_kept)) }
+                    item { GenreTrainingPanel() }
+                } else if (!training && tab == 0) {
                     item { Text(stringResource(R.string.algorithm_observations), style = MaterialTheme.typography.bodySmall) }
                     item { FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("volume" to R.string.algorithm_volume_label, "place" to R.string.algorithm_place_label,
@@ -105,7 +121,7 @@ fun AlgorithmManagement(onDismiss: () -> Unit) {
                             }
                         } }
                     } }
-                } else if (tab == 1) {
+                } else if (training && tab == 1) {
                     item {
                         OutlinedButton(enabled = !running && !requested, onClick = {
                             try {
@@ -140,7 +156,9 @@ fun AlgorithmManagement(onDismiss: () -> Unit) {
                     item { Text(validation?.meanErrorMs?.let { context.getString(R.string.algorithm_validation, validation!!.songs, it / 1000) } ?: context.getString(R.string.algorithm_validation_pending), style = MaterialTheme.typography.bodySmall) }
                     item { Text(stringResource(R.string.algorithm_limits), style = MaterialTheme.typography.bodySmall) }
                     item { LearningPreferences() }
+                    item { RecommendationFeedbackSettings() }
                 } else {
+                    item { AnalysisPowerSetting() }
                     item { Text(context.getString(R.string.algorithm_storage, Formatter.formatShortFileSize(context, bytes)), style = MaterialTheme.typography.titleMedium) }
                     item { Text(stringResource(R.string.algorithm_storage_hint), style = MaterialTheme.typography.bodySmall) }
                     item { PersonalExperiencePanel() }

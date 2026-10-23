@@ -41,7 +41,8 @@ class TimingPlayback(val position: () -> Long?, val playing: () -> Boolean,
 @Composable
 fun LyricTimingEditor(song: Song, original: LyricsData, viewModel: MusicViewModel,
     proposal: EnrichmentProposal? = null, playbackOverride: TimingPlayback? = null,
-    applyOverride: (suspend (EnrichmentProposal) -> Unit)? = null, onDismiss: () -> Unit) {
+    applyOverride: (suspend (EnrichmentProposal) -> Unit)? = null,
+    inputLyrics: LyricsData = original, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val drafts = remember { LyricTimingDraftStore(context) }
@@ -70,9 +71,9 @@ fun LyricTimingEditor(song: Song, original: LyricsData, viewModel: MusicViewMode
     var seekPreview by remember { mutableStateOf<Float?>(null) }
     val undo = remember { mutableStateListOf<Triple<List<LyricTimingMark>, Int, Boolean>>() }
     val list = rememberLazyListState()
-    val requireEnds = remember(original, proposal) { proposal == null && LocalLyricAlignment.parse(original.getBestLyrics().orEmpty()).isEmpty() }
+    val requireEnds = remember(inputLyrics, proposal) { proposal == null && LocalLyricAlignment.parse(inputLyrics.getBestLyrics().orEmpty()).isEmpty() }
     val ready = remember(rows, song.duration, requireEnds) { rows.isNotEmpty() && rows.all { it.start != null && (!requireEnds || it.end != null) } && ManualLyricTiming.valid(rows, song.duration) }
-    fun snapshot() = LyricTimingDraft(EnrichmentStore.signature(song), original, proposal?.id, rows, selected)
+    fun snapshot() = LyricTimingDraft(EnrichmentStore.signature(song), original, proposal?.id, rows, selected, inputLyrics = inputLyrics)
     suspend fun persist() { if (rows.isNotEmpty()) { val draft = snapshot(); withContext(Dispatchers.IO) { drafts.save(song, draft) } } }
     fun close() { if (!busy) scope.launch {
         busy = true
@@ -99,11 +100,11 @@ fun LyricTimingEditor(song: Song, original: LyricsData, viewModel: MusicViewMode
             else endSelected = true
         }
     }
-    LaunchedEffect(song.uri, proposal?.id) {
-        val timed = LocalLyricAlignment.parse(proposal?.value ?: original.getBestLyrics().orEmpty())
-        val restored = withContext(Dispatchers.IO) { drafts.read(song, original, proposal?.id) }
+    LaunchedEffect(song.uri, original, inputLyrics, proposal?.id) {
+        val timed = LocalLyricAlignment.parse(proposal?.value ?: inputLyrics.getBestLyrics().orEmpty())
+        val restored = withContext(Dispatchers.IO) { drafts.read(song, original, proposal?.id, inputLyrics) }
         rows = restored?.rows ?: if (timed.isNotEmpty()) ManualLyricTiming.fromTimed(timed)
-            else ManualLyricTiming.fromText(LyricTimingInput.lines(original))
+            else ManualLyricTiming.fromText(LyricTimingInput.lines(inputLyrics))
         selected = restored?.selected?.coerceIn(0, rows.lastIndex.coerceAtLeast(0)) ?: 0
         loading = false
     }

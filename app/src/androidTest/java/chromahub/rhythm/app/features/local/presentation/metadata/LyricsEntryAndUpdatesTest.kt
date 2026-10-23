@@ -108,7 +108,7 @@ class LyricsEntryAndUpdatesTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("lyric-ai-action").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("lyric-ai-action").assertIsDisplayed()
         capture("lyrics-ai-material.png")
-        compose.onNodeWithTag("lyric-manual-action").assertWidthIsAtLeast(200.dp)
+        compose.onNodeWithTag("lyric-manual-action").assertDoesNotExist()
         compose.onNodeWithTag("lyric-ai-action").assertWidthIsAtLeast(48.dp)
         assertTrue(compose.onNodeWithTag("lyric-ai-action").fetchSemanticsNode().boundsInRoot.height <= 80 * ctx.resources.displayMetrics.density)
         compose.onNodeWithText(text).assertIsDisplayed()

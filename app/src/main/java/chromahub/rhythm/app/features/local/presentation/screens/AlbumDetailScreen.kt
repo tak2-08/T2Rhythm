@@ -8,6 +8,7 @@ package chromahub.rhythm.app.features.local.presentation.screens
 import chromahub.rhythm.app.shared.presentation.components.icons.RhythmIcons
 import chromahub.rhythm.app.shared.presentation.components.icons.Icon
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.*
@@ -303,6 +304,15 @@ fun AlbumDetailScreen(
     }
 
     val catalogRevision by chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).changes.collectAsState()
+    val entityPages = remember { chromahub.rhythm.app.features.local.data.metadata.EntityPageStore(context) }
+    val entityPageArtist = (album?.artist ?: allDisplaySongs.firstOrNull()?.artist).orEmpty()
+    val entityPageKey = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).albumKey(albumName, entityPageArtist)
+    val pageRevision by remember(entityPageKey) { entityPages.changes(kr.co.metadata.crawler.EntityKind.ALBUM, entityPageKey) }.collectAsState()
+    var showEntityEditMenu by remember { mutableStateOf(false) }
+    var showEntityDescription by remember { mutableStateOf(false) }
+    var showCustomizeImage by remember { mutableStateOf(false) }
+    var showOnlineImage by remember { mutableStateOf(false) }
+
     val integrationsEnabled by appSettings.integrationsEnabled.collectAsState()
     val wikipediaApiEnabled by appSettings.wikipediaApiEnabled.collectAsState()
     val wikipediaApiActive = wikipediaApiEnabled && integrationsEnabled
@@ -311,10 +321,40 @@ fun AlbumDetailScreen(
     var description by remember(albumId) { mutableStateOf<String?>(null) }
     var isDescriptionLoading by remember(albumId) { mutableStateOf(false) }
 
-    LaunchedEffect(albumName, album?.artist, catalogRevision) {
+    val storedPage = chromahub.rhythm.app.features.local.presentation.metadata.rememberEntityPage(
+        kr.co.metadata.crawler.EntityKind.ALBUM, entityPageKey, albumName, entityPageArtist, description,
+        artwork = album?.artworkUri ?: allDisplaySongs.firstNotNullOfOrNull { it.artworkUri }, songs = allDisplaySongs)
+    val pageScope = rememberCoroutineScope()
+    fun updatePageImage(uri: Uri?) {
+        pageScope.launch {
+            try { withContext(Dispatchers.IO) {
+                if (uri == null) entityPages.resetImage(kr.co.metadata.crawler.EntityKind.ALBUM, entityPageKey)
+                else entityPages.save(kr.co.metadata.crawler.EntityKind.ALBUM, entityPageKey, albumName, entityPageArtist,
+                    description.orEmpty(), uri, edited = false)
+            } } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (_: Exception) { android.widget.Toast.makeText(context, R.string.page_operation_failed, android.widget.Toast.LENGTH_LONG).show() }
+        }
+    }
+    val pageImagePicker = rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) updatePageImage(uri) }
+    if (showEntityEditMenu) chromahub.rhythm.app.features.local.presentation.metadata.EntityEditMenu(
+        kr.co.metadata.crawler.EntityKind.ALBUM, albumName, onDismiss = { showEntityEditMenu = false },
+        onDescription = { showEntityEditMenu = false; showEntityDescription = true },
+        onArtwork = { showEntityEditMenu = false; showCustomizeImage = true })
+    if (showEntityDescription) chromahub.rhythm.app.features.local.presentation.metadata.EntityDescriptionEditor(
+        kr.co.metadata.crawler.EntityKind.ALBUM, entityPageKey, albumName, entityPageArtist, description,
+        onDismiss = { showEntityDescription = false })
+    if (showCustomizeImage) chromahub.rhythm.app.shared.presentation.components.dialogs.CustomizeArtistImageDialog(
+        albumName, onDismiss = { showCustomizeImage = false },
+        onSelectImage = { pageImagePicker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+        onResetImage = { updatePageImage(null) }, onSearchOnline = { showOnlineImage = true }, isAlbum = true)
+    if (showOnlineImage) chromahub.rhythm.app.features.local.presentation.metadata.CatalogArtworkDialog(
+        initialQuery = "$albumName $entityPageArtist".trim(), initialKind = kr.co.metadata.crawler.EntityKind.ALBUM,
+        onDismiss = { showOnlineImage = false }, onSelect = { uri -> showOnlineImage = false; updatePageImage(uri) })
+
+    LaunchedEffect(albumName, album?.artist, catalogRevision, pageRevision) {
         val artist = album?.artist ?: allDisplaySongs.firstOrNull()?.artist
-        chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(context)
-            .loadAlbumDescription(albumName, artist, fetch = false)?.let { description = it }
+        description = chromahub.rhythm.app.features.local.di.LocalMusicModule.provideMusicRepository(context)
+            .loadAlbumDescription(albumName, artist, fetch = false)
     }
 
     LaunchedEffect(albumId, albumName, album?.artist, allDisplaySongs, wikipediaApiActive, appleCanvasActive) {
@@ -383,7 +423,7 @@ fun AlbumDetailScreen(
     val displayArtist = aggregatedArtists.joinToString(", ").ifEmpty {
         album?.artist ?: allDisplaySongs.firstOrNull()?.artist ?: "Unknown Artist"
     }
-    val displayArtworkUri = album?.artworkUri ?: allDisplaySongs.firstNotNullOfOrNull { it.artworkUri }
+    val displayArtworkUri = if (storedPage?.imageEdited == true) entityPages.image(storedPage) else entityPages.image(storedPage) ?: album?.artworkUri ?: allDisplaySongs.firstNotNullOfOrNull { it.artworkUri }
     val hasCanvas = appleCanvasActive && canvasArtwork != null
     val backgroundColor = MaterialTheme.colorScheme.background
     val isLoading = isContentLoadingOverride ?: (album == null && allDisplaySongs.isEmpty())
@@ -529,6 +569,9 @@ fun AlbumDetailScreen(
                                         )
                                     }
                                 }
+                            }
+                            IconButton(onClick = { showEntityEditMenu = true }, modifier = Modifier.align(Alignment.End)) {
+                                Icon(RhythmIcons.Edit, stringResource(R.string.entity_edit_title, stringResource(R.string.catalog_kind_album)))
                             }
                             Spacer(modifier = Modifier.height(24.dp))
 
@@ -953,6 +996,11 @@ fun AlbumDetailScreen(
                                     Box {
                                         HeaderActionGroup(
                                             actions = listOf(
+                                                HeaderAction(
+                                                    icon = RhythmIcons.Edit,
+                                                    contentDescription = stringResource(R.string.entity_edit_title, stringResource(R.string.catalog_kind_album)),
+                                                    onClick = { showEntityEditMenu = true }
+                                                ),
                                                 HeaderAction(
                                                     icon = RhythmIcons.Actions.Sort,
                                                     contentDescription = stringResource(R.string.content_desc_sort_songs),

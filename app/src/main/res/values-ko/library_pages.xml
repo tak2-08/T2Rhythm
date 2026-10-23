@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="catalog_all_sources">전체</string>
+    <string name="folder_album_title">앨범이 없으면 폴더명 사용</string>
+    <string name="folder_album_hint">앨범 태그가 없는 음원에 폴더명을 앨범명으로 사용합니다. 기본으로 사용하지 않습니다. 변경하면 라이브러리를 갱신합니다.</string>
+    <string name="page_edit">페이지 편집</string>
+    <string name="page_export">페이지 파일 저장</string>
+    <string name="page_import">페이지 파일 가져오기</string>
+    <string name="page_description">소개글</string>
+    <string name="page_choose_image">페이지 이미지 선택</string>
+    <string name="page_image_selected">이미지 선택됨</string>
+    <string name="page_remove_image">페이지 이미지 지우기</string>
+    <string name="page_save">저장</string>
+    <string name="page_exported">소개글과 이미지를 페이지 파일로 저장했습니다.</string>
+    <string name="page_imported">페이지를 가져와 기기에 보관했습니다.</string>
+    <string name="page_operation_failed">페이지 작업을 완료하지 못했습니다. 저장 공간과 파일을 확인한 뒤 다시 시도해 주세요.</string>
+    <string name="player_release_date">출시일</string>
+</resources>
