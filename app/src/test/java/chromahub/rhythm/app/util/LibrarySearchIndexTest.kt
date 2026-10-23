@@ -98,7 +98,7 @@ class LibrarySearchIndexTest {
         assertEquals(songs.last(), catalog.search("노래49999 가수49999").single())
     }
     @Test
-    fun genreTabDoesNotMatchTitlesAndSplitsMultiGenreTags() {
+    fun genreMetadataIndexDoesNotMatchTitlesAndSplitsMultiGenreTags() {
         val titleOnly = Item("Rock the world", genre = "Jazz")
         val actual = Item("Quiet song", genre = "Folk; Rock")
         val unknown = Item("Rock", genre = "알 수 없음")

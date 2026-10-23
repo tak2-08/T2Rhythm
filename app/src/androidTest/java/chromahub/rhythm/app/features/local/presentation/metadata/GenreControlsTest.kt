@@ -243,11 +243,13 @@ class GenreControlsTest {
             SettingsScreen(onBackClick = {}, onNavigateTo = { error("Unexpected route $it") })
         } } }
         compose.onNode(hasSetTextAction()).performTextInput("학습 UI")
+        awaitText(R.string.learning_ui_title)
         compose.onNodeWithText(base.getString(R.string.learning_ui_title)).performClick()
         compose.onNode(isToggleable()).performClick()
         assertFalse(AppSettings.getInstance(base).learningUiEnabled.value)
         compose.onNodeWithText(base.getString(android.R.string.ok)).performClick()
         compose.onNode(hasSetTextAction()).performTextReplacement("알고리즘")
+        awaitText(R.string.algorithm_title)
         compose.onNodeWithText(base.getString(R.string.algorithm_training_title)).assertDoesNotExist()
         compose.onNodeWithText(base.getString(R.string.algorithm_title)).performClick()
         compose.onNodeWithText(base.getString(R.string.algorithm_patterns)).assertIsDisplayed()
@@ -258,12 +260,17 @@ class GenreControlsTest {
         compose.onNodeWithText(base.getString(R.string.ui_close)).performClick()
         compose.waitUntil(10_000) { compose.onAllNodesWithText(base.getString(R.string.algorithm_patterns)).fetchSemanticsNodes().isEmpty() }
         compose.onNode(hasSetTextAction()).performTextReplacement("학습 UI")
+        awaitText(R.string.learning_ui_title)
         compose.onNodeWithText(base.getString(R.string.learning_ui_title)).performClick()
         compose.onNode(isToggleable()).performClick()
         compose.onNodeWithText(base.getString(android.R.string.ok)).performClick()
         compose.onNode(hasSetTextAction()).performTextReplacement("알고리즘")
+        awaitText(R.string.algorithm_training_title)
         compose.onNodeWithText(base.getString(R.string.algorithm_training_title)).assertIsDisplayed()
         assertEquals("JAZZ", GenreCorrections(base).apply(listOf(source)).single().genre)
+    }
+    private fun awaitText(resource: Int) {
+        compose.waitUntil(10_000) { compose.onAllNodesWithText(base.getString(resource)).fetchSemanticsNodes().isNotEmpty() }
     }
     @Test fun hidingTrainingToolsKeepsRecommendationPlaybackAndLyricsContent() {
         val songs = listOf(song("한곡", "POP"), song("다른곡", "ROCK"))

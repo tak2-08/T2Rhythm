@@ -2,7 +2,7 @@
 <resources>
     <string name="genre_search_all">전체</string>
     <string name="genre_search_tab">장르 검색</string>
-    <string name="genre_search_hint">장르 태그 검색</string>
+    <string name="genre_search_hint">장르 검색</string>
     <string name="nearby_title">근처 T2Rhythm 기기</string>
     <string name="nearby_show">Wi-Fi에서 2분간 기기 공개</string>
     <string name="nearby_hide">Wi-Fi 기기 공개 중지</string>
@@ -23,4 +23,9 @@
     <string name="streaming_qr_description">개인 스트리밍 초대 QR</string>
     <string name="streaming_qr_error">QR을 만들지 못했습니다. 초대를 복사하거나 공유해 주세요.</string>
     <string name="nearby_device_limit">기기는 최대 8대까지 저장할 수 있습니다. 다른 기기를 추가하려면 기존 연결을 해제하세요.</string>
+    <string name="genre_browse_related">관련 장르</string>
+    <string name="genre_browse_children">세부 장르</string>
+    <string name="genre_browse_songs">곡 목록 열기</string>
+    <string name="genre_browse_empty">보관함에 일치하는 장르가 없습니다</string>
+    <string name="genre_browse_hint">장르를 검색하거나 선택하여 관련 장르와 곡 목록을 둘러보세요.</string>
 </resources>

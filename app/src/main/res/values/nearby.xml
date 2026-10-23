@@ -2,7 +2,7 @@
 <resources>
     <string name="genre_search_all">All</string>
     <string name="genre_search_tab">Genres</string>
-    <string name="genre_search_hint">Search genre tags</string>
+    <string name="genre_search_hint">Search genres</string>
     <string name="nearby_title">Nearby T2Rhythm devices</string>
     <string name="nearby_show">Make visible on Wi-Fi for 2 minutes</string>
     <string name="nearby_hide">Stop Wi-Fi visibility</string>
@@ -23,4 +23,9 @@
     <string name="streaming_qr_description">Private streaming invitation QR</string>
     <string name="streaming_qr_error">Could not create a QR. Copy or share the invitation instead.</string>
     <string name="nearby_device_limit">You can save up to 8 devices. Disconnect a device before adding another.</string>
+    <string name="genre_browse_related">Related genres</string>
+    <string name="genre_browse_children">More specific genres</string>
+    <string name="genre_browse_songs">Open songs</string>
+    <string name="genre_browse_empty">No matching genres in your library</string>
+    <string name="genre_browse_hint">Search or select a genre to explore related genres and open its songs.</string>
 </resources>

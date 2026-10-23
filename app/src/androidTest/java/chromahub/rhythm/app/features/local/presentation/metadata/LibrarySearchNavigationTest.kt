@@ -75,7 +75,7 @@ class LibrarySearchNavigationTest {
                     "다시 듣기",
                     duration = 180000,
                     uri = android.net.Uri.parse("content://test/search-a"),
-                    genre = "Folk",
+                    genre = "Folk;Folk Rock",
                     bitrate = 192000,
                     codec = "MP3",
                 ),
@@ -157,25 +157,41 @@ class LibrarySearchNavigationTest {
         capture("library-search-tokens.png")
         click(label(R.string.genre_search_tab))
         enter("folk")
-        awaitNode("서른 즈음에")
-        awaitNode("이등병의 편지")
+        compose.onNodeWithTag("genre-result:FOLK").assertIsDisplayed()
+        compose.onNodeWithTag("genre-result:FOLK ROCK").assertIsDisplayed()
+        assertNull(locate("서른 즈음에"))
+        assertNull(locate("이등병의 편지"))
         assertNull(locate("기억의 습작"))
         capture("library-search-genre-tags.png")
-        enter("")
         compose.runOnUiThread {
             androidx.core.view.WindowCompat.getInsetsController(compose.activity.window, compose.activity.window.decorView)
                 .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
         }
-        compose.onAllNodes(hasText("FOLK") and hasClickAction() and hasAnyAncestor(hasScrollAction()))
-            .onFirst().performScrollTo().performClick()
+        compose.onNodeWithTag("genre-result:FOLK").performClick()
         compose.onNode(hasText("FOLK") and isSelected()).assertIsDisplayed()
+        awaitNode(label(R.string.genre_browse_children))
+        compose.onNodeWithTag("genre-result:FOLK ROCK").assertIsDisplayed().performClick()
+        compose.onNode(hasText("FOLK ROCK") and isSelected()).assertIsDisplayed()
+        compose.onNodeWithTag("genre-open-songs").performClick()
         awaitNode("서른 즈음에")
-        enter("편지")
+        assertNull(locate("이등병의 편지"))
+        capture("library-search-genre-songs.png")
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitForIdle()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitForIdle()
         compose.onNode(hasText("FOLK") and isSelected()).assertExists()
+        compose.onNodeWithTag("genre-result:POP").performScrollTo().assertIsDisplayed()
+        capture("library-search-related-genres.png")
+        compose.onNodeWithTag("genre-open-songs").performScrollTo().performClick()
+        awaitNode("이등병의 편지")
+        awaitNode("서른 즈음에")
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitForIdle()
+        click(label(R.string.genre_search_all))
+        // Switching tabs restores the original general search, rather than reusing a genre query.
         awaitNode("이등병의 편지")
         assertNull(locate("서른 즈음에"))
-        capture("library-search-within-genre.png")
-        click(label(R.string.genre_search_all))
         enter("존재하지않는노래")
         awaitNode(label(R.string.no_results_found))
         assertNull(locate("Connect to a streaming service first"))
