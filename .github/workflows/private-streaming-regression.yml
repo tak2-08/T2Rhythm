@@ -56,6 +56,8 @@ jobs:
       - name: Prepare next-version test fixture before starting the emulator
         if: inputs.update_only
         run: |
+          current_name=$(python3 -c 'import pathlib,re; print(re.search(r"versionName = overrideVersionName \?: \"([0-9.]+)\"",pathlib.Path("app/build.gradle.kts").read_text()).group(1))')
+          cp "app/build/outputs/apk/github/debug/Rhythm-$current_name-githubDebug.apk" "$RUNNER_TEMP/t2-current.apk"
           read -r t2_code t2_name < <(python3 -c 'import pathlib,re; t=pathlib.Path("app/build.gradle.kts").read_text(); c=int(re.search(r"versionCode = overrideVersionCode \?: (\d+)",t).group(1))+1; n=re.search(r"versionName = overrideVersionName \?: \"([0-9.]+)\"",t).group(1).split("."); n[-1]=str(int(n[-1])+1); print(c,".".join(n))')
           ./gradlew :app:assembleGithubDebug "-PversionCodeOverride=$t2_code" "-PversionNameOverride=$t2_name" --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --console=plain
           cp "app/build/outputs/apk/github/debug/Rhythm-$t2_name-githubDebug.apk" "$RUNNER_TEMP/t2-future.apk"
@@ -64,8 +66,7 @@ jobs:
         run: |
           cat > "$RUNNER_TEMP/t2-install-check.sh" <<'SCRIPT'
           set -euo pipefail
-          current_name=$(python3 -c 'import pathlib,re; print(re.search(r"versionName = overrideVersionName \?: \"([0-9.]+)\"",pathlib.Path("app/build.gradle.kts").read_text()).group(1))')
-          adb install -r -t "app/build/outputs/apk/github/debug/Rhythm-$current_name-githubDebug.apk"
+          adb install -r -t "$RUNNER_TEMP/t2-current.apk"
           adb install -r -t app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk
           export T2_UPDATE_FIXTURE="$RUNNER_TEMP/t2-future.apk"
           bash scripts/run_update_install_lifecycle.sh
