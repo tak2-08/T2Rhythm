@@ -30,6 +30,7 @@ class GenreBrowseIndexTest {
         assertEquals(setOf("ROCK", "인디 록"), index.related("HARD ROCK").toSet())
     }
     @Test fun unknownEmptyAndRebuiltLibrariesDoNotRetainStaleGenres() {
+        assertTrue(GenreBrowseIndex.build(songs, { it.genre }).songs(null).isEmpty())
         assertTrue(GenreBrowseIndex.build(emptyList<Item>(), { it.genre }).search("").isEmpty())
         val updated = GenreBrowseIndex.build(listOf(song("6", "New", "포크 록")), { it.genre })
         assertEquals(listOf("포크 록"), updated.search("ㅍㅋ"))

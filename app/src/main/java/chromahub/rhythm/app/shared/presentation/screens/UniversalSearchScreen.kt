@@ -218,7 +218,7 @@ fun UniversalSearchScreen(
 
     val search = rememberLocalSearch(query, localSongs, fullLocalAlbums, localArtists, localPlaylists,
         filterSongs, filterAlbums, filterArtists, filterPlaylists)
-    val genreBrowse = rememberGenreBrowse(localSongs)
+    val genreBrowse = if (genreTab) rememberGenreBrowse(localSongs) else null
     val genreResults = remember(genreBrowse, genreQuery) { genreBrowse?.search(genreQuery).orEmpty() }
     val genreSongs = remember(genreBrowse, selectedGenre) { genreBrowse?.songs(selectedGenre).orEmpty() }
     val genreSongCounts = search.genreCounts

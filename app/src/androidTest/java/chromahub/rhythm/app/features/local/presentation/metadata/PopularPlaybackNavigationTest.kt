@@ -4,8 +4,8 @@ package chromahub.rhythm.app.features.local.presentation.metadata
 import android.Manifest
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
-import android.view.accessibility.AccessibilityNodeInfo
-import androidx.test.ext.junit.rules.ActivityScenarioRule
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import chromahub.rhythm.app.R
@@ -26,7 +26,8 @@ import org.junit.runner.RunWith
 /** Real MainActivity/navigation, not a separate copy of its navigation controls. */
 @RunWith(AndroidJUnit4::class)
 class PopularPlaybackNavigationTest {
-    private val activity = ActivityScenarioRule(MainActivity::class.java)
+    private val compose = createAndroidComposeRule<MainActivity>()
+    private val activity get() = compose.activityRule
     private val instrumentation
         get() = InstrumentationRegistry.getInstrumentation()
 
@@ -114,10 +115,11 @@ class PopularPlaybackNavigationTest {
                 }
             }
         }
-    @get:Rule val rules: RuleChain = RuleChain.outerRule(preparation).around(activity)
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(preparation).around(compose)
 
     @Test
     fun popularSongsPlayExistingAudioAndExposeStreamingAndPersistentDownloadStatus() {
+        activity.scenario.onActivity { LanguageHelper.setLanguage(it, "ko") }
         awaitNode("인기", description = true)
         click("홈", description = true)
         lateinit var vm: chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
@@ -246,21 +248,8 @@ class PopularPlaybackNavigationTest {
     }
 
     private fun scrollTo(label: String) {
-        fun scrollable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-            if (node == null) return null
-            if (node.isScrollable) return node
-            for (i in 0 until node.childCount) scrollable(node.getChild(i))?.let {
-                return it
-            }
-            return null
-        }
-        for (direction in listOf(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) {
-            repeat(8) {
-                if (locate(label) != null) return
-                scrollable(instrumentation.uiAutomation.rootInActiveWindow)?.performAction(direction)
-                SystemClock.sleep(300)
-            }
-        }
+        compose.onAllNodes(hasText(label) and hasAnyAncestor(hasScrollAction())).onFirst().performScrollTo()
+        compose.waitForIdle()
     }
 
     private fun label(resource: Int): String {
@@ -270,34 +259,17 @@ class PopularPlaybackNavigationTest {
         return text
     }
 
-    private fun locate(label: String, description: Boolean = false): AccessibilityNodeInfo? {
-        fun visit(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-            if (node == null) return null
-            val values =
-                if (description) listOf(node.contentDescription, node.text)
-                else listOf(node.text, node.hintText)
-            if (
-                values.filterNotNull().any { value ->
-                    value.toString().split('\n', ',').any { it.trim() == label }
-                }
-            )
-                return node
-            for (i in 0 until node.childCount) visit(node.getChild(i))?.let {
-                return it
-            }
-            return null
-        }
-        return visit(instrumentation.uiAutomation.rootInActiveWindow)
+    private fun matching(label: String, description: Boolean) =
+        if (description) hasContentDescription(label) or hasText(label) else hasText(label)
+
+    private fun locate(label: String, description: Boolean = false): SemanticsNodeInteraction? {
+        val nodes = compose.onAllNodes(matching(label, description), useUnmergedTree = true)
+        return if (nodes.fetchSemanticsNodes().isNotEmpty()) nodes.onFirst() else null
     }
 
-    private fun awaitNode(label: String, description: Boolean = false): AccessibilityNodeInfo {
-        val deadline = SystemClock.elapsedRealtime() + 90000
-        while (SystemClock.elapsedRealtime() < deadline) {
-            locate(label, description)?.let {
-                return it
-            }
-            SystemClock.sleep(100)
-        }
+    private fun awaitNode(label: String, description: Boolean = false): SemanticsNodeInteraction {
+        val found = runCatching { compose.waitUntil(90_000) { locate(label, description) != null } }.isSuccess
+        if (found) return locate(label, description)!!.assertIsDisplayed()
         instrumentation.uiAutomation.takeScreenshot()?.let { bitmap ->
             File(context.getExternalFilesDir(null), "popular-playback-failure.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
             bitmap.recycle()
@@ -306,13 +278,9 @@ class PopularPlaybackNavigationTest {
     }
 
     private fun click(label: String, description: Boolean = false) {
-        var node: AccessibilityNodeInfo? = awaitNode(label, description)
-        while (node != null && !node.isClickable) node = node.parent
-        assertTrue(
-            "No clickable ancestor: $label",
-            node?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true,
-        )
-        instrumentation.uiAutomation.waitForIdle(100, 10000)
+        awaitNode(label, description)
+        compose.onAllNodes(matching(label, description)).onFirst().performClick()
+        compose.waitForIdle()
     }
 
     private fun capture(name: String) {

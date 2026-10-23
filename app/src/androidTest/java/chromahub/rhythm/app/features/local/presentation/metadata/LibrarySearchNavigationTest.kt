@@ -63,6 +63,9 @@ class LibrarySearchNavigationTest {
 
     @Test
     fun koreanSearchFiltersAndRestorationUseTheRealAppNavigation() {
+        // On API 33+, AppCompat's first delegate can sync its empty legacy locale store.
+        // Apply the requested language after that delegate exists, as the settings UI does.
+        activity.scenario.onActivity { LanguageHelper.setLanguage(it, "ko") }
         awaitNode("보관함", description = true)
         click("보관함", description = true)
         awaitNode("라이브러리")
@@ -157,6 +160,7 @@ class LibrarySearchNavigationTest {
         capture("library-search-tokens.png")
         click(label(R.string.genre_search_tab))
         enter("folk")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("genre-result:FOLK").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithTag("genre-result:FOLK").assertIsDisplayed()
         compose.onNodeWithTag("genre-result:FOLK ROCK").assertIsDisplayed()
         assertNull(locate("서른 즈음에"))
