@@ -223,7 +223,7 @@ class PopularPlaybackNavigationTest {
         assertTrue("Matched local track did not start playing", vm.isPlaying.value)
         assertNull(locate(label(R.string.discovery_source_search)))
         click("앨범")
-        scrollTo("새로운 인기곡")
+        scrollTo("새로운 앨범")
         awaitNode(label(R.string.popular_downloading), description = true)
         capture("popular-playback-albums.png")
         scrollTo("새 앨범")

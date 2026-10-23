@@ -172,10 +172,10 @@ class LibrarySearchNavigationTest {
                 .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
         }
         compose.onNodeWithTag("genre-result:FOLK").performClick()
-        compose.onNode(hasText("FOLK") and isSelected()).assertIsDisplayed()
+        awaitSelectedGenre("FOLK")
         awaitNode(label(R.string.genre_browse_children))
         compose.onNodeWithTag("genre-result:FOLK ROCK").assertIsDisplayed().performClick()
-        compose.onNode(hasText("FOLK ROCK") and isSelected()).assertIsDisplayed()
+        awaitSelectedGenre("FOLK ROCK")
         compose.onNodeWithTag("genre-open-songs").performClick()
         awaitNode("서른 즈음에")
         assertNull(locate("이등병의 편지"))
@@ -184,7 +184,7 @@ class LibrarySearchNavigationTest {
         compose.waitForIdle()
         androidx.test.espresso.Espresso.pressBack()
         compose.waitForIdle()
-        compose.onNode(hasText("FOLK") and isSelected()).assertExists()
+        awaitSelectedGenre("FOLK")
         compose.onNodeWithTag("genre-result:POP").performScrollTo().assertIsDisplayed()
         capture("library-search-related-genres.png")
         compose.onNodeWithTag("genre-open-songs").performScrollTo().performClick()
@@ -219,6 +219,16 @@ class LibrarySearchNavigationTest {
     private fun enter(text: String) {
         compose.onAllNodes(hasSetTextAction()).onFirst().performTextReplacement(text)
         compose.waitForIdle()
+    }
+
+    private fun awaitSelectedGenre(genre: String) {
+        // Window insets finish on Android's clock after IME dismissal, outside Compose's clock.
+        val node = compose.onNode(hasText(genre) and isSelected())
+        val visible = runCatching {
+            compose.waitUntil(10_000) { runCatching { node.assertIsDisplayed() }.isSuccess }
+        }.isSuccess
+        if (!visible) capture("library-search-selected-genre-failure.png")
+        node.assertIsDisplayed()
     }
 
     private fun label(resource: Int): String {
