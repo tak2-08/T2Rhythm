@@ -210,11 +210,10 @@ class LibrarySearchNavigationTest {
     }
 
     private fun awaitNode(label: String, description: Boolean = false): SemanticsNodeInteraction {
-        val deadline = SystemClock.elapsedRealtime() + 90000
-        while (SystemClock.elapsedRealtime() < deadline) {
-            locate(label, description)?.let { return it }
-            SystemClock.sleep(100)
-        }
+        // Compose controls coroutine time. Advance its clock while waiting for debounced
+        // searches even when a nonblank-to-nonblank edit starts no UI transition.
+        val found = runCatching { compose.waitUntil(90_000) { locate(label, description) != null } }.isSuccess
+        if (found) return locate(label, description)!!
         instrumentation.uiAutomation.takeScreenshot()?.let { bitmap ->
             File(context.getExternalFilesDir(null), "library-search-failure.png")
                 .outputStream()

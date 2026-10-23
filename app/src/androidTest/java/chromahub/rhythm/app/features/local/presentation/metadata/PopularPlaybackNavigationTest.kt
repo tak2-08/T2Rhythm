@@ -205,8 +205,10 @@ class PopularPlaybackNavigationTest {
         click("인기", description = true)
         awaitNode(local.title)
         awaitNode(label(R.string.popular_play_local), description = true)
+        scrollTo("새로운 인기곡")
         awaitNode(label(R.string.popular_downloading), description = true)
         capture("popular-playback-rows.png")
+        scrollTo(local.title)
         click(local.title)
         val deadline = SystemClock.elapsedRealtime() + 45_000
         while (SystemClock.elapsedRealtime() < deadline) {
@@ -219,6 +221,7 @@ class PopularPlaybackNavigationTest {
         assertTrue("Matched local track did not start playing", vm.isPlaying.value)
         assertNull(locate(label(R.string.discovery_source_search)))
         click("앨범")
+        scrollTo("새로운 인기곡")
         awaitNode(label(R.string.popular_downloading), description = true)
         capture("popular-playback-albums.png")
         scrollTo("새 앨범")
@@ -251,11 +254,12 @@ class PopularPlaybackNavigationTest {
             }
             return null
         }
-        repeat(8) {
-            if (locate(label) != null) return
-            scrollable(instrumentation.uiAutomation.rootInActiveWindow)
-                ?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
-            SystemClock.sleep(300)
+        for (direction in listOf(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) {
+            repeat(8) {
+                if (locate(label) != null) return
+                scrollable(instrumentation.uiAutomation.rootInActiveWindow)?.performAction(direction)
+                SystemClock.sleep(300)
+            }
         }
     }
 
@@ -293,6 +297,10 @@ class PopularPlaybackNavigationTest {
                 return it
             }
             SystemClock.sleep(100)
+        }
+        instrumentation.uiAutomation.takeScreenshot()?.let { bitmap ->
+            File(context.getExternalFilesDir(null), "popular-playback-failure.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            bitmap.recycle()
         }
         throw AssertionError("No visible accessibility node: $label")
     }
