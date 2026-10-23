@@ -35,6 +35,8 @@ object BluetoothStreaming {
     private val timer = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "T2-Bluetooth-timeout").apply { isDaemon = true } }
     private val slots = Semaphore(12)
     private val hostSockets = ConcurrentHashMap.newKeySet<Closeable>()
+    private val clientLock = Any()
+    private val clientLinks = ConcurrentHashMap<String, StreamMultiplexer>()
     private val bridges = linkedMapOf<String, ServerSocket>()
     @Volatile private var listener: BluetoothServerSocket? = null
     @Volatile private var invitation: StreamingProtocol.Invite? = null
@@ -66,9 +68,11 @@ object BluetoothStreaming {
                                 val current = invitation?.takeIf { it.expires > System.currentTimeMillis() }
                                 DataOutputStream(socket.outputStream).writeUTF(current?.encode().orEmpty())
                             } else if (mode == 2) {
-                                val tcp = Socket(); hostSockets.add(tcp)
-                                try { tcp.connect(InetSocketAddress(InetAddress.getLoopbackAddress(), StreamingProtocol.PORT), 3000); relay(socket, tcp) }
-                                finally { hostSockets.remove(tcp); tcp.close() }
+                                val mux = StreamMultiplexer(socket.inputStream, socket.outputStream, socket, io, accept = {
+                                    Socket().apply { connect(InetSocketAddress(InetAddress.getLoopbackAddress(), StreamingProtocol.PORT), 3000) }
+                                })
+                                hostSockets.add(mux)
+                                try { mux.run() } finally { hostSockets.remove(mux); mux.close() }
                             }
                         } catch (_: Exception) { }
                         finally { hostSockets.remove(socket); runCatching { socket.close() }; slots.release() }
@@ -84,6 +88,9 @@ object BluetoothStreaming {
     }
     fun hideInvitation() { invitation = null }
     suspend fun invite(address: String): StreamingProtocol.Invite = withContext(Dispatchers.IO) {
+        // Reuse is not possible for the one-shot invitation exchange. Close a previous data
+        // link explicitly before opening the same RFCOMM channel again.
+        forget(endpoint(address))
         val socket = connect(address)
         val timeout = timer.schedule({ runCatching { socket.close() } }, 15, TimeUnit.SECONDS)
         try {
@@ -123,11 +130,9 @@ object BluetoothStreaming {
                 try {
                     while (!server.isClosed) {
                         val tcp = server.accept()
-                        if (!slots.tryAcquire()) { tcp.close(); continue }
                         io.execute {
-                            try { connect(address(host)).use { bt -> bt.outputStream.write(2); relay(bt, tcp) } }
-                            catch (_: Exception) { }
-                            finally { runCatching { tcp.close() }; slots.release() }
+                            try { link(host).attach(tcp) }
+                            catch (_: Exception) { runCatching { tcp.close() } }
                         }
                     }
                 } catch (_: Exception) { }
@@ -137,15 +142,15 @@ object BluetoothStreaming {
     @Synchronized fun forget(endpoint: String) {
         val host = runCatching { java.net.URI(endpoint).host }.getOrNull() ?: return
         bridges.remove(host)?.let { runCatching { it.close() } }
+        clientLinks.remove(host)?.close()
     }
-    private fun relay(bt: BluetoothSocket, tcp: Socket) {
-        // Whichever half ends first closes both directions, including a cancelled Media3 request.
-        val reverse = io.submit {
-            try { tcp.getInputStream().copyTo(bt.outputStream, 16 * 1024) }
-            catch (_: Exception) { }
-            finally { runCatching { bt.close() }; runCatching { tcp.close() } }
+    private fun link(host: String): StreamMultiplexer = synchronized(clientLock) {
+        clientLinks[host]?.takeIf { !it.isClosed } ?: run {
+            val socket = connect(address(host))
+            try {
+                socket.outputStream.write(2)
+                StreamMultiplexer(socket.inputStream, socket.outputStream, socket, io).also { clientLinks[host] = it; it.start() }
+            } catch (e: Exception) { socket.close(); throw e }
         }
-        try { bt.inputStream.copyTo(tcp.getOutputStream(), 16 * 1024) }
-        finally { runCatching { bt.close() }; runCatching { tcp.close() }; reverse.cancel(true) }
     }
 }

@@ -414,7 +414,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     forget?.let { connection -> ConfirmStreamAction(connection.name, R.string.streaming_forget_confirm, R.string.streaming_forget, { forget = null }) {
         scope.launch {
             try { withContext(Dispatchers.IO) { manager.store.forget(connection.server); BluetoothStreaming.forget(connection.endpoint) }; onDisconnect(connection.server); forget = null
-                runCatching { StreamingClient.disconnect(connection) } }
+                try { runCatching { StreamingClient.disconnect(connection) } } finally { BluetoothStreaming.forget(connection.endpoint) } }
             catch (e: CancellationException) { throw e }
             catch (_: Exception) { error = context.getString(R.string.streaming_start_error); forget = null }
         }
@@ -422,7 +422,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     editAddress?.let { connection -> StreamAddressDialog(connection.endpoint, emptyList(), R.string.streaming_address_check, R.string.streaming_save,
         onDismiss = { if (!checkingAddress) editAddress = null }, busy = checkingAddress, onSave = { address ->
             checkingAddress = true
-            scope.launch { try { val updated = connection.at(address); StreamingClient.page(updated); withContext(Dispatchers.IO) { manager.store.save(updated) }; editAddress = null }
+            scope.launch { try { val updated = connection.at(address); StreamingClient.page(updated); withContext(Dispatchers.IO) { manager.store.save(updated) }; if (connection.endpoint != updated.endpoint) BluetoothStreaming.forget(connection.endpoint); editAddress = null }
                 catch (e: CancellationException) { throw e }
                 catch (e: Exception) { error = StreamingClient.friendlyError(e); editAddress = null }
                 finally { checkingAddress = false } }
