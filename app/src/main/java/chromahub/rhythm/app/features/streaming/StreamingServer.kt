@@ -21,7 +21,7 @@ import org.json.JSONObject
 /** HTTPS only, no static file handler, no uploads, no URL credentials, no directory listing. */
 class StreamingServer(
     port: Int, ssl: SSLContext, private val access: StreamingAccess, private val catalog: StreamingCatalog,
-    private val changed: () -> Unit = {}, private val artwork: (String) -> ByteArray?,
+    private val changed: () -> Unit = {}, private val artwork: (String) -> ByteArray?, private val identityPin: String,
 ) : NanoHTTPD(port) {
     private val runner = BoundedRunner()
     val bytesSent = AtomicLong()
@@ -33,6 +33,7 @@ class StreamingServer(
     // start it in the accept loop. Both must be owned by server shutdown.
     val trackedConnections: Int get() = runner.size + if (handshakeSocket.get() != null) 1 else 0
     init {
+        require(StreamingProtocol.validId(identityPin))
         makeSecure(ssl.serverSocketFactory, arrayOf("TLSv1.2", "TLSv1.3").filter { it in ssl.supportedSSLParameters.protocols }.toTypedArray())
         val secureFactory = getServerSocketFactory()
         setServerSocketFactory { TrackedListener(secureFactory.create()) }
@@ -82,8 +83,10 @@ class StreamingServer(
             val body = ByteArray(length); var at = 0
             while (at < length) { val n = s.inputStream.read(body, at, length - at); if (n < 0) return reply(Response.Status.BAD_REQUEST); at += n }
             val j = JSONObject(body.decodeToString())
-            val request = access.pair(j.optString("invite"), j.optString("token"), j.optString("name")) ?: return reply(Response.Status.NOT_FOUND)
-            changed(); return reply(Response.Status.ACCEPTED, JSONObject().put("status", "pending").put("code", request.code))
+            val binding = j.optInt("binding", 1)
+            if (binding !in 1..2) return reply(Response.Status.BAD_REQUEST)
+            val request = access.pair(j.optString("invite"), j.optString("token"), j.optString("name"), identityPin = identityPin.takeIf { binding == 2 }) ?: return reply(Response.Status.NOT_FOUND)
+            changed(); return reply(Response.Status.ACCEPTED, JSONObject().put("status", "pending").put("code", request.code).put("binding", binding))
         }
         if (path == "/v1/pair/status" && s.method == Method.GET) {
             val status = access.status(bearer)

@@ -4,8 +4,9 @@ package chromahub.rhythm.app.features.local.presentation.metadata
 import android.Manifest
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
-import android.view.accessibility.AccessibilityNodeInfo
-import androidx.test.ext.junit.rules.ActivityScenarioRule
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import chromahub.rhythm.app.R
@@ -24,7 +25,8 @@ import org.junit.runner.RunWith
 /** Real MainActivity/navigation, not a separate copy of its navigation controls. */
 @RunWith(AndroidJUnit4::class)
 class LibrarySearchNavigationTest {
-    private val activity = ActivityScenarioRule(MainActivity::class.java)
+    private val compose = createAndroidComposeRule<MainActivity>()
+    private val activity get() = compose.activityRule
     private val instrumentation
         get() = InstrumentationRegistry.getInstrumentation()
 
@@ -58,10 +60,13 @@ class LibrarySearchNavigationTest {
                 AppSettings.getInstance(context).setShowKeyboardOnSearchOpen(true)
             }
         }
-    @get:Rule val rules: RuleChain = RuleChain.outerRule(preparation).around(activity)
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(preparation).around(compose)
 
     @Test
     fun koreanSearchFiltersAndRestorationUseTheRealAppNavigation() {
+        // On API 33+, AppCompat's first delegate can sync its empty legacy locale store.
+        // Apply the requested language after that delegate exists, as the settings UI does.
+        activity.scenario.onActivity { LanguageHelper.setLanguage(it, "ko") }
         awaitNode("보관함", description = true)
         click("보관함", description = true)
         awaitNode("라이브러리")
@@ -74,7 +79,7 @@ class LibrarySearchNavigationTest {
                     "다시 듣기",
                     duration = 180000,
                     uri = android.net.Uri.parse("content://test/search-a"),
-                    genre = "Folk",
+                    genre = "Folk;Folk Rock",
                     bitrate = 192000,
                     codec = "MP3",
                 ),
@@ -154,6 +159,44 @@ class LibrarySearchNavigationTest {
         awaitNode("이등병의 편지")
         assertNull(locate("서른 즈음에"))
         capture("library-search-tokens.png")
+        click(label(R.string.genre_search_tab))
+        enter("folk")
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("genre-result:FOLK").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithTag("genre-result:FOLK").assertIsDisplayed()
+        compose.onNodeWithTag("genre-result:FOLK ROCK").assertIsDisplayed()
+        assertNull(locate("서른 즈음에"))
+        assertNull(locate("이등병의 편지"))
+        assertNull(locate("기억의 습작"))
+        capture("library-search-genre-tags.png")
+        compose.runOnUiThread {
+            androidx.core.view.WindowCompat.getInsetsController(compose.activity.window, compose.activity.window.decorView)
+                .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
+        }
+        compose.onNodeWithTag("genre-result:FOLK").performClick()
+        awaitSelectedGenre("FOLK")
+        awaitNode(label(R.string.genre_browse_children))
+        compose.onNodeWithTag("genre-result:FOLK ROCK").assertIsDisplayed().performClick()
+        awaitSelectedGenre("FOLK ROCK")
+        compose.onNodeWithTag("genre-open-songs").performClick()
+        awaitNode("서른 즈음에")
+        assertNull(locate("이등병의 편지"))
+        capture("library-search-genre-songs.png")
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitForIdle()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitForIdle()
+        awaitSelectedGenre("FOLK")
+        compose.onNodeWithTag("genre-result:POP").performScrollTo().assertIsDisplayed()
+        capture("library-search-related-genres.png")
+        compose.onNodeWithTag("genre-open-songs").performScrollTo().performClick()
+        awaitNode("이등병의 편지")
+        awaitNode("서른 즈음에")
+        androidx.test.espresso.Espresso.pressBack()
+        compose.waitForIdle()
+        click(label(R.string.genre_search_all))
+        // Switching tabs restores the original general search, rather than reusing a genre query.
+        awaitNode("이등병의 편지")
+        assertNull(locate("서른 즈음에"))
         enter("존재하지않는노래")
         awaitNode(label(R.string.no_results_found))
         assertNull(locate("Connect to a streaming service first"))
@@ -175,28 +218,20 @@ class LibrarySearchNavigationTest {
     }
 
     private fun enter(text: String) {
-        fun editable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-            if (node == null) return null
-            if (node.isEditable) return node
-            for (i in 0 until node.childCount) editable(node.getChild(i))?.let {
-                return it
-            }
-            return null
-        }
-        val node = editable(instrumentation.uiAutomation.rootInActiveWindow)
-        assertNotNull("Search field unavailable", node)
-        assertTrue(
-            node!!.performAction(
-                AccessibilityNodeInfo.ACTION_SET_TEXT,
-                android.os.Bundle().apply {
-                    putCharSequence(
-                        AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
-                        text,
-                    )
-                },
-            )
-        )
-        instrumentation.uiAutomation.waitForIdle(100, 10000)
+        compose.onAllNodes(hasSetTextAction()).onFirst().performTextReplacement(text)
+        compose.waitForIdle()
+    }
+
+    private fun awaitSelectedGenre(genre: String) {
+        // Window insets finish on Android's clock after IME dismissal, outside Compose's clock.
+        val node = compose.onNode(hasText(genre) and isSelected())
+        val visible = runCatching {
+            compose.waitUntil(10_000) { runCatching { node.assertIsDisplayed() }.isSuccess }
+        }.isSuccess
+        if (!visible) capture("library-search-selected-genre-failure.png")
+        node.assertIsDisplayed()
+        val bounds = node.getUnclippedBoundsInRoot()
+        assertTrue("Selected genre chip must not cover the screen", bounds.bottom - bounds.top <= 56.dp)
     }
 
     private fun label(resource: Int): String {
@@ -206,34 +241,19 @@ class LibrarySearchNavigationTest {
         return text
     }
 
-    private fun locate(label: String, description: Boolean = false): AccessibilityNodeInfo? {
-        fun visit(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
-            if (node == null) return null
-            val values =
-                if (description) listOf(node.contentDescription, node.text)
-                else listOf(node.text, node.hintText)
-            if (
-                values.filterNotNull().any { value ->
-                    value.toString().lineSequence().any { it.trim() == label }
-                }
-            )
-                return node
-            for (i in 0 until node.childCount) visit(node.getChild(i))?.let {
-                return it
-            }
-            return null
-        }
-        return visit(instrumentation.uiAutomation.rootInActiveWindow)
+    private fun matching(label: String, description: Boolean) =
+        if (description) hasContentDescription(label) or hasText(label) else hasText(label)
+
+    private fun locate(label: String, description: Boolean = false): SemanticsNodeInteraction? {
+        val nodes = compose.onAllNodes(matching(label, description), useUnmergedTree = true)
+        return if (nodes.fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty()) nodes.onFirst() else null
     }
 
-    private fun awaitNode(label: String, description: Boolean = false): AccessibilityNodeInfo {
-        val deadline = SystemClock.elapsedRealtime() + 90000
-        while (SystemClock.elapsedRealtime() < deadline) {
-            locate(label, description)?.let {
-                return it
-            }
-            SystemClock.sleep(100)
-        }
+    private fun awaitNode(label: String, description: Boolean = false): SemanticsNodeInteraction {
+        // Compose controls coroutine time. Advance its clock while waiting for debounced
+        // searches even when a nonblank-to-nonblank edit starts no UI transition.
+        val found = runCatching { compose.waitUntil(90_000) { locate(label, description) != null } }.isSuccess
+        if (found) return locate(label, description)!!
         instrumentation.uiAutomation.takeScreenshot()?.let { bitmap ->
             File(context.getExternalFilesDir(null), "library-search-failure.png")
                 .outputStream()
@@ -253,13 +273,9 @@ class LibrarySearchNavigationTest {
     }
 
     private fun click(label: String, description: Boolean = false) {
-        var node: AccessibilityNodeInfo? = awaitNode(label, description)
-        while (node != null && !node.isClickable) node = node.parent
-        assertTrue(
-            "No clickable ancestor: $label",
-            node?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true,
-        )
-        instrumentation.uiAutomation.waitForIdle(100, 10000)
+        awaitNode(label, description)
+        compose.onAllNodes(matching(label, description)).onFirst().performClick()
+        compose.waitForIdle()
     }
 
     private fun capture(name: String) {

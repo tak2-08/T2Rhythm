@@ -11,6 +11,19 @@ on:
       - ".github/workflows/experience-regression.yml"
   workflow_dispatch:
     inputs:
+      preservation:
+        description: Run the pre-PR native behavior and visual preservation gate
+        type: boolean
+        default: false
+      preservation_batch:
+        description: Preservation groups to run (streaming repeats the affected flows after an invitation fix)
+        type: choice
+        options: [full, streaming, remaining, navigation, compat, genres, android15]
+        default: full
+      baseline_ref:
+        description: Baseline source for visual comparison
+        type: string
+        default: caead2d44b209c81ba774c79fd3b6bec4abbab63
       audit_only:
         description: Capture actual app navigation, large text, keyboard and landscape layouts
         type: boolean
@@ -20,7 +33,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: experience-regression-${{ github.ref }}
+  group: experience-regression-${{ github.ref }}-${{ inputs.preservation_batch || 'full' }}
   cancel-in-progress: true
 
 env:
@@ -28,6 +41,7 @@ env:
 
 jobs:
   android-regression:
+    if: ${{ !inputs.preservation }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -66,4 +80,118 @@ jobs:
             app/build/outputs/usability-audit/
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/connected/
+          retention-days: 14
+
+  preservation-android:
+    if: ${{ inputs.preservation }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.preservation_batch == 'android15' && '[{"api":"35","group":"compat_remaining"},{"api":"35","group":"newflows"}]' || inputs.preservation_batch == 'compat' && '[{"api":"35","group":"compat_remaining"}]' || (inputs.preservation_batch == 'navigation' || inputs.preservation_batch == 'genres') && '[{"api":"29","group":"navigation"},{"api":"35","group":"newflows"},{"api":"37.0","group":"newflows"}]' || inputs.preservation_batch == 'remaining' && '[{"api":"29","group":"streaming"},{"api":"29","group":"visual_baseline"}]' || inputs.preservation_batch == 'streaming' && '[{"api":"29","group":"streaming"},{"api":"35","group":"newflows"},{"api":"37.0","group":"streaming"},{"api":"37.0","group":"newflows"}]' || '[{"api":"29","group":"metadata"},{"api":"29","group":"persistence"},{"api":"29","group":"navigation"},{"api":"29","group":"streaming"},{"api":"35","group":"compat"},{"api":"35","group":"artwork"},{"api":"35","group":"newflows"},{"api":"37.0","group":"streaming"},{"api":"37.0","group":"newflows"},{"api":"29","group":"visual_baseline"},{"api":"29","group":"visual_candidate"}]') }}
+    env:
+      GATE_PROJECT: ${{ matrix.group == 'visual_baseline' && 'baseline' || '.' }}
+      PRESERVATION_MODEL: /tmp/t2-preservation-vosk.zip
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        if: matrix.group == 'visual_baseline'
+        with:
+          ref: ${{ inputs.baseline_ref }}
+          path: baseline
+      - uses: actions/setup-java@v6
+        with:
+          java-version: 17
+          distribution: zulu
+          cache: gradle
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Allow unimplemented guest performance registers
+        if: matrix.api == '35'
+        run: |
+          # Nested AMD KVM hosts can reject Android 15's WRMSR(0xc0010007).
+          # Keep the guest alive when the host does not expose that performance counter.
+          echo 1 | sudo tee /sys/module/kvm/parameters/ignore_msrs
+          cat /sys/module/kvm/parameters/ignore_msrs
+      - name: Download the verified Korean speech fixture
+        if: matrix.group == 'persistence'
+        run: |
+          curl --fail --location --retry 2 https://alphacephei.com/vosk/models/vosk-model-small-ko-0.22.zip -o "$PRESERVATION_MODEL"
+          echo "eea36124087fed26c59996a4761519458e3bd185e8ea9d9865ad8760c4a1d989  $PRESERVATION_MODEL" | sha256sum -c -
+      - name: Update SDK tools for minor API versions
+        if: matrix.api == '37.0'
+        run: |
+          sdk_manager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdk_manager" --licenses > /dev/null || true
+          "$sdk_manager" --install 'cmdline-tools;latest'
+          if [[ -d "$ANDROID_HOME/cmdline-tools/latest-2" ]]; then
+            mv "$ANDROID_HOME/cmdline-tools/latest" "$RUNNER_TEMP/t2-old-cmdline-tools"
+            mv "$ANDROID_HOME/cmdline-tools/latest-2" "$ANDROID_HOME/cmdline-tools/latest"
+          fi
+      - name: Build native APKs
+        working-directory: ${{ env.GATE_PROJECT }}
+        run: ./gradlew :app:assembleGithubDebug :app:assembleGithubDebugAndroidTest --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --console=plain
+      - name: Run preservation assertions and capture actual screens
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          system-image-api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: ${{ matrix.api == '35' && 'google_atd' || 'google_apis' }}
+          profile: pixel_2
+          ram-size: ${{ matrix.api == '37.0' && '4096M' || '3072M' }}
+          heap-size: 512M
+          # Android 15 crashes in the current 37.2.12 host emulator during UI tests.
+          # 36.4.9 is an official archived stable build; API 37 keeps the current emulator.
+          emulator-build: ${{ matrix.api == '35' && '14788078' || '' }}
+          disable-animations: true
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -no-snapshot-save
+          pre-emulator-launch-script: >-
+            python3 -c 'import os,pathlib; text=(pathlib.Path(os.environ["ANDROID_AVD_HOME"])/"test.ini").read_text(); print(text); assert "${{ matrix.api }}" != "37.0" or "target=android-37.0" in text'
+          script: python3 scripts/run_preservation_gate.py --project "$GATE_PROJECT" --group "${{ matrix.group }}" --output "preservation-results/${{ matrix.group }}-api${{ matrix.api }}"
+      - name: Retain emulator host diagnostics after a failed assertion
+        if: failure()
+        run: |
+          mkdir -p preservation-results/host
+          free -m > preservation-results/host/memory.txt
+          sudo dmesg | tail -n 160 > preservation-results/host/kernel.txt || true
+          cp /tmp/android-runner/emu-crash* preservation-results/host/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: preservation-${{ matrix.group }}-api${{ matrix.api }}
+          path: preservation-results/
+          retention-days: 14
+
+  preservation-checks:
+    if: ${{ inputs.preservation && inputs.preservation_batch != 'navigation' && inputs.preservation_batch != 'compat' && inputs.preservation_batch != 'android15' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          java-version: 17
+          distribution: zulu
+          cache: gradle
+      - name: Verify unit regressions and translations
+        run: |
+          ./gradlew :crawler:test :app:testGithubDebugUnitTest --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx4g -Pkotlin.compiler.execution.strategy=in-process --console=plain
+          python3 scripts/check_plural_specifiers.py
+          git diff --check
+      - name: Verify native lint
+        run: timeout 900s ./gradlew :app:lintGithubDebug --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx4g -Pkotlin.compiler.execution.strategy=in-process --console=plain
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: preservation-unit-lint
+          path: |
+            app/build/test-results/
+            crawler/build/test-results/
+            app/build/reports/lint-results*
           retention-days: 14

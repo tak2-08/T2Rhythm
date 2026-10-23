@@ -156,6 +156,10 @@ fun UniversalSearchScreen(
         }
     }
 
+    var genreTab by rememberSaveable { mutableStateOf(false) }
+    var genreQuery by rememberSaveable { mutableStateOf("") }
+    var genreTrail by rememberSaveable { mutableStateOf(listOf<String>()) }
+    val selectedGenre = genreTrail.lastOrNull()
     var showFilters by rememberSaveable { mutableStateOf(false) }
     var filterSongs by rememberSaveable { mutableStateOf(true) }
     var filterAlbums by rememberSaveable { mutableStateOf(true) }
@@ -214,6 +218,9 @@ fun UniversalSearchScreen(
 
     val search = rememberLocalSearch(query, localSongs, fullLocalAlbums, localArtists, localPlaylists,
         filterSongs, filterAlbums, filterArtists, filterPlaylists)
+    val genreBrowse = if (genreTab) rememberGenreBrowse(localSongs) else null
+    val genreResults = remember(genreBrowse, genreQuery) { genreBrowse?.search(genreQuery).orEmpty() }
+    val genreSongs = remember(genreBrowse, selectedGenre) { genreBrowse?.songs(selectedGenre).orEmpty() }
     val genreSongCounts = search.genreCounts
     val genres = remember(genreSongCounts) { genreSongCounts.keys.toList() }
     val matchedLocalSongs = search.results.songs
@@ -228,7 +235,12 @@ fun UniversalSearchScreen(
     val handleBack = {
         if (showAllSongsPage) {
             showAllSongsPage = false
-        } else if (query.isNotEmpty() || showFilters) {
+        } else if (genreTab && genreTrail.isNotEmpty()) {
+            genreTrail = genreTrail.dropLast(1)
+        } else if (genreTab && genreQuery.isNotEmpty()) {
+            genreQuery = ""
+            focusManager.clearFocus()
+        } else if (!genreTab && (query.isNotEmpty() || showFilters)) {
             query = ""
             showFilters = false
             focusManager.clearFocus()
@@ -241,7 +253,7 @@ fun UniversalSearchScreen(
 
     val statusBarsTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navigationBarsBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val searchBarHeightPadding = 88.dp + (if (showFilters) 48.dp else 0.dp)
+    val searchBarHeightPadding = 144.dp + (if (genreTab && selectedGenre != null) 48.dp else 0.dp) + (if (showFilters) 48.dp else 0.dp)
     val totalBottomPadding = searchBarHeightPadding + navigationBarsBottom + 16.dp
 
     Box(
@@ -249,7 +261,15 @@ fun UniversalSearchScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        AnimatedContent(
+        if (genreTab) {
+            GenreBrowseContent(
+                index = genreBrowse, results = genreResults, selectedGenre = selectedGenre,
+                contentPadding = PaddingValues(top = statusBarsTop + 16.dp, bottom = totalBottomPadding),
+                modifier = Modifier.fillMaxSize().padding(horizontal = horizontalPadding),
+                onGenreClick = { genreTrail = genreTrail + it; focusManager.clearFocus() },
+                onOpenSongs = { showAllSongsPage = true; focusManager.clearFocus() },
+            )
+        } else AnimatedContent(
             targetState = query.isBlank(),
             transitionSpec = {
                 if (targetState) {
@@ -372,7 +392,7 @@ fun UniversalSearchScreen(
                                     isGenreDetectionComplete = isGenreDetectionComplete && search.genresReady,
                                     onGenreClick = { genre ->
                                         HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                        query = genre
+                                        genreTab = true; genreTrail = listOf(genre); genreQuery = ""; showFilters = false
                                     }
                                 )
                             }
@@ -561,7 +581,7 @@ fun UniversalSearchScreen(
                                 isGenreDetectionComplete = isGenreDetectionComplete && search.genresReady,
                                 onGenreClick = { genre ->
                                     HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                    query = genre
+                                    genreTab = true; genreTrail = listOf(genre); genreQuery = ""; showFilters = false
                                 }
                             )
                         }
@@ -1063,6 +1083,14 @@ fun UniversalSearchScreen(
                 .animateContentSize(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium))
                 .align(Alignment.BottomCenter)
         ) {
+            PrimaryTabRow(selectedTabIndex = if (genreTab) 1 else 0) {
+                Tab(selected = !genreTab, onClick = { genreTab = false }, text = { Text(stringResource(R.string.genre_search_all)) })
+                Tab(selected = genreTab, onClick = { genreTab = true; showFilters = false }, text = { Text(stringResource(R.string.genre_search_tab)) })
+            }
+            selectedGenre?.takeIf { genreTab }?.let { genre ->
+                InputChip(selected = true, onClick = { genreTrail = emptyList() }, label = { Text(genre, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    trailingIcon = { Icon(MaterialSymbolIcon("close"), stringResource(R.string.ui_clear), Modifier.size(18.dp)) })
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1094,30 +1122,33 @@ fun UniversalSearchScreen(
                         Icon(RhythmIcons.Search, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.width(8.dp))
                         BasicTextField(
-                            value = query,
-                            onValueChange = { query = it.take(256) },
+                            value = if (genreTab) genreQuery else query,
+                            onValueChange = {
+                                if (genreTab) { genreQuery = it.take(256); genreTrail = emptyList() }
+                                else query = it.take(256)
+                            },
                             modifier = Modifier.weight(1f).focusRequester(focusRequester),
                             textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Medium),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = {
-                                if (query.isNotBlank()) localViewModel.addSearchQuery(query)
+                                if (!genreTab && query.isNotBlank()) localViewModel.addSearchQuery(query)
                                 focusManager.clearFocus()
                             }),
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             decorationBox = { innerTextField ->
                                 Box(contentAlignment = Alignment.CenterStart) {
-                                    if (query.isEmpty()) {
-                                        Text(stringResource(R.string.universalsearchscreen_search_everywhere), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    if ((if (genreTab) genreQuery else query).isEmpty()) {
+                                        Text(stringResource(if (genreTab) R.string.genre_search_hint else R.string.universalsearchscreen_search_everywhere), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                     innerTextField()
                                 }
                             }
                         )
-                        if (query.isNotEmpty()) {
+                        if ((if (genreTab) genreQuery else query).isNotEmpty()) {
                             IconButton(onClick = {
                                 HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
-                                query = ""
+                                if (genreTab) { genreQuery = ""; genreTrail = emptyList() } else query = ""
                             }, modifier = Modifier.size(32.dp)) {
                                 Icon(MaterialSymbolIcon("clear", filled = true), contentDescription = stringResource(R.string.ui_clear), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
@@ -1132,7 +1163,7 @@ fun UniversalSearchScreen(
                     IconButton(onClick = {
                         HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                         showFilters = !showFilters
-                    }) {
+                    }, enabled = !genreTab) {
                         Icon(
                             RhythmIcons.FilterList,
                             contentDescription = stringResource(R.string.cd_filters),
@@ -1144,7 +1175,7 @@ fun UniversalSearchScreen(
             }
 
             AnimatedVisibility(
-                visible = showFilters,
+                visible = showFilters && !genreTab,
                 enter = expandVertically() + fadeIn(),
                 exit = shrinkVertically() + fadeOut()
             ) {
@@ -1308,7 +1339,7 @@ fun UniversalSearchScreen(
             )
         ) {
             UniversalAllSongsPage(
-                localSongs = matchedLocalSongs,
+                localSongs = if (genreTab) genreSongs else matchedLocalSongs,
 
                 onBack = { showAllSongsPage = false },
                 onOptionsClick = { songObj ->

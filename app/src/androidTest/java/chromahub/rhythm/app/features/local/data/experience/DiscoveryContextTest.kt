@@ -39,7 +39,7 @@ class DiscoveryContextTest {
 
     @Test
     fun jointContextsSeparatePatternsWithIdenticalMotionAndDaylightMarginals() {
-        val nonce = UUID.randomUUID().toString()
+        val nonce = UUID.randomUUID().toString().uppercase(java.util.Locale.ROOT)
         val root = File(context.cacheDir, "joint-$nonce").apply { mkdirs() }
         val isolated =
             object : ContextWrapper(context) {
@@ -69,10 +69,10 @@ class DiscoveryContextTest {
         // Both genres have the same separate motion/daylight totals, but opposite combinations.
         val scenes =
             listOf(
-                Triple("$nonce-pop", "walking", true),
-                Triple("$nonce-pop", "vehicle", false),
-                Triple("$nonce-rock", "walking", false),
-                Triple("$nonce-rock", "vehicle", true),
+                Triple("$nonce-POP", "walking", true),
+                Triple("$nonce-POP", "vehicle", false),
+                Triple("$nonce-ROCK", "walking", false),
+                Triple("$nonce-ROCK", "vehicle", true),
             )
         try {
             scenes.forEachIndexed { i, (genre, motion, day) ->
@@ -105,18 +105,18 @@ class DiscoveryContextTest {
                 index.rebuild(ledger, AnalysisBudget(context, maxMillis = 60000))
                 val result = index.preferences(scene("walking", true), null)
                 assertEquals(
-                    result.motionGenres["$nonce-pop"]!!,
-                    result.motionGenres["$nonce-rock"]!!,
+                    result.motionGenres["$nonce-POP"]!!,
+                    result.motionGenres["$nonce-ROCK"]!!,
                     .00001,
                 )
                 assertEquals(
-                    result.daylightGenres["$nonce-pop"]!!,
-                    result.daylightGenres["$nonce-rock"]!!,
+                    result.daylightGenres["$nonce-POP"]!!,
+                    result.daylightGenres["$nonce-ROCK"]!!,
                     .00001,
                 )
                 assertTrue(
-                    (result.jointGenres["$nonce-pop"] ?: 0.0) >
-                        (result.jointGenres["$nonce-rock"] ?: 0.0)
+                    (result.jointGenres["$nonce-POP"] ?: 0.0) >
+                        (result.jointGenres["$nonce-ROCK"] ?: 0.0)
                 )
             }
         } finally {
@@ -158,7 +158,7 @@ class DiscoveryContextTest {
                     val current = rejection.copy(sourceSignature = "new-signature")
                     assertTrue(
                         index.model(listOf(current)).examples.any {
-                            !it.positive && it.genre == "rock"
+                            !it.positive && it.genre == "ROCK"
                         }
                     )
                 }

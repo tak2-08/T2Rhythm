@@ -99,8 +99,8 @@ class LocalSearchStateTest {
         }
         compose.runOnIdle {
             assertEquals("다시 듣기", result!!.results.albums.single().title)
-            assertEquals(2, result!!.genreCounts["Folk"])
-            assertEquals(1, result!!.genreCounts["Pop"])
+            assertEquals(2, result!!.genreCounts["FOLK"])
+            assertEquals(1, result!!.genreCounts["POP"])
             assertTrue(result!!.results.artists.isEmpty())
             assertTrue(result!!.results.playlists.isEmpty())
         }

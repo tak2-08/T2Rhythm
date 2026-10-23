@@ -132,8 +132,8 @@ class MaintenanceScreensTest {
         val integration = settings.integrationsEnabled.value
         settings.setIntegrationsEnabled(true)
         catalog.preferences.update(options.copy(enabled = true))
-        val songs = runBlocking { LocalMusicModule.provideMusicRepository(base).loadSongs() }
-        org.junit.Assume.assumeTrue(songs.isNotEmpty())
+        val songs = runBlocking { LocalMusicModule.provideMusicRepository(base).loadSongs(forceRefresh = true) }
+        assertTrue("The real indexed audio fixture is required", songs.isNotEmpty())
         CatalogBatchHistory(ctx).use { history ->
             songs.forEach { history.complete(it, it, catalog.preferences.options.value) }
         }

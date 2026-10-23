@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
@@ -70,7 +71,16 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     onCreatePlaylist: (String, List<Song>) -> Unit = { _, _ -> }, onAddToPlaylist: (String, List<Song>) -> Unit = { _, _ -> }) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val nearbySecret = remember(manager) { mutableStateOf<String?>(null) }
+    val nearby = remember(manager) { NearbyStreaming(context.applicationContext, manager.store.serverId) }
+    val nearbyDevices by nearby.devices.collectAsState()
+    val searchingNearby by nearby.searching.collectAsState()
+    val advertisingNearby by nearby.advertising.collectAsState()
+    val nearbyFailed by nearby.failed.collectAsState()
+    var bluetoothSharing by remember { mutableStateOf(false) }
+    DisposableEffect(nearby) { onDispose { nearby.close(); BluetoothStreaming.hideInvitation(); nearbySecret.value?.let { manager.access.cancelInvite(it) } } }
     val host by manager.state.collectAsState()
+    val listState = rememberLazyListState()
     val connections by manager.store.connections.collectAsState()
     var hostTab by rememberSaveable { mutableStateOf(true) }
     var shareAll by rememberSaveable { mutableStateOf(manager.store.selection().let { it == null || (it.isEmpty() && manager.store.sharedPlaylists().isEmpty()) }) }
@@ -82,8 +92,12 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     var inviteText by remember { mutableStateOf("") }
     var deviceName by rememberSaveable { mutableStateOf(StreamingProtocol.name(Build.MODEL)) }
     var error by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(error, host.error, hostTab) {
+        if (error != null || (hostTab && host.error != null)) listState.animateScrollToItem(2)
+    }
     var busy by remember { mutableStateOf(false) }
     var pending by remember { mutableStateOf<StreamConnection?>(null) }
+    var pairingBinding by remember { mutableStateOf(1) }
     var pairJob by remember { mutableStateOf<Job?>(null) }
     var selectedServer by rememberSaveable { mutableStateOf<String?>(null) }
     var showPairing by remember { mutableStateOf(connections.isEmpty()) }
@@ -108,15 +122,71 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
         val action = afterPermission; afterPermission = null
         if (required.values.all { it }) action?.invoke() else error = context.getString(R.string.streaming_permission)
     }
-    fun permitted(hosting: Boolean, action: () -> Unit) {
+    fun permitted(hosting: Boolean, bluetooth: Boolean = false, action: () -> Unit) {
         val missing = buildList {
+            if (bluetooth) {
+                if (Build.VERSION.SDK_INT >= 31) {
+                    add(Manifest.permission.BLUETOOTH_CONNECT); add(Manifest.permission.BLUETOOTH_SCAN); add(Manifest.permission.BLUETOOTH_ADVERTISE)
+                } else add(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
             if (Build.VERSION.SDK_INT >= 37) add("android.permission.ACCESS_LOCAL_NETWORK")
             if (hosting) add(if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE)
             if (hosting && Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
         }.filter { ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isEmpty()) { networkAccess = true; action() } else { afterPermission = action; permissions.launch(missing.toTypedArray()) }
     }
-    LaunchedEffect(host.running) { if (!host.running) { invitation = null; addressDialog = false }; while (host.running) { manager.refresh(); delay(3000) } }
+    fun requestPair(invite: StreamingProtocol.Invite) {
+        if (busy) return
+        if (invite.server == manager.store.serverId) { error = context.getString(R.string.network_self_invite); return }
+        val existing = connections.firstOrNull { it.server == invite.server }
+        if (existing != null) {
+            busy = true; error = null
+            pairJob = scope.launch {
+                try {
+                    require(StreamingProtocol.equal(existing.pin, invite.pin))
+                    val updated = existing.at(invite.endpoint)
+                    StreamingClient.page(updated)
+                    withContext(Dispatchers.IO) { manager.store.save(updated) }
+                    if (existing.endpoint != updated.endpoint) BluetoothStreaming.forget(existing.endpoint)
+                    selectedServer = existing.server
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) { error = StreamingClient.friendlyError(e) }
+                finally { busy = false }
+            }
+            return
+        }
+        if (connections.size >= StreamingProtocol.MAX_PEERS) { error = context.getString(R.string.nearby_device_limit); return }
+        error = null; busy = true; pairingBinding = invite.binding
+        pairJob = scope.launch {
+            var saved = false
+            try {
+                val connection = StreamingClient.pair(invite, deviceName, StreamingProtocol.token()); pending = connection
+                withTimeout(5 * 60_000L) { while (StreamingClient.status(connection) != "approved") delay(2000) }
+                StreamingClient.page(connection)
+                withContext(Dispatchers.IO) { manager.store.save(connection) }
+                saved = true; selectedServer = null; inviteText = ""; showPairing = false
+            } catch (e: TimeoutCancellationException) { error = context.getString(R.string.streaming_pair_timeout) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { error = StreamingClient.friendlyError(e) }
+            finally { val abandoned = pending; busy = false; pending = null
+                if (abandoned != null && !saved) withContext(NonCancellable + Dispatchers.IO) {
+                    try { withTimeout(3000) { runCatching { StreamingClient.disconnect(abandoned) }; StreamingClient.cancelPairing(abandoned) } } catch (_: Exception) { }
+                }
+            }
+        }
+    }
+    val discoverable = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode <= 0) { BluetoothStreaming.hideInvitation(); nearbySecret.value?.let { manager.access.cancelInvite(it) }; bluetoothSharing = false }
+    }
+    val qrScanner = rememberLauncherForActivityResult(com.journeyapps.barcodescanner.ScanContract()) { result ->
+        result.contents?.let { text ->
+            val invite = runCatching { StreamingProtocol.Invite.decode(text) }.getOrNull()
+            if (invite == null) error = context.getString(R.string.streaming_invalid_invite)
+            else permitted(false) { requestPair(invite) }
+        }
+    }
+    LaunchedEffect(bluetoothSharing) { if (bluetoothSharing) { delay(120_000); BluetoothStreaming.hideInvitation(); bluetoothSharing = false } }
+    LaunchedEffect(host.running) { if (!host.running) { invitation = null; addressDialog = false; nearby.stopAdvertising(); BluetoothStreaming.stopHosting(); bluetoothSharing = false }; while (host.running) { manager.refresh(); delay(3000) } }
     LaunchedEffect(invitation) { invitation?.let { delay((it.expires - System.currentTimeMillis()).coerceAtLeast(0)); invitation = null } }
     LaunchedEffect(connections) {
         if (selectedServer != null && selectedServer !in connections.map { it.server }) selectedServer = null
@@ -142,7 +212,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                 }
             }
         }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), state = listState, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(hostTab, { hostTab = true }, { Text(stringResource(R.string.streaming_host)) }, leadingIcon = { StreamIcon("dns") })
@@ -178,6 +248,25 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                         } else if (host.running) {
                             Text(stringResource(R.string.streaming_scope_running), style = MaterialTheme.typography.bodySmall)
                             Button({ addressDialog = true }, Modifier.fillMaxWidth(), enabled = host.peers.size < StreamingProtocol.MAX_PEERS) { Text(stringResource(R.string.streaming_invite)) }
+                            OutlinedButton({
+                                if (advertisingNearby) { nearby.stopAdvertising(); nearbySecret.value?.let { manager.access.cancelInvite(it) } }
+                                else runCatching {
+                                    BluetoothStreaming.hideInvitation(); bluetoothSharing = false
+                                    nearby.advertise(manager.invite("https://127.0.0.1:${StreamingProtocol.PORT}", durationMillis = 120_000).also { nearbySecret.value = it.secret })
+                                }.onFailure { error = context.getString(R.string.streaming_start_error) }
+                            }, Modifier.fillMaxWidth()) { Text(stringResource(if (advertisingNearby) R.string.nearby_hide else R.string.nearby_show)) }
+                            OutlinedButton({ permitted(false, bluetooth = true) {
+                                if (bluetoothSharing) { BluetoothStreaming.hideInvitation(); nearbySecret.value?.let { manager.access.cancelInvite(it) }; bluetoothSharing = false }
+                                else runCatching {
+                                    nearby.stopAdvertising()
+                                    BluetoothStreaming.host(manager.invite("https://127.0.0.1:${StreamingProtocol.PORT}", durationMillis = 120_000).also { nearbySecret.value = it.secret })
+                                    bluetoothSharing = true
+                                    discoverable.launch(Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
+                                        .putExtra(android.bluetooth.BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 120))
+                                }.onFailure { error = context.getString(R.string.nearby_bluetooth_error); BluetoothStreaming.hideInvitation(); bluetoothSharing = false }
+                            } }, Modifier.fillMaxWidth()) { Text(stringResource(if (bluetoothSharing) R.string.nearby_bluetooth_hide else R.string.nearby_bluetooth_show)) }
+                            if (nearbyFailed) Text(stringResource(R.string.nearby_error))
+                            Text(stringResource(R.string.nearby_visibility_hint), style = MaterialTheme.typography.bodySmall)
                             OutlinedButton({ StreamingHostService.stop(context); invitation = null }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.streaming_stop)) }
                             Text(stringResource(R.string.streaming_session_data, android.text.format.Formatter.formatShortFileSize(context, host.bytes)), style = MaterialTheme.typography.bodySmall)
                         }
@@ -187,7 +276,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                 items(host.pending, key = { "pending:${it.peer.id}" }) { request ->
                     StreamCard {
                         Text(request.peer.name, style = MaterialTheme.typography.titleMedium)
-                        Text(request.code, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                        StreamPairCode(request.code)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button({ scope.launch { try { withContext(Dispatchers.IO) { manager.approve(request.peer.id) } } catch (_: Exception) { error = context.getString(R.string.streaming_start_error) } } }) { Text(stringResource(R.string.streaming_approve)) }
                             TextButton({ scope.launch(Dispatchers.IO) { manager.revoke(request.peer.id) } }) { Text(stringResource(R.string.streaming_reject)) }
@@ -207,6 +296,32 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                     }
                     Text(stringResource(R.string.network_reciprocal_hint), style = MaterialTheme.typography.bodySmall)
                 }
+                item {
+                    StreamCard {
+                        Text(stringResource(R.string.nearby_title), style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.nearby_connect_hint), style = MaterialTheme.typography.bodySmall)
+                        FilledTonalButton({ qrScanner.launch(com.journeyapps.barcodescanner.ScanOptions()
+                            .setDesiredBarcodeFormats(com.journeyapps.barcodescanner.ScanOptions.QR_CODE)
+                            .setPrompt(context.getString(R.string.streaming_qr_scan_hint)).setBeepEnabled(false).setOrientationLocked(false)) },
+                            enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.streaming_qr_scan)) }
+                        OutlinedButton({ permitted(false) { if (searchingNearby) nearby.stopDiscovery() else nearby.discover() } }, enabled = !busy) {
+                            Text(stringResource(if (searchingNearby) R.string.nearby_search_stop else R.string.nearby_search))
+                        }
+                        if (searchingNearby) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        if (nearbyFailed) Text(stringResource(R.string.nearby_error))
+                        nearbyDevices.forEach { candidate ->
+                            FilledTonalButton({ permitted(false) { nearby.stopDiscovery(); requestPair(candidate) } }, enabled = !busy && deviceName.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text(candidate.name) }
+                        }
+                        BluetoothDiscovery(onPermission = { action -> permitted(false, bluetooth = true, action = action) }, enabled = !busy) { address ->
+                            pairJob = scope.launch {
+                                busy = true; error = null
+                                try { val candidate = BluetoothStreaming.invite(address); busy = false; requestPair(candidate) }
+                                catch (e: CancellationException) { busy = false; throw e }
+                                catch (_: Exception) { busy = false; error = context.getString(R.string.nearby_bluetooth_error) }
+                            }
+                        }
+                    }
+                }
                 if (showPairing || busy) item {
                     StreamCard {
                         OutlinedTextField(inviteText, { if (it.length <= 8192) inviteText = it }, label = { Text(stringResource(R.string.streaming_invite_input)) }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, enabled = !busy)
@@ -214,34 +329,14 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                         if (pending != null) {
                             Text(stringResource(R.string.streaming_waiting), style = MaterialTheme.typography.titleMedium)
-                            Text(StreamingProtocol.code(pending!!.token), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                            Text(stringResource(R.string.streaming_verify_code, StreamingProtocol.code(pending!!.token)))
+                            StreamPairCode(StreamingProtocol.pairCode(pending!!.token, pending!!.pin, pairingBinding))
+                            Text(stringResource(R.string.streaming_verify_code, StreamingProtocol.pairCode(pending!!.token, pending!!.pin, pairingBinding)))
                             TextButton({ pairJob?.cancel() }) { Text(stringResource(R.string.streaming_cancel)) }
                         } else Button(onClick = { permitted(false) {
                             val invite = runCatching { StreamingProtocol.Invite.decode(inviteText) }.getOrNull()
                             if (invite == null) error = context.getString(R.string.streaming_invalid_invite)
                             else if (invite.server == manager.store.serverId) error = context.getString(R.string.network_self_invite)
-                            else if (connections.any { it.server == invite.server }) error = context.getString(R.string.network_already_connected)
-                            else {
-                                error = null; busy = true
-                                pairJob = scope.launch {
-                                    var saved = false
-                                    try {
-                                        val connection = StreamingClient.pair(invite, deviceName, StreamingProtocol.token()); pending = connection
-                                        withTimeout(5 * 60_000L) { while (StreamingClient.status(connection) != "approved") delay(2000) }
-                                        StreamingClient.page(connection)
-                                        withContext(Dispatchers.IO) { manager.store.save(connection) }
-                                        saved = true; selectedServer = null; inviteText = ""; showPairing = false
-                                    } catch (e: TimeoutCancellationException) { error = context.getString(R.string.streaming_pair_timeout) }
-                                    catch (e: CancellationException) { throw e }
-                                    catch (e: Exception) { error = StreamingClient.friendlyError(e) }
-                                    finally { val abandoned = pending; busy = false; pending = null
-                                        if (abandoned != null && !saved) withContext(NonCancellable + Dispatchers.IO) {
-                                            try { withTimeout(3000) { runCatching { StreamingClient.disconnect(abandoned) }; StreamingClient.cancelPairing(abandoned) } } catch (_: Exception) { }
-                                        }
-                                    }
-                                }
-                            }
+                            else requestPair(invite)
                         } }, enabled = inviteText.isNotBlank() && deviceName.isNotBlank() && !busy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.streaming_request)) }
                         if (busy && pending == null) TextButton({ pairJob?.cancel() }) { Text(stringResource(R.string.streaming_cancel)) }
                     }
@@ -265,6 +360,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
                     onSave = { name, list -> saveSongs = StreamSaveRequest(name, list) }, onPlaylist = { openedPlaylist = it })
             }
             item { OutlinedButton({ outside = true }, Modifier.fillMaxWidth()) { StreamIcon("public"); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.streaming_outside_title)) } }
+            item { Text(stringResource(R.string.nearby_tls_hint), style = MaterialTheme.typography.bodySmall) }
             item { Text(stringResource(R.string.streaming_privacy_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
@@ -303,10 +399,13 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     }) }
     if (addressDialog) StreamAddressDialog(host.addresses.firstOrNull().orEmpty(), host.addresses, R.string.streaming_invite_address_hint, R.string.streaming_create_invite,
         onDismiss = { addressDialog = false }, onSave = { address ->
+            nearby.stopAdvertising(); BluetoothStreaming.hideInvitation(); bluetoothSharing = false
             runCatching { manager.invite(address) }.onSuccess { invitation = it }.onFailure { error = context.getString(R.string.streaming_start_error) }; addressDialog = false
         })
     invitation?.let { invite -> AlertDialog(onDismissRequest = { invitation = null }, title = { Text(stringResource(R.string.streaming_invite_ready)) }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.heightIn(max = 520.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            StreamingInviteQr(invite)
+            Text(stringResource(R.string.streaming_qr_hint), style = MaterialTheme.typography.bodySmall)
             Text(stringResource(R.string.streaming_invite_private)); SelectionContainer { Text(invite.endpoint, style = MaterialTheme.typography.bodyMedium) }
             Button({ (context.getSystemService(ClipboardManager::class.java)).setPrimaryClip(ClipData.newPlainText("T2Rhythm invitation", invite.encode())); Toast.makeText(context, R.string.streaming_copied, Toast.LENGTH_SHORT).show() }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.streaming_copy)) }
             OutlinedButton({ context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "T2Rhythm Streaming\n${invite.encode()}"), null)) }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.streaming_share)) }
@@ -320,8 +419,8 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     } }
     forget?.let { connection -> ConfirmStreamAction(connection.name, R.string.streaming_forget_confirm, R.string.streaming_forget, { forget = null }) {
         scope.launch {
-            try { withContext(Dispatchers.IO) { manager.store.forget(connection.server) }; onDisconnect(connection.server); forget = null
-                runCatching { StreamingClient.disconnect(connection) } }
+            try { withContext(Dispatchers.IO) { manager.store.forget(connection.server); BluetoothStreaming.forget(connection.endpoint) }; onDisconnect(connection.server); forget = null
+                try { runCatching { StreamingClient.disconnect(connection) } } finally { BluetoothStreaming.forget(connection.endpoint) } }
             catch (e: CancellationException) { throw e }
             catch (_: Exception) { error = context.getString(R.string.streaming_start_error); forget = null }
         }
@@ -329,7 +428,7 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
     editAddress?.let { connection -> StreamAddressDialog(connection.endpoint, emptyList(), R.string.streaming_address_check, R.string.streaming_save,
         onDismiss = { if (!checkingAddress) editAddress = null }, busy = checkingAddress, onSave = { address ->
             checkingAddress = true
-            scope.launch { try { val updated = connection.at(address); StreamingClient.page(updated); withContext(Dispatchers.IO) { manager.store.save(updated) }; editAddress = null }
+            scope.launch { try { val updated = connection.at(address); StreamingClient.page(updated); withContext(Dispatchers.IO) { manager.store.save(updated) }; if (connection.endpoint != updated.endpoint) BluetoothStreaming.forget(connection.endpoint); editAddress = null }
                 catch (e: CancellationException) { throw e }
                 catch (e: Exception) { error = StreamingClient.friendlyError(e); editAddress = null }
                 finally { checkingAddress = false } }
@@ -359,3 +458,8 @@ fun StreamingContent(onBackClick: () -> Unit, songs: List<Song>, playlists: List
 }
 @Composable private fun StreamError(message: String) { Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.errorContainer) { Text(message, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onErrorContainer) } }
 @Composable private fun StreamIcon(name: String, description: String? = null, size: Int = 24) { Icon(MaterialSymbolIcon(name), description, Modifier.size(size.dp)) }
+
+@Composable private fun StreamPairCode(code: String) {
+    Text(code, style = if (code.length > 6) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineLarge,
+        fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+}

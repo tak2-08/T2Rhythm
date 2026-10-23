@@ -102,4 +102,44 @@ class StreamingProtocolTest {
         assertThrows(IllegalStateException::class.java) { access.invite() }
         assertNull(access.authorized("123456")); assertNull(access.authorized(StreamingProtocol.token()))
     }
+    @Test fun nearbyInvitationsExpireOnTheServerAndHidingDoesNotDropPendingApproval() {
+        val access = StreamingAccess()
+        val short = access.invite(now = 1000, durationMillis = 120_000)
+        assertEquals(121_000L, short.second)
+        assertNull(access.pair(short.first, StreamingProtocol.token(), "Late phone", now = 121_000))
+        val token = StreamingProtocol.token()
+        val pending = access.pair(access.invite(now = 200_000, durationMillis = 120_000).first, token, "Phone", now = 200_000)!!
+        val revokedInvite = access.invite(now = 200_001, durationMillis = 120_000).first
+        access.cancelInvite()
+        assertNull(access.pair(revokedInvite, StreamingProtocol.token(), "Other", now = 200_002))
+        assertEquals("pending", access.status(token, now = 200_002))
+        assertTrue(access.approve(pending.peer.id, now = 200_003))
+        assertEquals("approved", access.status(token, now = 200_004))
+    }
+
+    @Test fun nearbyConfirmationBindsTheTlsIdentityAndClientSecret() {
+        val token = StreamingProtocol.token()
+        val honestPin = "a".repeat(64)
+        val roguePin = "b".repeat(64)
+        val code = StreamingProtocol.pairCode(token, honestPin, 2)
+        assertTrue(Regex("[0-9A-F]{4}( [0-9A-F]{4}){3}").matches(code))
+        assertNotEquals(code, StreamingProtocol.pairCode(token, roguePin, 2))
+        assertNotEquals(code, StreamingProtocol.pairCode(StreamingProtocol.token(), honestPin, 2))
+        val access = StreamingAccess()
+        val request = access.pair(access.invite().first, token, "Phone", identityPin = honestPin)!!
+        assertEquals(code, request.code)
+        assertEquals(StreamingProtocol.code(token), StreamingProtocol.pairCode(token, honestPin, 1))
+    }
+
+    @Test fun closingDiscoveryCannotInvalidateANewerManualInvitation() {
+        val access = StreamingAccess()
+        val nearby = access.invite(durationMillis = 120_000).first
+        val manual = access.invite().first
+        access.cancelInvite(nearby)
+        assertNotNull(access.pair(manual, StreamingProtocol.token(), "Manual invitation"))
+        val nextNearby = access.invite(durationMillis = 120_000).first
+        access.cancelInvite(nextNearby)
+        assertNull(access.pair(nextNearby, StreamingProtocol.token(), "Expired discovery"))
+    }
+
 }

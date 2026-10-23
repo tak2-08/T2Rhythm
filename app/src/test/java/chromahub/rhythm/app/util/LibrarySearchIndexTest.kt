@@ -97,4 +97,18 @@ class LibrarySearchIndexTest {
         }
         assertEquals(songs.last(), catalog.search("노래49999 가수49999").single())
     }
+    @Test
+    fun genreMetadataIndexDoesNotMatchTitlesAndSplitsMultiGenreTags() {
+        val titleOnly = Item("Rock the world", genre = "Jazz")
+        val actual = Item("Quiet song", genre = "Folk; Rock")
+        val unknown = Item("Rock", genre = "알 수 없음")
+        val catalog = LibrarySearchIndex.build(listOf(titleOnly, actual, unknown), { it.title },
+            { sequenceOf(GenreUtils.splitGenres(it.genre).joinToString("\u0001")) })
+        assertEquals(listOf(actual), catalog.search("rock"))
+        assertEquals(listOf(actual), catalog.search("folk"))
+        assertTrue(catalog.search("알 수 없음").isEmpty())
+        assertFalse(GenreUtils.matchesGenre("Hard Rock", "Rock"))
+        assertTrue(GenreUtils.matchesGenre(actual.genre, "rock"))
+    }
+
 }
