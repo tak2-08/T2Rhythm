@@ -230,7 +230,8 @@ class LibrarySearchNavigationTest {
         }.isSuccess
         if (!visible) capture("library-search-selected-genre-failure.png")
         node.assertIsDisplayed()
-        assertTrue("Selected genre chip must not cover the screen", node.getUnclippedBoundsInRoot().height <= 56.dp)
+        val bounds = node.getUnclippedBoundsInRoot()
+        assertTrue("Selected genre chip must not cover the screen", bounds.bottom - bounds.top <= 56.dp)
     }
 
     private fun label(resource: Int): String {
