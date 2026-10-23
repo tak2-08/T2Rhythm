@@ -6,6 +6,8 @@ import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import chromahub.rhythm.app.R
@@ -248,8 +250,16 @@ class PopularPlaybackNavigationTest {
     }
 
     private fun scrollTo(label: String) {
-        compose.onAllNodes(hasText(label) and hasAnyAncestor(hasScrollAction())).onFirst().performScrollTo()
+        val list = compose.onAllNodes(hasScrollToIndexAction()).onFirst()
+        list.performScrollToNode(hasText(label))
+        val node = compose.onAllNodes(hasText(label) and hasAnyAncestor(hasScrollAction())).onFirst()
+        // Bring the row above the persistent mini player before injecting an actual touch.
+        val shift = node.getUnclippedBoundsInRoot().top - (list.getUnclippedBoundsInRoot().top + 80.dp)
+        if (shift > 0.dp) list.performSemanticsAction(SemanticsActions.ScrollBy) {
+            it(0f, with(compose.density) { shift.toPx() })
+        }
         compose.waitForIdle()
+        node.assertIsDisplayed()
     }
 
     private fun label(resource: Int): String {
@@ -264,7 +274,7 @@ class PopularPlaybackNavigationTest {
 
     private fun locate(label: String, description: Boolean = false): SemanticsNodeInteraction? {
         val nodes = compose.onAllNodes(matching(label, description), useUnmergedTree = true)
-        return if (nodes.fetchSemanticsNodes().isNotEmpty()) nodes.onFirst() else null
+        return if (nodes.fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty()) nodes.onFirst() else null
     }
 
     private fun awaitNode(label: String, description: Boolean = false): SemanticsNodeInteraction {

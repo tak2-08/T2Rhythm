@@ -246,7 +246,7 @@ class LibrarySearchNavigationTest {
 
     private fun locate(label: String, description: Boolean = false): SemanticsNodeInteraction? {
         val nodes = compose.onAllNodes(matching(label, description), useUnmergedTree = true)
-        return if (nodes.fetchSemanticsNodes().isNotEmpty()) nodes.onFirst() else null
+        return if (nodes.fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty()) nodes.onFirst() else null
     }
 
     private fun awaitNode(label: String, description: Boolean = false): SemanticsNodeInteraction {
