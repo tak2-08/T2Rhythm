@@ -63,8 +63,12 @@ internal class FailedFeatureModule(private val app: Application) : RuntimeFeatur
             context.startActivity(Intent(context, RuntimeRecoveryActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
     }
-    override fun createWorker(context: Context, className: String, params: Any): Any = object : Worker(context, params as WorkerParameters) {
-        override fun doWork() = if (runAttemptCount < 3) Result.retry() else Result.failure()
-    }
+    override fun createWorker(context: Context, className: String, params: Any): Any =
+        RuntimeRecoveryWorker(context, params as WorkerParameters)
     override fun performServiceAction(role: String, action: String, context: Context) { }
+}
+
+/** Work retries while the verified feature is recovered, retaining the existing retry limit. */
+class RuntimeRecoveryWorker(context: Context, parameters: WorkerParameters) : Worker(context, parameters) {
+    override fun doWork() = if (runAttemptCount < 3) Result.retry() else Result.failure()
 }
