@@ -4,6 +4,7 @@ package chromahub.rhythm.app.features.runtime
 import android.graphics.Bitmap
 import android.system.Os
 import android.system.OsConstants
+import android.util.AtomicFile
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -19,8 +20,11 @@ import chromahub.rhythm.runtime.Rejection
 import chromahub.rhythm.runtime.RuntimePackageVerifier
 import chromahub.rhythm.runtime.StartupDecision
 import chromahub.rhythm.runtime.StartupSafety
+import chromahub.rhythm.runtime.VerifiedModule
 import chromahub.rhythm.runtime.api.NativeUiModule
 import chromahub.rhythm.runtime.host.NativeModuleTrialLoader
+import chromahub.rhythm.runtime.host.ModuleStateStore
+import chromahub.rhythm.runtime.host.CorruptModuleState
 import com.google.gson.Gson
 import dalvik.system.DexClassLoader
 import java.io.File
@@ -28,6 +32,9 @@ import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import java.security.Signature
 import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import org.junit.After
@@ -127,9 +134,13 @@ class NativeModuleLoadingTest {
     }
 
     @Test fun approvedExternalDexRendersInteractiveNativeComposeOnReadOnlyStorage() {
-        val archive = makeArchive(2)
-        val decision = activation(archive)
-        val loaded = loader().loadTrial(decision, archive)
+        val fixture = storeFixture()
+        val store = fixture.reopen()
+        store.stage(fixture.candidate)
+        store.approve(fixture.candidate.archiveSha256)
+        val decision = store.prepareStartup(host, safe) as StartupDecision.Activate
+        assertTrue(fixture.reopen().snapshot().trialInProgress)
+        val loaded = loader().loadTrial(decision, fixture.candidateFile)
         assertEquals("true", System.getProperty(MARKER))
         assertTrue(loaded.entry.javaClass.classLoader is DexClassLoader)
         assertNotSame(sharedLoader, loaded.entry.javaClass.classLoader)
@@ -145,6 +156,8 @@ class NativeModuleLoadingTest {
             image.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
         image.recycle()
+        store.confirmHealthy(loaded.reference.archiveSha256)
+        assertFalse(fixture.reopen().snapshot().trialInProgress)
     }
 
     @Test fun tamperedPayloadIsRejectedBeforeClassInitialization() {
@@ -198,6 +211,128 @@ class NativeModuleLoadingTest {
         System.clearProperty(MARKER)
         assertThrows(IllegalArgumentException::class.java) { loader().loadTrial(decision, file) }
         assertNull(System.getProperty(MARKER))
+    }
+
+    private data class StoreFixture(
+        val reopen: () -> ModuleStateStore,
+        val candidate: VerifiedModule,
+        val candidateFile: File,
+        val directory: File,
+    )
+
+    private fun storeFixture(): StoreFixture {
+        val files = listOf(makeArchive(1), makeArchive(2))
+        val verified = files.map { verifier.verify(it, host) }
+        val byHash = verified.zip(files).associate { (module, file) -> module.archiveSha256 to file }
+        val directory = File(source, "state")
+        return StoreFixture(
+            reopen = { ModuleStateStore(context, directory, verified[0]) { digest ->
+                verifier.verify(byHash.getValue(digest), host)
+            } },
+            candidate = verified[1],
+            candidateFile = files[1],
+            directory = directory,
+        )
+    }
+
+    @Test fun stagedUnapprovedCandidateStaysUnapprovedAfterReopeningStore() {
+        val fixture = storeFixture()
+        fixture.reopen().stage(fixture.candidate)
+        val restored = fixture.reopen().snapshot()
+        assertFalse(restored.candidate!!.approved)
+        assertTrue(fixture.reopen().prepareStartup(host, safe) is StartupDecision.Keep)
+        assertEquals(1L, restored.active.manifest.versionCode)
+    }
+
+    @Test fun approvalAndTrialAreDurableBeforeLoadingCode() {
+        val fixture = storeFixture()
+        fixture.reopen().stage(fixture.candidate)
+        fixture.reopen().approve(fixture.candidate.archiveSha256)
+        assertTrue(fixture.reopen().snapshot().candidate!!.approved)
+        val activation = fixture.reopen().prepareStartup(host, safe)
+        assertTrue(activation is StartupDecision.Activate)
+        val persisted = fixture.reopen().snapshot()
+        assertTrue(persisted.trialInProgress)
+        assertEquals(2L, persisted.active.manifest.versionCode)
+        assertEquals(1L, persisted.previousGood!!.manifest.versionCode)
+        val recovered = fixture.reopen().prepareStartup(host, safe)
+        assertTrue(recovered is StartupDecision.Recover)
+        assertEquals(1L, fixture.reopen().snapshot().active.manifest.versionCode)
+        assertEquals(2L, fixture.reopen().snapshot().highestApprovedVersion)
+    }
+
+    @Test fun healthyTrialIsNotRolledBackAfterReopeningStore() {
+        val fixture = storeFixture()
+        fixture.reopen().stage(fixture.candidate)
+        fixture.reopen().approve(fixture.candidate.archiveSha256)
+        fixture.reopen().prepareStartup(host, safe)
+        fixture.reopen().confirmHealthy(fixture.candidate.archiveSha256)
+        val next = fixture.reopen().prepareStartup(host, safe)
+        assertTrue(next is StartupDecision.Keep)
+        assertEquals(2L, next.state.active.manifest.versionCode)
+        assertFalse(next.state.trialInProgress)
+    }
+
+    @Test fun interruptedAtomicWriteRetainsPreviousConfirmedState() {
+        val fixture = storeFixture()
+        fixture.reopen().stage(fixture.candidate)
+        fixture.reopen().approve(fixture.candidate.archiveSha256)
+        val atomic = AtomicFile(File(fixture.directory, ModuleStateStore.STATE_FILE_NAME))
+        atomic.startWrite().use { stream ->
+            stream.write(byteArrayOf(1, 2, 3))
+            stream.fd.sync()
+            // Simulates a writer dying before finishWrite/failWrite, then a fresh reader.
+        }
+        val restored = fixture.reopen().snapshot()
+        assertTrue(restored.candidate!!.approved)
+        assertEquals(fixture.candidate.archiveSha256, restored.candidate!!.module.archiveSha256)
+    }
+
+    @Test fun corruptedStateNeverSilentlyApprovesOrBootsDownloadedCode() {
+        val fixture = storeFixture()
+        fixture.reopen().stage(fixture.candidate)
+        val file = File(fixture.directory, ModuleStateStore.STATE_FILE_NAME)
+        file.writeBytes(file.readBytes().apply { this[lastIndex] = (this[lastIndex].toInt() xor 1).toByte() })
+        assertThrows(CorruptModuleState::class.java) { fixture.reopen().snapshot() }
+        assertNull(System.getProperty(MARKER))
+    }
+
+    @Test fun concurrentStoreInstancesSerializeApprovalsWithoutCorruption() {
+        val fixture = storeFixture()
+        fixture.reopen().stage(fixture.candidate)
+        val executor = Executors.newFixedThreadPool(4)
+        val start = CountDownLatch(1)
+        try {
+            val futures = (1..8).map { executor.submit {
+                start.await()
+                fixture.reopen().approve(fixture.candidate.archiveSha256)
+            } }
+            start.countDown()
+            futures.forEach { it.get(30, TimeUnit.SECONDS) }
+            val state = fixture.reopen().snapshot()
+            assertTrue(state.candidate!!.approved)
+            assertEquals(2L, state.highestApprovedVersion)
+            assertEquals(1L, state.active.manifest.versionCode)
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    @Test fun wrongArchiveApprovalCannotChangePersistedCandidate() {
+        val fixture = storeFixture()
+        fixture.reopen().stage(fixture.candidate)
+        assertThrows(IllegalArgumentException::class.java) { fixture.reopen().approve("f".repeat(64)) }
+        assertFalse(fixture.reopen().snapshot().candidate!!.approved)
+    }
+
+    @Test fun cancelledCandidateIsRemovedDurably() {
+        val fixture = storeFixture()
+        fixture.reopen().stage(fixture.candidate)
+        fixture.reopen().approve(fixture.candidate.archiveSha256)
+        fixture.reopen().discardCandidate()
+        assertNull(fixture.reopen().snapshot().candidate)
+        assertEquals(1L, fixture.reopen().snapshot().active.manifest.versionCode)
+        assertTrue(fixture.reopen().prepareStartup(host, safe) is StartupDecision.Keep)
     }
 
     companion object {

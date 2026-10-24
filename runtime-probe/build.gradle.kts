@@ -25,6 +25,8 @@ dependencies {
     compileOnly(libs.androidx.activity.compose)
     compileOnly(libs.androidx.core.ktx)
     compileOnly(libs.androidx.navigation.compose)
+    compileOnly(libs.androidx.profileinstaller)
+    compileOnly(libs.androidx.window)
     compileOnly(libs.androidx.lifecycle.runtime.ktx)
     compileOnly("androidx.lifecycle:lifecycle-runtime-compose:${libs.versions.lifecycleRuntimeKtx.get()}")
     compileOnly(libs.org.jetbrains.kotlinx.coroutines.android)

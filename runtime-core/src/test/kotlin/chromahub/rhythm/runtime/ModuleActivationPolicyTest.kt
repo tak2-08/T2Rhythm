@@ -144,6 +144,12 @@ class ModuleActivationPolicyTest {
         assertEquals(StartupDecision.Keep(cancelled), policy.prepareStartup(cancelled, host, safe))
     }
 
+    @Test fun lateOlderDownloadCannotReplaceANewerPendingCandidate() {
+        val state = policy.stage(initial(), module(3))
+        assertThrows(IllegalArgumentException::class.java) { policy.stage(state, module(2)) }
+        assertEquals(3L, state.candidate!!.module.manifest.versionCode)
+    }
+
     @Test fun anotherUpdateCannotReplaceAnUnfinishedTrial() {
         val trial = policy.prepareStartup(approved(), host, safe).state
         assertThrows(IllegalStateException::class.java) { policy.stage(trial, module(3)) }

@@ -41,6 +41,9 @@ object ModuleActivationPolicy {
         check(!state.trialInProgress) { "Finish the current trial before staging another module" }
         require(verified.manifest.moduleId == state.active.manifest.moduleId)
         require(verified.manifest.versionCode > state.highestApprovedVersion) { "Older versions cannot be staged" }
+        require(state.candidate == null || verified.manifest.versionCode > state.candidate.module.manifest.versionCode) {
+            "A late older download cannot replace a newer candidate"
+        }
         return state.copy(candidate = ModuleCandidate(verified.reference))
     }
 
