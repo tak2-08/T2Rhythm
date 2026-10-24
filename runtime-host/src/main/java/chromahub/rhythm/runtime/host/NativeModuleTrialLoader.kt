@@ -47,7 +47,7 @@ class NativeModuleTrialLoader(
         // An unsuccessful class initialization also pins this attempt: never mix versions in-process.
         attemptedArchive = reference.archiveSha256
         val dex = materializeDex(archive, reference)
-        val loader = DexClassLoader(dex.path, context.codeCacheDir.path, null, sharedClassLoader)
+        val loader = FeatureDexClassLoader(dex.path, context.codeCacheDir.path, sharedClassLoader)
         val entryClass = loader.loadClass(reference.manifest.entryPointClass)
         require(entryClass.classLoader === loader) { "Entry point was bundled in the host" }
         require(NativeUiModule::class.java.isAssignableFrom(entryClass)) { "Entry point does not implement the shared contract" }
@@ -115,6 +115,21 @@ class NativeModuleTrialLoader(
             }
         }
         return hash.digest().joinToString("") { "%02x".format(it) }
+    }
+}
+
+/** Resource/version symbols belong to the feature; shared contracts and libraries stay parent-first. */
+private class FeatureDexClassLoader(path: String, optimizedDirectory: String, parent: ClassLoader) :
+    DexClassLoader(path, optimizedDirectory, null, parent) {
+    @Synchronized override fun loadClass(name: String, resolve: Boolean): Class<*> {
+        val featureSymbol = name == "chromahub.rhythm.app.R" || name.startsWith("chromahub.rhythm.app.R$") ||
+            name == "chromahub.rhythm.app.BuildConfig"
+        if (!featureSymbol) return super.loadClass(name, resolve)
+        val loaded = findLoadedClass(name) ?: try { findClass(name) } catch (_: ClassNotFoundException) {
+            super.loadClass(name, false)
+        }
+        if (resolve) resolveClass(loaded)
+        return loaded
     }
 }
 

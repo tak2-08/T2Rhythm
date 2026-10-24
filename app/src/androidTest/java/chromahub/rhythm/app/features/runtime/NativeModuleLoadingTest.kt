@@ -219,6 +219,10 @@ class NativeModuleLoadingTest {
         val payload = instrumentation.context.assets.open("resource-probe.apk").use { it.readBytes() }
         val file = makeArchive(2, payloadBytes = payload, entryPoint = "chromahub.rhythm.module.ResourceProbeEntry")
         val loaded = loader().loadTrial(activation(file), file)
+        val parentSymbols = sharedLoader.loadClass("chromahub.rhythm.app.R\$string")
+        assertThrows(NoSuchFieldException::class.java) { parentSymbols.getDeclaredField("runtime_probe_text") }
+        val featureSymbols = loaded.entry.javaClass.classLoader!!.loadClass("chromahub.rhythm.app.R\$string")
+        assertNotSame(parentSymbols, featureSymbols)
         val moduleContext = ModuleResourceContext.attach(context, loaded)
         assertEquals(context.packageName, moduleContext.packageName)
         instrumentation.runOnMainSync {
@@ -235,9 +239,8 @@ class NativeModuleLoadingTest {
             val original = loaded.entry.createView(moduleContext) as android.widget.TextView
             assertEquals("New resource from the signed module", original.text.toString())
         }
-        assertThrows(android.content.pm.PackageManager.NameNotFoundException::class.java) {
-            context.packageManager.getPackageInfo("chromahub.rhythm.module.resources", 0)
-        }
+        assertEquals(context.packageName, context.packageManager.getPackageArchiveInfo(loaded.readOnlyDex.path, 0)!!.packageName)
+        assertNotEquals(loaded.readOnlyDex.path, context.packageManager.getPackageInfo(context.packageName, 0).applicationInfo!!.sourceDir)
     }
 
     private data class StoreFixture(

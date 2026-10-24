@@ -4,7 +4,7 @@ package chromahub.rhythm.module;
 import android.content.Context;
 import android.view.View;
 import android.widget.TextView;
-import chromahub.rhythm.module.resources.R;
+import chromahub.rhythm.app.R;
 import chromahub.rhythm.runtime.api.NativeUiModule;
 
 /** Reads compiled resources that exist only in the downloaded payload fixture. */

@@ -1,10 +1,11 @@
 plugins { id("com.android.application") }
 
 android {
-    namespace = "chromahub.rhythm.module.resources"
+    namespace = "chromahub.rhythm.app"
     compileSdk = 37
     defaultConfig {
-        applicationId = "chromahub.rhythm.module.resources"
+        // Same ID as the installed test host: archive resources must not resolve to its old APK.
+        applicationId = "chromahub.rhythm.app.debug"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
