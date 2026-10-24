@@ -62,6 +62,10 @@ class NativeRuntimeBootTest {
         assertFalse(feature.describe().getBoolean("failed"))
         assertEquals(status.getLong("versionCode"), feature.describe().getLong("compiledVersionCode"))
         assertNotSame(MainActivity::class.java.classLoader, feature.javaClass.classLoader)
+        if (!chromahub.rhythm.app.BuildConfig.DEBUG) {
+            val baseSdk = MainActivity::class.java.classLoader!!.loadClass("chromahub.rhythm.runtime.base.DesugaredSdkContract")
+            assertNotNull(baseSdk.getMethod("toUnmodifiableList").invoke(null))
+        }
         assertSame(feature.javaClass.classLoader, AppSettings::class.java.classLoader)
         assertSame(MainActivity::class.java, feature.javaClass.classLoader!!.loadClass(MainActivity::class.java.name))
         assertSame(feature.javaClass.classLoader, RhythmWidgetReceiver().glanceAppWidget.javaClass.classLoader)

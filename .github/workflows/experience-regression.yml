@@ -319,6 +319,13 @@ jobs:
           --base app/build/outputs/apk/github/debug/Rhythm-5.5.499.1327-githubDebug.apk
           --feature-dex runtime-content/build/outputs/runtime-feature/githubDebug/content.dex.jar
           --out app/build/reports/native-classpath.json
+      - name: Audit the actual release Java backport ABI
+        if: inputs.preservation_batch == 'native_release'
+        run: >-
+          python3 scripts/audit_runtime_classpath.py
+          --base app/build/outputs/apk/github/release/Rhythm-5.5.499.1327-githubRelease.apk
+          --feature-dex runtime-content/build/outputs/runtime-feature/githubRelease/content.dex.jar
+          --out app/build/reports/native-release-classpath.json
       - name: Verify unit regressions
         run: >-
           ./gradlew :runtime-core:test :crawler:test :runtime-content:testGithubDebugUnitTest
