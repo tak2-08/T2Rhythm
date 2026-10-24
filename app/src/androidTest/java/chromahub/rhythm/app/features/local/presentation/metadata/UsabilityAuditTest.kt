@@ -24,6 +24,7 @@ import chromahub.rhythm.app.R
 import chromahub.rhythm.app.activities.MainActivity
 import chromahub.rhythm.app.features.local.data.experience.*
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
+import chromahub.rhythm.app.features.local.presentation.components.settings.LanguageHelper
 import chromahub.rhythm.app.shared.data.model.*
 import chromahub.rhythm.app.shared.presentation.screens.settings.SettingsScreen
 import java.io.File
@@ -46,6 +47,8 @@ class UsabilityAuditTest {
         compose.runOnUiThread { compose.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
         compose.waitUntil(10_000) { compose.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }
         compose.runOnUiThread {
+            // Use the real per-app language API so newly created Activities share the same locale.
+            LanguageHelper.setLanguage(base, "ko")
             Locale.setDefault(Locale.KOREAN)
             listOf(base.resources, compose.activity.resources).forEach { resources ->
                 resources.updateConfiguration(Configuration(resources.configuration).apply { setLocale(Locale.KOREAN); fontScale = 1f }, resources.displayMetrics)
@@ -142,6 +145,8 @@ class UsabilityAuditTest {
         settings.setHasShownBetaPopup(true)
         settings.setUpdatesEnabled(false)
         settings.setDefaultScreen("home")
+        // The optional suggestions rotate independently between launches; compare the stable page.
+        settings.setShowSettingsSuggestions(false)
         // The release-notes dialog has its own coverage; compare the actual underlying pages.
         base.getSharedPreferences("installed_release_notes", 0).edit()
             .putInt("seen", chromahub.rhythm.app.BuildConfig.VERSION_CODE).commit()

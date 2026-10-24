@@ -9,6 +9,7 @@ import re
 import subprocess
 import tempfile
 import zipfile
+import xml.etree.ElementTree as ET
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
@@ -44,6 +45,12 @@ def main():
     parser.add_argument('--test-only', action='store_true')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
+    permission_name = '{http://schemas.android.com/apk/res/android}name'
+    def permissions(path):
+        return {node.attrib[permission_name] for node in ET.parse(path).getroot()
+                if node.tag.startswith('uses-permission')}
+    if not permissions(root / 'runtime-content/src/main/AndroidManifest.xml') <= permissions(root / 'app/src/main/AndroidManifest.xml'):
+        parser.error('The feature declares a permission absent from the base; a new base contract is required')
     from export_runtime_resource_ids import export
     actual_ids, _ = export(args.apk, args.aapt2, 'chromahub.rhythm.app')
     actual = set(actual_ids.splitlines())
