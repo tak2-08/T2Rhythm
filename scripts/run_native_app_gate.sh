@@ -4,8 +4,11 @@ set -euo pipefail
 runtime_api_level="$1"
 runtime_batch="$2"
 runtime_group="${3:-native_boot}"
-if [[ "$runtime_batch" == native_full ]]; then
-    if [[ "$runtime_group" == upgrade_visual ]]; then
+if [[ "$runtime_batch" == native_full || "$runtime_batch" == native_diagnostics ]]; then
+    if [[ "$runtime_group" == baseline_newflows ]]; then
+        python3 scripts/run_preservation_gate.py --group newflows --output "native-results/baseline-newflows-api${runtime_api_level}" \
+            --legacy-apk native-baseline-artifacts/legacy.apk --legacy-test-apk native-baseline-artifacts/legacy-test.apk
+    elif [[ "$runtime_group" == upgrade_visual ]]; then
         bash scripts/run_native_upgrade_visual_gate.sh
     else
         python3 scripts/run_preservation_gate.py --native-base --group "$runtime_group" --output "native-results/${runtime_group}-api${runtime_api_level}"

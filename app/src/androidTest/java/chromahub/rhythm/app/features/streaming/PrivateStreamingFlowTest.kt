@@ -215,6 +215,11 @@ class PrivateStreamingFlowTest {
         compose.waitUntil(10_000) { runCatching { qr.fetchSemanticsNode() }.isSuccess }
         qr.performScrollTo()
         val image = qr.captureToImage().asAndroidBitmap()
+        screenshot("streaming-qr-invitation-large-text-before-decode")
+        File(base.getExternalFilesDir(null), "streaming-qr-captured-node.png").outputStream().use {
+            image.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        assertEquals("The entire square QR must fit in the captured viewport", image.width, image.height)
         val pixels = IntArray(image.width * image.height)
         image.getPixels(pixels, 0, image.width, 0, 0, image.width, image.height)
         val decoded = com.google.zxing.qrcode.QRCodeReader().decode(com.google.zxing.BinaryBitmap(com.google.zxing.common.HybridBinarizer(

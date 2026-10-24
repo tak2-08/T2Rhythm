@@ -32,12 +32,25 @@ def main():
     public_bytes = (root / 'runtime-contract/module-public.der').read_bytes()
     public = serialization.load_der_public_key(public_bytes)
     certificate = (root / 'runtime-contract/base-cert-sha256.txt').read_text().strip()
+    embedded = {}
     for apk in args.apk:
         verification = subprocess.run([str(args.apksigner), 'verify', '--verbose', '--print-certs', str(apk)],
                                       check=True, capture_output=True, text=True).stdout
-        certificates = re.findall(r'(?m)^Signer #\d+ certificate SHA-256 digest: ([a-f0-9]+)$', verification)
-        if certificates != [certificate]:
+        certificates = set(re.findall(r'(?m)^(?:Signer #\d+|V\d+(?:\.\d+)? Signer:) certificate SHA-256 digest: ([a-f0-9]+)$', verification))
+        if certificates != {certificate}:
             parser.error(f'{apk.name}: original Android signing identity differs')
+        xml = subprocess.run([str(args.apksigner.parent / 'aapt2'), 'dump', 'xmltree', str(apk),
+                              '--file', 'AndroidManifest.xml'], check=True, capture_output=True, text=True).stdout
+        if not re.search(r':testOnly\(0x01010272\)=false\b', xml):
+            parser.error(f'{apk.name}: the APK is not an explicitly publishable base')
+        with zipfile.ZipFile(apk) as container:
+            if container.read('assets/runtime/module-public.der') != public_bytes:
+                parser.error(f'{apk.name}: embedded production trust differs')
+            properties = container.read('assets/runtime/host.properties').decode('ascii')
+            fingerprint = re.fullmatch(r'runtimeFingerprint=([a-f0-9]{64})\n', properties)
+            if not fingerprint or fingerprint[1] in embedded:
+                parser.error(f'{apk.name}: invalid or duplicate host contract')
+            embedded[fingerprint[1]] = hashlib.sha256(container.read('assets/runtime/default.t2module')).hexdigest()
     args.out.mkdir(parents=True, exist_ok=True)
     seen = set()
     for distribution in args.distribution:
@@ -51,6 +64,8 @@ def main():
             manifest = json.loads(raw)
         if manifest != metadata['manifest'] or sha256(archive) != metadata['archiveSha256']:
             parser.error('Distribution metadata differs from the signed archive')
+        if embedded.get(manifest['runtimeFingerprint']) != metadata['archiveSha256']:
+            parser.error('The publishable base does not embed this exact signed feature')
         name = f"T2Rhythm-feature-{manifest['versionCode']}-{manifest['runtimeFingerprint']}.t2module"
         if name in seen:
             parser.error('Duplicate release compatibility contract')
