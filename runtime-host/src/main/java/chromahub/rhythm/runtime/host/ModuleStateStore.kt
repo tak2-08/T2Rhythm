@@ -81,7 +81,12 @@ class ModuleStateStore(
                 require(bytes.size > 32)
                 bytes
             }
-        } catch (_: FileNotFoundException) {
+        } catch (error: FileNotFoundException) {
+            // FileInputStream also reports permission errors as FileNotFoundException.
+            // An unreadable/unfinished existing record must never reset approvals to defaults.
+            if (stateFile.exists() || File(stateFile.path + ".bak").exists() || File(stateFile.path + ".new").exists()) {
+                throw CorruptModuleState(error)
+            }
             return ModuleActivationState(initial.reference)
         } catch (error: Exception) {
             throw CorruptModuleState(error)

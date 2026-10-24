@@ -232,6 +232,8 @@ class NativeModuleLoadingTest {
             val koreanContext = ModuleResourceContext.attach(context.createConfigurationContext(configuration), loaded)
             val korean = loaded.entry.createView(koreanContext) as android.widget.TextView
             assertEquals("서명된 기능 패키지의 새 리소스", korean.text.toString())
+            val original = loaded.entry.createView(moduleContext) as android.widget.TextView
+            assertEquals("New resource from the signed module", original.text.toString())
         }
         assertThrows(android.content.pm.PackageManager.NameNotFoundException::class.java) {
             context.packageManager.getPackageInfo("chromahub.rhythm.module.resources", 0)
@@ -320,6 +322,19 @@ class NativeModuleLoadingTest {
         file.writeBytes(file.readBytes().apply { this[lastIndex] = (this[lastIndex].toInt() xor 1).toByte() })
         assertThrows(CorruptModuleState::class.java) { fixture.reopen().snapshot() }
         assertNull(System.getProperty(MARKER))
+    }
+
+    @Test fun unreadableExistingStateCannotBeMistakenForFirstInstallation() {
+        val fixture = storeFixture()
+        fixture.reopen().stage(fixture.candidate)
+        val file = File(fixture.directory, ModuleStateStore.STATE_FILE_NAME)
+        Os.chmod(file.path, 0)
+        try {
+            assertThrows(CorruptModuleState::class.java) { fixture.reopen().snapshot() }
+            assertNull(System.getProperty(MARKER))
+        } finally {
+            Os.chmod(file.path, OsConstants.S_IRUSR or OsConstants.S_IWUSR)
+        }
     }
 
     @Test fun concurrentStoreInstancesSerializeApprovalsWithoutCorruption() {
