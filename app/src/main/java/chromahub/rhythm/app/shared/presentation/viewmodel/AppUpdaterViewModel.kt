@@ -158,6 +158,21 @@ class AppUpdaterViewModel(
     private val _updateChannel = MutableStateFlow("stable")
     val updateChannel: StateFlow<String> = _updateChannel.asStateFlow()
 
+    private val notesPrefs = application.getSharedPreferences("installed_release_notes", Context.MODE_PRIVATE)
+    private val initialNotes: String = if (notesPrefs.getInt("code", -1) == BuildConfig.VERSION_CODE)
+        notesPrefs.getString("body", null).orEmpty().ifBlank { bundledReleaseNotes() }
+    else bundledReleaseNotes()
+
+    private fun bundledReleaseNotes(): String {
+        val application = getApplication<Application>()
+        val language = chromahub.rhythm.app.features.local.presentation.components.settings.LanguageHelper.getCurrentLanguage(application)
+        val configuration = android.content.res.Configuration(application.resources.configuration).apply {
+            setLocale(Locale.forLanguageTag(language))
+        }
+        return application.createConfigurationContext(configuration).resources
+            .openRawResource(R.raw.current_release_notes).bufferedReader().use { it.readText() }
+    }
+
     // Current app version info
     private val _currentVersion =
         MutableStateFlow(
@@ -165,8 +180,9 @@ class AppUpdaterViewModel(
                 versionName = BuildConfig.VERSION_NAME,
                 versionCode = BuildConfig.VERSION_CODE,
                 releaseDate = BuildConfig.RELEASE_DATE,
-                whatsNew = emptyList(),
+                whatsNew = chromahub.rhythm.app.features.updates.ReleaseNotesParser.parse(initialNotes).whatsNew,
                 knownIssues = emptyList(),
+                releaseNotes = initialNotes,
                 downloadUrl = "",
                 isPreRelease = BuildConfig.VERSION_NAME.contains("Beta", ignoreCase = true),
                 buildNumber = extractBuildNumber(BuildConfig.VERSION_NAME),
@@ -225,7 +241,7 @@ class AppUpdaterViewModel(
 
         // Load any persisted download state
         viewModelScope.launch(Dispatchers.IO) {
-            runCatching { chromahub.rhythm.app.features.updates.UpdateJournal.get(application).reconcile() }
+            runCatching { chromahub.rhythm.app.features.updates.UpdateJournal.get(application).also { it.reconcile(); it.attachInstalledNotes(BuildConfig.VERSION_CODE.toLong(), initialNotes) } }
             loadDownloadState()
         }
 
@@ -428,6 +444,7 @@ class AppUpdaterViewModel(
                     if (releasesResponse.isSuccessful) {
                         val allReleases = releasesResponse.body()
                         if (!allReleases.isNullOrEmpty()) {
+                            updateInstalledReleaseNotes(allReleases)
                             val bestRelease = findLatestSuitableRelease(allReleases, "beta")
                             if (bestRelease != null) {
                                 releaseCandidate = convertReleaseToAppVersion(bestRelease)
@@ -461,6 +478,7 @@ class AppUpdaterViewModel(
                             return@launch
                         }
 
+                        updateInstalledReleaseNotes(allReleases)
                         val latestSuitableRelease = findLatestSuitableRelease(allReleases, currentChannel)
                         if (latestSuitableRelease == null) {
                             _error.value = "No suitable release found for channel '$currentChannel'"
@@ -691,79 +709,21 @@ class AppUpdaterViewModel(
      * Parses the release body string to extract "What's New" and "Known Issues" sections.
      * Assumes a Markdown-like format with specific headings.
      */
-    private enum class ParsingState {
-        NONE,
-        WHATS_NEW,
-        KNOWN_ISSUES,
+    private fun parseReleaseBody(body: String?): ReleaseContent {
+        val parsed = chromahub.rhythm.app.features.updates.ReleaseNotesParser.parse(body)
+        return ReleaseContent(parsed.whatsNew, parsed.knownIssues)
     }
 
-    private fun parseReleaseBody(body: String?): ReleaseContent {
-        if (body.isNullOrBlank()) {
-            return ReleaseContent(emptyList(), emptyList())
+    private fun updateInstalledReleaseNotes(releases: List<GitHubRelease>) {
+        val release = releases.firstOrNull { calculateVersionCode(it.tag_name.removePrefix("v").removePrefix("V")) == BuildConfig.VERSION_CODE }
+            ?: return
+        val body = release.body.take(65_536).takeIf { it.isNotBlank() } ?: return
+        val parsed = parseReleaseBody(body)
+        _currentVersion.value = _currentVersion.value.copy(releaseNotes = body, whatsNew = parsed.whatsNew, knownIssues = parsed.knownIssues)
+        notesPrefs.edit { putInt("code", BuildConfig.VERSION_CODE); putString("body", body) }
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { chromahub.rhythm.app.features.updates.UpdateJournal.get(getApplication()).attachInstalledNotes(BuildConfig.VERSION_CODE.toLong(), body) }
         }
-
-        val whatsNew = mutableListOf<String>()
-        val knownIssues = mutableListOf<String>()
-
-        var currentState = ParsingState.NONE
-
-        body.lines().forEach { line ->
-            val trimmedLine = line.trim()
-
-            when {
-                trimmedLine.startsWith("**What's New:**") -> {
-                    currentState = ParsingState.WHATS_NEW
-                }
-                trimmedLine.startsWith("**Known Issues") -> { // Matches "Known Issues (Will be fixed on a later build):"
-                    currentState = ParsingState.KNOWN_ISSUES
-                }
-                trimmedLine.startsWith("**Build Information:**") -> {
-                    currentState = ParsingState.NONE // Stop parsing for these sections
-                }
-                // If we are in a section and encounter another heading, stop parsing the current section
-                (trimmedLine.startsWith("#") || trimmedLine.startsWith("##")) &&
-                    currentState != ParsingState.NONE -> {
-                    currentState = ParsingState.NONE
-                }
-                else -> {
-                    // Add line to current section if we are in one
-                    when (currentState) {
-                        ParsingState.WHATS_NEW -> {
-                            // Defense-in-depth: the release body is generated by the
-                            // junk-filtered release-notes script, but drop any stray
-                            // low-value entry that slips through.
-                            if (ChangelogFilter.isJunkReleaseBullet(trimmedLine)) {
-                                return@forEach
-                            }
-                            val htmlLine =
-                                trimmedLine
-                                    .replace(Regex("^[*-]\\s*"), "") // Remove list prefixes
-                                    .replace(Regex("\\*\\*(.*?)\\*\\*"), "<b>$1</b>") // Bold
-                                    .replace(Regex("_(.*?)_"), "<i>$1</i>") // Italic
-                                    .replace(Regex("\\[(.*?)\\]\\((.*?)\\)"), "<a href=\"$2\">$1</a>") // Links
-                            if (htmlLine.isNotBlank()) {
-                                whatsNew.add(htmlLine)
-                            }
-                        }
-                        ParsingState.KNOWN_ISSUES -> {
-                            val htmlLine =
-                                trimmedLine
-                                    .replace(Regex("^[*-]\\s*"), "") // Remove list prefixes
-                                    .replace(Regex("\\*\\*(.*?)\\*\\*"), "<b>$1</b>") // Bold
-                                    .replace(Regex("_(.*?)_"), "<i>$1</i>") // Italic
-                                    .replace(Regex("\\[(.*?)\\]\\((.*?)\\)"), "<a href=\"$2\">$1</a>") // Links
-                            if (htmlLine.isNotBlank()) {
-                                knownIssues.add(htmlLine)
-                            }
-                        }
-                        ParsingState.NONE -> {
-                            // Do nothing if not in a specific section
-                        }
-                    }
-                }
-            }
-        }
-        return ReleaseContent(whatsNew, knownIssues)
     }
 
     /**

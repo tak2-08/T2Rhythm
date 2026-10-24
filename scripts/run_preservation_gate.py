@@ -30,6 +30,7 @@ for path in (root / 'app/src/androidTest/java').rglob('*.kt'):
         sources[path.stem] = (namespace + '.' + path.stem, count, names)
 
 groups = {
+ 'fixes': ['PlaybackContinuityTest','ReleaseNotesUiTest','PlayerRegressionTest','MetadataConsistencyTest','LyricsEntryAndUpdatesTest','LibrarySearchNavigationTest','PopularPlaybackNavigationTest'],
  'metadata': ['MetadataConsistencyTest','ListeningRecapFlowTest','PageArtworkFlowTest','LearningFileNamesTest','LibraryPagesTest','GenreControlsTest','ManualLyricTimingFlowTest','PersonalInsightsScreensTest','ArtworkRefreshTest','LyricsEntryAndUpdatesTest','UsabilityBehaviorTest'],
  'persistence': ['MetadataEditRaceTest','ContentFlowRegressionTest','DiscoveryPipelineTest','PersonalMediaTest','MaintenanceLifecycleTest','AssetIntegrityRegressionTest','DiscoveryContextTest','PerformancePersistenceTest','DurableStorageTest','LegacyHistoryMigrationTest','ListeningPersistenceTest','LibraryProgressRegressionTest','LocalModeMigrationTest'],
  'navigation': ['DownloadPlaybackRegressionTest','MaintenanceScreensTest','PopularPlaybackNavigationTest','DiscoveryScreensTest','PopularNavigationTest','LibrarySearchNavigationTest','LocalSearchStateTest','GenreSearchStateTest','YouTubeProtocolTest','PlayerRegressionTest','MixShelfTest'],

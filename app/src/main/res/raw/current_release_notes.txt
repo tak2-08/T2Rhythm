@@ -1,0 +1,5 @@
+Changes in this version
+
+• Update notes are available inside the app, including after installation and while offline.
+• An active local playback queue is preserved when reconnecting or restoring saved state.
+• The repeat-one icon now matches continuous repetition of the current song. The plain repeat icon repeats the queue.

@@ -67,6 +67,13 @@ class UpdateJournal private constructor(private val context: Context, namespace:
     @Synchronized fun installerFailed(file: File) {
         persist(_records.value.map { if (it.file == file.absolutePath && it.stage == UpdateStage.INSTALL_REQUESTED) it.copy(stage = UpdateStage.READY) else it })
     }
+    @Synchronized fun attachInstalledNotes(code: Long, notes: String) {
+        if (notes.isBlank()) return
+        val updated = _records.value.map { r ->
+            if (r.code == code && r.stage == UpdateStage.INSTALLED && r.notes.isBlank()) r.copy(notes = notes.take(16_384)) else r
+        }
+        if (updated != _records.value) persist(updated)
+    }
     @Synchronized fun remove(id: String) = persist(_records.value.filterNot { it.id == id })
     @Synchronized fun clear() = persist(emptyList())
 

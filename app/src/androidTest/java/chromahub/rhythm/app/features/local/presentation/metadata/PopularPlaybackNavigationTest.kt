@@ -62,6 +62,7 @@ class PopularPlaybackNavigationTest {
                 shell("pm grant ${context.packageName} $permission")
                 val settings = AppSettings.getInstance(context)
                 settings.setOnboardingCompleted(true)
+                context.getSharedPreferences("installed_release_notes", 0).edit().putInt("seen", chromahub.rhythm.app.BuildConfig.VERSION_CODE).commit()
                 settings.setDefaultScreen("home")
                 settings.setFloatingNavigationBar(true)
                 settings.setInitialStreamingRoute(null)
@@ -135,7 +136,9 @@ class PopularPlaybackNavigationTest {
         }
         val ready = SystemClock.elapsedRealtime() + 90_000
         while (
-            (!vm.isInitialized.value || vm.isMediaScanning.value) &&
+            (!vm.isInitialized.value || vm.isMediaScanning.value || vm.songs.value.none {
+                it.uri.scheme == "content" && !CatalogIdentity.missing(it.artist) && !CatalogIdentity.missing(it.album)
+            }) &&
                 SystemClock.elapsedRealtime() < ready
         ) SystemClock.sleep(100)
         assertTrue(vm.isInitialized.value)
@@ -149,7 +152,7 @@ class PopularPlaybackNavigationTest {
             }
         val song =
             candidates.firstOrNull { it.title == "Archive test track" } ?: candidates.firstOrNull()
-        org.junit.Assume.assumeNotNull(song)
+        assertNotNull("The real MediaStore audio fixture must be loaded before navigation playback", song)
         val local = requireNotNull(song)
         activity.scenario.onActivity { vm.pauseMusic() }
         val paused = SystemClock.elapsedRealtime() + 15_000
