@@ -43,6 +43,18 @@ on API 26, 29, 30, 35 and 37. The original Android tests compile against a featu
 run through a test class-loader bridge; they are not linked into the installed base. Passing
 legacy JVM tests or the earlier tiny Compose probe does not prove this complete music port.
 
+The `native_update` batch runs genuine independently compiled code/resource updates through user
+confirmation and process restarts, including live local audio and a signed bad-startup fixture.
+The `native_full` batch runs the original preservation groups through the child-loaded application.
+It also builds the pinned original APK with the same Android signer, seeds a real playlist/settings/
+private file, upgrades in place, checks UID/storage/signature/data preservation, and compares seven
+original/native screenshots including large text, landscape, actual home and settings.
+
+The fixed host records a compatible fallback before delegating an uncaught fatal error to the
+original crash UI. The previous good feature remains available after first-start health succeeds.
+The installed recovery screen can also explicitly restore the signed embedded default when the
+activation journal is damaged; this replaces activation metadata without deleting music or settings.
+
 Before PR: run the original behavior/visual preservation groups through this host, test signed
 code-only v1-to-v2 updates and recovery across process boundaries, verify legacy APK user-data
 upgrades, exercise release builds, and finish the standard application/release pipeline migration.

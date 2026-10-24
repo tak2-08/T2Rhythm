@@ -28,7 +28,7 @@ android {
         buildConfigField("String", "RUNTIME_FINGERPRINT", "\"${hostMetadata.getProperty("runtimeFingerprint", "0".repeat(64))}\"")
         testInstrumentationRunner = "androidx.test.runner.NativeModuleJUnitRunner"
         // These methods intentionally span process exits; the lifecycle gate drives them in order.
-        testInstrumentationRunnerArguments["notClass"] = "chromahub.rhythm.app.features.runtime.NativeUpdateLifecycleTest"
+        testInstrumentationRunnerArguments["notClass"] = "chromahub.rhythm.app.features.runtime.NativeUpdateLifecycleTest,chromahub.rhythm.app.features.runtime.NativeApkUpgradeTest"
     }
     buildTypes {
         debug { applicationIdSuffix = ".debug"; versionNameSuffix = "-gh-debug" }
