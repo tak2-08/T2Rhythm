@@ -113,6 +113,13 @@ class UsabilityAuditTest {
         compose.onNodeWithText(base.getString(R.string.download_song_name)).performClick()
         compose.onNode(hasSetTextAction() and hasText(base.getString(R.string.download_song_name))).performTextInput("노래 제목")
         assertFontScale(base.getString(R.string.download_song_name))
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        automation.serviceInfo = automation.serviceInfo.apply {
+            flags = flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
+        compose.waitUntil(10_000) {
+            automation.windows.any { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD && it.root != null }
+        }
         capture("audit-03-download-search-large-text.png")
         androidx.test.espresso.Espresso.pressBack()
         compose.onNodeWithTag("download-search-list").performScrollToIndex(0)
