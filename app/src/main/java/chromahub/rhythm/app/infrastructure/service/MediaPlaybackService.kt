@@ -492,7 +492,7 @@ class MediaPlaybackService : MediaLibraryService(), Player.Listener {
     // SharedPreferences keys
     companion object {
         var instanceForWidgetAndLyricsOnly: MediaPlaybackService? = null
-        private val _currentPlaybackQuality = MutableStateFlow<PlaybackQualityInfo?>(null)
+        private val _currentPlaybackQuality = chromahub.rhythm.app.shared.data.model.PlaybackQualityState.mutable
         val currentPlaybackQuality: StateFlow<PlaybackQualityInfo?> = _currentPlaybackQuality.asStateFlow()
         private const val TAG = "MediaPlaybackService"
         private const val NOTIFICATION_ID = 1001

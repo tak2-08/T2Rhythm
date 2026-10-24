@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="runtime_apply_pending">Applies on the next safe app start</string>
+    <string name="runtime_approval_title">%1$s feature update</string>
+    <string name="runtime_approval_message">Apply at the next safe app start? Music playback and sharing continue with the current version.\n\n%1$s</string>
+    <string name="runtime_approval_confirmed">Confirmed. The update will apply on the next safe app start.</string>
+    <string name="runtime_verification_failed">The update could not be verified. Please try again.</string>
+    <string name="runtime_recovery_message">The feature could not start. An unfinished update will roll back to the last working version on restart. Music and settings are kept.</string>
+    <string name="runtime_recover_restart">Recover and restart</string>
+    <string name="runtime_widget_recovery">Open T2Rhythm to recover</string>
+</resources>

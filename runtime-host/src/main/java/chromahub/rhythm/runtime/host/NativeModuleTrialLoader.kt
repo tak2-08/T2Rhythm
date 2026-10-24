@@ -9,6 +9,7 @@ import chromahub.rhythm.runtime.ModuleReference
 import chromahub.rhythm.runtime.RuntimePackageVerifier
 import chromahub.rhythm.runtime.StartupDecision
 import chromahub.rhythm.runtime.api.NativeUiModule
+import chromahub.rhythm.runtime.api.NativeModuleEntry
 import dalvik.system.DexClassLoader
 import java.io.File
 import java.io.FileOutputStream
@@ -17,10 +18,9 @@ import java.security.MessageDigest
 import java.util.zip.ZipFile
 
 /**
- * Experimental trial loader, currently used ONLY by instrumentation tests.
- * The real base must own one loader per process and durably save Activate.state before calling.
- * Stable-version loading, storage journal/recovery and the application's UI/service API are not
- * implemented here. This class alone is not an application updater.
+ * Native DEX loading for trials, known-good starts and recovered versions. The installed base owns
+ * one instance per process and commits the startup journal before consuming a decision. Package
+ * verification, immutable files and a shared SDK contract are required for every startup path.
  */
 class NativeModuleTrialLoader(
     context: Context,
@@ -30,14 +30,28 @@ class NativeModuleTrialLoader(
 ) {
     private val context = context.applicationContext
     private var attemptedArchive: String? = null
-    private var loaded: LoadedNativeModule? = null
+    private var loaded: LoadedNativeModule<*>? = null
+
+    fun loadTrial(decision: StartupDecision.Activate, archive: File): LoadedNativeModule<NativeUiModule> =
+        loadTrial(decision, archive, NativeUiModule::class.java)
 
     @Synchronized
-    fun loadTrial(decision: StartupDecision.Activate, archive: File): LoadedNativeModule {
-        val reference = decision.state.active
+    fun <T : NativeModuleEntry> loadTrial(decision: StartupDecision.Activate, archive: File, contract: Class<T>): LoadedNativeModule<T> {
         check(decision.state.trialInProgress && decision.state.previousGood != null)
+        return loadStartup(decision, archive, contract)
+    }
+
+    /** Consumes a committed startup decision; known-good and recovered modules also need loading. */
+    @Synchronized
+    fun <T : NativeModuleEntry> loadStartup(decision: StartupDecision, archive: File, contract: Class<T>): LoadedNativeModule<T> {
+        require(decision !is StartupDecision.RecoveryRequired)
+        val reference = decision.state.active
         attemptedArchive?.let { check(it == reference.archiveSha256) { "A process cannot switch module versions" } }
-        loaded?.let { return it }
+        loaded?.let {
+            require(contract.isInstance(it.entry))
+            @Suppress("UNCHECKED_CAST")
+            return it as LoadedNativeModule<T>
+        }
         val privateRoot = context.noBackupFilesDir.canonicalFile
         require(archive.canonicalPath.startsWith(privateRoot.path + File.separator))
         require(!Files.isSymbolicLink(archive.toPath()) && archive.isFile)
@@ -47,11 +61,16 @@ class NativeModuleTrialLoader(
         // An unsuccessful class initialization also pins this attempt: never mix versions in-process.
         attemptedArchive = reference.archiveSha256
         val dex = materializeDex(archive, reference)
-        val loader = FeatureDexClassLoader(dex.path, context.codeCacheDir.path, sharedClassLoader)
+        val info = context.applicationInfo
+        val nativePaths = (listOfNotNull(info.nativeLibraryDir) +
+            (listOf(info.sourceDir) + info.splitSourceDirs.orEmpty()).flatMap { apk ->
+                android.os.Build.SUPPORTED_ABIS.map { abi -> "$apk!/lib/$abi" }
+            }).joinToString(File.pathSeparator)
+        val loader = FeatureDexClassLoader(dex.path, context.codeCacheDir.path, nativePaths, sharedClassLoader)
         val entryClass = loader.loadClass(reference.manifest.entryPointClass)
         require(entryClass.classLoader === loader) { "Entry point was bundled in the host" }
-        require(NativeUiModule::class.java.isAssignableFrom(entryClass)) { "Entry point does not implement the shared contract" }
-        val instance = entryClass.getDeclaredConstructor().newInstance() as NativeUiModule
+        require(contract.isAssignableFrom(entryClass)) { "Entry point does not implement the shared contract" }
+        val instance = requireNotNull(contract.cast(entryClass.getDeclaredConstructor().newInstance()))
         return LoadedNativeModule(reference, instance, dex).also { loaded = it }
     }
 
@@ -119,11 +138,11 @@ class NativeModuleTrialLoader(
 }
 
 /** Resource/version symbols belong to the feature; shared contracts and libraries stay parent-first. */
-private class FeatureDexClassLoader(path: String, optimizedDirectory: String, parent: ClassLoader) :
-    DexClassLoader(path, optimizedDirectory, null, parent) {
+private class FeatureDexClassLoader(path: String, optimizedDirectory: String, nativePaths: String, parent: ClassLoader) :
+    DexClassLoader(path, optimizedDirectory, nativePaths, parent) {
     @Synchronized override fun loadClass(name: String, resolve: Boolean): Class<*> {
-        val featureSymbol = name == "chromahub.rhythm.app.R" || name.startsWith("chromahub.rhythm.app.R$") ||
-            name == "chromahub.rhythm.app.BuildConfig"
+        val systemComponent = SYSTEM_COMPONENTS.any { name == it || name.startsWith("$it$") }
+        val featureSymbol = name.startsWith("chromahub.rhythm.app.") && !systemComponent
         if (!featureSymbol) return super.loadClass(name, resolve)
         val loaded = findLoadedClass(name) ?: try { findClass(name) } catch (_: ClassNotFoundException) {
             super.loadClass(name, false)
@@ -131,10 +150,30 @@ private class FeatureDexClassLoader(path: String, optimizedDirectory: String, pa
         if (resolve) resolveClass(loaded)
         return loaded
     }
+
+    companion object {
+        private val SYSTEM_COMPONENTS = setOf(
+            "chromahub.rhythm.app.RhythmApplication",
+            "chromahub.rhythm.app.activities.MainActivity",
+            "chromahub.rhythm.app.activities.ExternalPlaybackActivity",
+            "chromahub.rhythm.app.activities.CrashActivity",
+            "chromahub.rhythm.app.activities.RhythmGuardTimeoutActivity",
+            "chromahub.rhythm.app.features.local.presentation.metadata.SelectorStudioActivity",
+            "chromahub.rhythm.app.features.streaming.StreamingHostService",
+            "chromahub.rhythm.app.features.updates.UpdateInstalledReceiver",
+            "chromahub.rhythm.app.infrastructure.service.MediaPlaybackService",
+            "chromahub.rhythm.app.infrastructure.service.RhythmTileService",
+            "chromahub.rhythm.app.infrastructure.provider.RhythmAlbumArtProvider",
+            "chromahub.rhythm.app.infrastructure.widget.glance.RhythmWidgetReceiver",
+            "chromahub.rhythm.app.infrastructure.widget.glance.RhythmLyricsWidgetReceiver",
+            "chromahub.rhythm.app.infrastructure.widget.glance.RhythmCookieWidgetReceiver",
+            "chromahub.rhythm.app.infrastructure.widget.glance.RhythmStatsWidgetReceiver",
+        )
+    }
 }
 
-data class LoadedNativeModule internal constructor(
+data class LoadedNativeModule<T : NativeModuleEntry> internal constructor(
     val reference: ModuleReference,
-    val entry: NativeUiModule,
+    val entry: T,
     val readOnlyDex: File,
 )

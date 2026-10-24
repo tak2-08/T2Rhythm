@@ -49,6 +49,11 @@ class ModuleStateStore(
     fun stage(verified: VerifiedModule): ModuleActivationState = update { ModuleActivationPolicy.stage(it, verified) }
     fun approve(archiveSha256: String): ModuleActivationState = update { ModuleActivationPolicy.approve(it, archiveSha256) }
     fun discardCandidate(): ModuleActivationState = update(ModuleActivationPolicy::discardCandidate)
+    fun discardUnapproved(archiveHash: String): ModuleActivationState = update {
+        val candidate = requireNotNull(it.candidate)
+        require(candidate.module.archiveSha256 == archiveHash && !candidate.approved)
+        ModuleActivationPolicy.discardCandidate(it)
+    }
     fun confirmHealthy(archiveSha256: String): ModuleActivationState = update {
         ModuleActivationPolicy.confirmHealthy(it, archiveSha256)
     }
@@ -56,7 +61,8 @@ class ModuleStateStore(
     /** The returned decision is safe to consume only AFTER this method returns successfully. */
     fun prepareStartup(host: HostEnvironment, safety: StartupSafety): StartupDecision = locked {
         val before = read()
-        val decision = ModuleActivationPolicy.prepareStartup(before, host, safety)
+        val acceptedBase = if (safety.freshProcess) ModuleActivationPolicy.reconcileEmbeddedBaseUpdate(before, initial, host) else before
+        val decision = ModuleActivationPolicy.prepareStartup(acceptedBase, host, safety)
         if (decision.state != before) write(decision.state)
         decision
     }
@@ -112,7 +118,7 @@ class ModuleStateStore(
                 val highest = input.readLong()
                 val failed = if (boolean()) input.readUTF().also { require(it.matches(HASH)) } else null
                 require(input.read() == -1)
-                require(highest >= active.manifest.versionCode && highest >= initial.manifest.versionCode)
+                require(highest >= active.manifest.versionCode)
                 require(!approved || candidateReference != null)
                 require(!trial || (previous != null && candidateReference == null))
                 require(previous == null || previous.manifest.versionCode <= highest)

@@ -46,7 +46,14 @@ class RuntimePackageVerifier(trustedKeys: Collection<PublicKey>) {
         keyId(key)
     }.also { require(it.isNotEmpty()) }
 
-    fun verify(archive: File, host: HostEnvironment): VerifiedModule {
+    fun verify(archive: File, host: HostEnvironment): VerifiedModule = verifyArchive(archive, host)
+
+    /** Restore authenticated journal references even when a base upgrade changed compatibility.
+     * This result alone must NEVER authorize loading; startup policy and verify(host) still gate it.
+     */
+    fun verifyAuthenticity(archive: File): VerifiedModule = verifyArchive(archive, null)
+
+    private fun verifyArchive(archive: File, host: HostEnvironment?): VerifiedModule {
         try {
             require(archive.isFile && archive.length() in 1..PackageLimits.ARCHIVE_BYTES)
             val archiveHash = archive.inputStream().use { digest(it).first }
@@ -77,7 +84,7 @@ class RuntimePackageVerifier(trustedKeys: Collection<PublicKey>) {
                     throw ModuleRejected(Rejection.INVALID_SIGNATURE, error)
                 }
                 if (!validSignature) throw ModuleRejected(Rejection.INVALID_SIGNATURE)
-                manifest.incompatibility(host)?.let { throw ModuleRejected(it) }
+                if (host != null) manifest.incompatibility(host)?.let { throw ModuleRejected(it) }
                 zip.getInputStream(zip.getEntry("content.dex.jar")).use { stream ->
                     val (hash, size) = digest(stream, PackageLimits.PAYLOAD_BYTES)
                     if (hash != manifest.payloadSha256 || size != manifest.payloadSize) {

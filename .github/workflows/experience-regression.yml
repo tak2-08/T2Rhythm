@@ -20,7 +20,7 @@ on:
       preservation_batch:
         description: Preservation groups to run (streaming repeats the affected flows after an invitation fix)
         type: choice
-        options: [full, streaming, remaining, navigation, compat, genres, android15, fixes, runtime]
+        options: [full, streaming, remaining, navigation, compat, genres, android15, fixes, runtime, native_app]
         default: full
       baseline_ref:
         description: Baseline source for visual comparison
@@ -85,7 +85,7 @@ jobs:
           retention-days: 14
 
   preservation-android:
-    if: ${{ inputs.preservation }}
+    if: ${{ inputs.preservation && inputs.preservation_batch != 'native_app' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -171,7 +171,7 @@ jobs:
           retention-days: 14
 
   preservation-checks:
-    if: ${{ inputs.preservation && inputs.preservation_batch != 'navigation' && inputs.preservation_batch != 'compat' && inputs.preservation_batch != 'android15' }}
+    if: ${{ inputs.preservation && inputs.preservation_batch != 'native_app' && inputs.preservation_batch != 'navigation' && inputs.preservation_batch != 'compat' && inputs.preservation_batch != 'android15' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -201,4 +201,135 @@ jobs:
             runtime-api/build/reports/lint-results*
             runtime-probe/build/reports/lint-results*
             runtime-resource-probe/build/reports/lint-results*
+          retention-days: 14
+
+  native-app-build:
+    if: ${{ inputs.preservation && inputs.preservation_batch == 'native_app' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          java-version: 17
+          distribution: zulu
+          cache: gradle
+      - name: Create temporary integration trust outside artifacts
+        run: |
+          python3 -m pip install --disable-pip-version-check cryptography==46.0.3
+          python3 - <<'PYKEY'
+          import os
+          from pathlib import Path
+          from cryptography.hazmat.primitives.asymmetric import rsa
+          from cryptography.hazmat.primitives import serialization
+          key = rsa.generate_private_key(public_exponent=65537, key_size=3072)
+          path = Path(os.environ['RUNNER_TEMP']) / 'native-integration.pk8'
+          fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          with os.fdopen(fd, 'wb') as stream:
+              stream.write(key.private_bytes(serialization.Encoding.DER, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+          PYKEY
+      - name: Build independently compiled music feature and original test compile input
+        run: >-
+          ./gradlew :runtime-content:dexDebugFeature :runtime-content:assembleDebug
+          :runtime-content:exportDebugSharedContract :runtime-app-base:compileDebugAndroidTestKotlin
+          :runtime-app-base:compileDebugAndroidTestJavaWithJavac
+          --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g
+          -Pkotlin.compiler.execution.strategy=in-process -PversionCodeOverride=554991327
+          -PversionNameOverride=5.5.499.1327 --console=plain
+      - name: Verify resource and database contracts and sign the test-only feature
+        run: >-
+          python3 scripts/prepare_runtime_distribution.py
+          --apk runtime-content/build/outputs/apk/debug/runtime-content-debug.apk
+          --aapt2 "$ANDROID_HOME/build-tools/37.0.0/aapt2"
+          --dex runtime-content/build/outputs/runtime-feature/debug/content.dex.jar
+          --shared-contract runtime-content/build/outputs/runtime-feature/debug/shared-contract.json
+          --database-implementation runtime-content/build/generated/ksp/debug/kotlin/chromahub/rhythm/app/features/local/data/database/RhythmDatabase_Impl.kt
+          --private-key "$RUNNER_TEMP/native-integration.pk8"
+          --notes app/src/main/res/raw/current_release_notes.txt
+          --version-code 554991327 --version-name 5.5.499.1327-gh-debug
+          --out "$RUNNER_TEMP/native-distribution" --test-only
+      - name: Build fixed base APK with embedded offline music and separate test APK
+        run: >-
+          ./gradlew :runtime-app-base:assembleDebug :runtime-app-base:assembleDebugAndroidTest
+          "-PruntimeDistributionDir=$RUNNER_TEMP/native-distribution" -PruntimeTestOnly=true
+          -PversionCodeOverride=554991327 -PversionNameOverride=5.5.499.1327
+          --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g
+          -Pkotlin.compiler.execution.strategy=in-process --console=plain
+      - name: Audit class ownership and Android 8 desugared methods
+        run: >-
+          python3 scripts/audit_runtime_classpath.py
+          --base runtime-app-base/build/outputs/apk/debug/runtime-app-base-debug.apk
+          --feature-dex runtime-content/build/outputs/runtime-feature/debug/content.dex.jar
+          --out runtime-app-base/build/reports/native-classpath.json
+      - name: Verify unit regressions
+        run: >-
+          ./gradlew :runtime-core:test :crawler:test :app:testGithubDebugUnitTest
+          --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g
+          -Pkotlin.compiler.execution.strategy=in-process --console=plain
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: native-app-build
+          path: |
+            runtime-app-base/build/outputs/apk/debug/*.apk
+            runtime-app-base/build/outputs/apk/androidTest/debug/*.apk
+            runtime-content/build/outputs/runtime-feature/debug/shared-contract.json
+            runtime-app-base/build/reports/
+            app/build/test-results/
+            crawler/build/test-results/
+            runtime-core/build/test-results/
+          retention-days: 14
+
+  native-app-android:
+    if: ${{ inputs.preservation && inputs.preservation_batch == 'native_app' }}
+    needs: native-app-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        api: ['26', '29', '30', '35', '37.0']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: native-app-build
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Allow unimplemented guest performance registers
+        if: matrix.api == '35'
+        run: echo 1 | sudo tee /sys/module/kvm/parameters/ignore_msrs
+      - name: Update SDK tools for minor API versions
+        if: matrix.api == '37.0'
+        run: |
+          sdk_manager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdk_manager" --licenses > /dev/null || true
+          "$sdk_manager" --install 'cmdline-tools;latest'
+          if [[ -d "$ANDROID_HOME/cmdline-tools/latest-2" ]]; then
+            mv "$ANDROID_HOME/cmdline-tools/latest" "$RUNNER_TEMP/t2-old-cmdline-tools"
+            mv "$ANDROID_HOME/cmdline-tools/latest-2" "$ANDROID_HOME/cmdline-tools/latest"
+          fi
+      - name: Run the real music UI, installed playback service and persisted worker through the native feature loader
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          system-image-api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: ${{ matrix.api == '35' && 'google_atd' || 'google_apis' }}
+          profile: pixel_2
+          ram-size: ${{ matrix.api == '37.0' && '4096M' || '3072M' }}
+          heap-size: 512M
+          emulator-build: ${{ matrix.api == '35' && '14788078' || '' }}
+          disable-animations: true
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -no-snapshot-save
+          script: python3 scripts/run_preservation_gate.py --native-base --group native_boot --output "native-results/api${{ matrix.api }}"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: native-app-api${{ matrix.api }}
+          path: native-results/
           retention-days: 14

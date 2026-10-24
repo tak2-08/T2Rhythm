@@ -37,6 +37,28 @@ sealed interface StartupDecision {
 }
 
 object ModuleActivationPolicy {
+    /** The Android-confirmed base APK may contain a newer default, or the same feature rebuilt
+     * for a new fixed SDK. Never apply this method to a downloaded, unapproved candidate.
+     */
+    fun reconcileEmbeddedBaseUpdate(state: ModuleActivationState, embedded: VerifiedModule, host: HostEnvironment): ModuleActivationState {
+        require(embedded.manifest.moduleId == state.active.manifest.moduleId)
+        if (embedded.manifest.incompatibility(host) != null) return state
+        val manifest = embedded.manifest
+        val accepted = manifest.versionCode > state.highestApprovedVersion ||
+            (manifest.versionCode == state.highestApprovedVersion &&
+                manifest.runtimeFingerprint != state.active.manifest.runtimeFingerprint)
+        if (!accepted) return state
+        return state.copy(
+            active = embedded.reference,
+            previousGood = state.active.takeIf { it.manifest.incompatibility(host) == null },
+            candidate = state.candidate?.takeIf { it.module.manifest.versionCode > manifest.versionCode &&
+                it.module.manifest.incompatibility(host) == null },
+            highestApprovedVersion = manifest.versionCode,
+            trialInProgress = false,
+            lastFailedArchive = null,
+        )
+    }
+
     fun stage(state: ModuleActivationState, verified: VerifiedModule): ModuleActivationState {
         check(!state.trialInProgress) { "Finish the current trial before staging another module" }
         require(verified.manifest.moduleId == state.active.manifest.moduleId)

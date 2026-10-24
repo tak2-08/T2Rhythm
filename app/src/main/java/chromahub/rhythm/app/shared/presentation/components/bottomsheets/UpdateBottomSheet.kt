@@ -58,6 +58,7 @@ fun UpdateBottomSheet(
     val downloadProgress by updaterViewModel.downloadProgress.collectAsState()
     val isDownloading by updaterViewModel.isDownloading.collectAsState()
     val downloadedFile by updaterViewModel.downloadedFile.collectAsState()
+    val nativeApplyPending by updaterViewModel.nativeApplyPending.collectAsState()
     val error by updaterViewModel.error.collectAsState()
 
     RhythmAdaptiveModalSheet(
@@ -301,7 +302,7 @@ fun UpdateBottomSheet(
                         else -> RhythmIcons.Download
                     },
                     text = when {
-                        downloadedFile != null -> context.getString(R.string.updates_install_update)
+                        downloadedFile != null -> context.getString(if (nativeApplyPending) R.string.runtime_apply_pending else R.string.updates_install_update)
                         isDownloading -> "${context.getString(R.string.updates_downloading)} ${downloadProgress.toInt()}%"
                         else -> context.getString(R.string.update_now)
                     },

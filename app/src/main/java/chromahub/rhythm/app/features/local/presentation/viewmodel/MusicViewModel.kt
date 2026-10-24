@@ -904,7 +904,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
 
-    val currentPlaybackQuality: StateFlow<PlaybackQualityInfo?> = MediaPlaybackService.currentPlaybackQuality
+    val currentPlaybackQuality: StateFlow<PlaybackQualityInfo?> = chromahub.rhythm.app.shared.data.model.PlaybackQualityState.current
 
     private val _currentQueue = MutableStateFlow(Queue(emptyList(), -1))
     val currentQueue: StateFlow<Queue> = _currentQueue.asStateFlow()

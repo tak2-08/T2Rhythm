@@ -13,30 +13,53 @@ import java.nio.file.Files
 import java.security.MessageDigest
 
 /**
- * Public API resource-loading experiment, including API26. The payload is already verified and
- * read-only. Parsing its manifest registers no activity/service/permission or Android package.
- * Full theme/library resource-ID compatibility remains a separate migration concern.
+ * Public-API resource attachment, including API26. The signed payload remains uninstalled. The base
+ * and feature must preserve their fixed resource IDs; private copies isolate AssetManager changes
+ * across component and override configurations without hidden AssetManager APIs.
  */
 class ModuleResourceContext private constructor(
     base: Context,
     private val moduleResources: Resources,
     private val moduleClassLoader: ClassLoader,
+    private val loaded: LoadedNativeModule<*>,
 ) : ContextWrapper(base) {
     override fun getResources(): Resources = moduleResources
     override fun getAssets(): AssetManager = moduleResources.assets
     override fun getClassLoader(): ClassLoader = moduleClassLoader
 
+    override fun createConfigurationContext(overrideConfiguration: android.content.res.Configuration): Context =
+        attach(baseContext.createConfigurationContext(overrideConfiguration), loaded)
+
+    /** Configuration snapshots must track the real component (locale, night mode, font and density). */
+    @Suppress("DEPRECATION")
+    fun refreshConfiguration() {
+        moduleResources.updateConfiguration(baseContext.resources.configuration, baseContext.resources.displayMetrics)
+    }
+
     companion object {
+        private val contexts = java.util.WeakHashMap<ModuleResourceContext, Boolean>()
+        private val owners = java.util.WeakHashMap<Context, Long>()
+        private var nextOwner = 0L
+        private val process = "${android.os.Process.myPid()}-${java.util.UUID.randomUUID()}"
+
+        @Synchronized fun refreshAll() {
+            // All wrappers keep the override configuration of their own Android Context.
+            contexts.keys.toList().forEach { it.refreshConfiguration() }
+        }
         @Synchronized
         @Suppress("DEPRECATION") // Public API26-compatible Resources constructor; no hidden AssetManager APIs.
-        fun attach(base: Context, loaded: LoadedNativeModule): ModuleResourceContext {
+        fun attach(base: Context, loaded: LoadedNativeModule<*>): ModuleResourceContext {
             val configuration = android.content.res.Configuration(base.resources.configuration)
             val configurationId = MessageDigest.getInstance("SHA-256")
                 .digest((configuration.toString() + "|" + base.resources.displayMetrics.toString()).toByteArray())
                 .joinToString("") { "%02x".format(it) }
             // Resources(assets, ..., config) changes AssetManager configuration. Separate private
             // copies isolate framework cache keys. Android's app sandbox rejects hard links.
-            val directory = File(loaded.readOnlyDex.parentFile, "resource-contexts/$configurationId")
+            val owner = owners.getOrPut(base) { ++nextOwner }
+            // AssetManager is mutable. A locale/font change in one component must not alter an
+            // explicitly configured context that happened to start with the same configuration.
+            val directory = File(base.codeCacheDir,
+                "runtime-resources/${loaded.reference.archiveSha256}/$process/$owner/$configurationId")
             check(directory.mkdirs() || directory.isDirectory)
             val alias = File(directory, "content.apk")
             if (!alias.exists()) {
@@ -80,7 +103,7 @@ class ModuleResourceContext private constructor(
             // Use the app/activity language, density and font configuration, not just system defaults.
             val resources = Resources(archiveResources.assets, base.resources.displayMetrics,
                 configuration)
-            return ModuleResourceContext(base, resources, loaded.entry.javaClass.classLoader!!)
+            return ModuleResourceContext(base, resources, loaded.entry.javaClass.classLoader!!, loaded).also { contexts[it] = true }
         }
 
         private fun digest(file: File): String {

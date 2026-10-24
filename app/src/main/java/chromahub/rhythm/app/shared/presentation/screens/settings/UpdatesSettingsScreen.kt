@@ -194,6 +194,7 @@ fun UpdatesSettingsScreen(onBackClick: () -> Unit) {
     val isDownloading by updaterViewModel.isDownloading.collectAsState()
     val downloadProgress by updaterViewModel.downloadProgress.collectAsState()
     val downloadedFile by updaterViewModel.downloadedFile.collectAsState()
+    val nativeApplyPending by updaterViewModel.nativeApplyPending.collectAsState()
     val isExtracting by updaterViewModel.isExtracting.collectAsState()
     val canProceedWithMismatchedDownload by updaterViewModel.canProceedWithMismatchedDownload.collectAsState()
     val isVersionCodeDowngrade by updaterViewModel.isVersionCodeDowngrade.collectAsState()
@@ -739,7 +740,7 @@ fun UpdatesSettingsScreen(onBackClick: () -> Unit) {
                                     )
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(
-                                        text = context.getString(R.string.updates_install_update),
+                                        text = context.getString(if (nativeApplyPending) R.string.runtime_apply_pending else R.string.updates_install_update),
                                         fontWeight = FontWeight.Bold,
                                         style = MaterialTheme.typography.titleMedium,
                                         modifier = Modifier.padding(vertical = 6.dp)

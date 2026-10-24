@@ -35,6 +35,21 @@ class RuntimePackageVerifierTest {
         assertEquals(2L, verifier.verify(fixture.archive(temporary.root, entries), fixture.host).manifest.versionCode)
     }
 
+    @Test fun incompatibleReferenceCanBeAuthenticatedButStillCannotBeLoadedOnTheHost() {
+        val archive = fixture.archive(temporary.root)
+        val restored = verifier.verifyAuthenticity(archive)
+        assertEquals(2L, restored.manifest.versionCode)
+        val changedHost = fixture.host.copy(runtimeFingerprint = "f".repeat(64))
+        assertEquals(Rejection.RUNTIME_FINGERPRINT,
+            assertThrows(ModuleRejected::class.java) { verifier.verify(archive, changedHost) }.reason)
+    }
+
+    @Test fun restoringJournalReferencesStillRejectsTamperedPayloads() {
+        val archive = fixture.archive(temporary.root, fixture.entries(payload = fixture.payload + 1.toByte()))
+        assertEquals(Rejection.PAYLOAD_INTEGRITY,
+            assertThrows(ModuleRejected::class.java) { verifier.verifyAuthenticity(archive) }.reason)
+    }
+
     @Test fun unpinnedSigningKeyIsRejected() {
         val manifest = fixture.manifest().apply { this["signingKeyId"] = RuntimePackageVerifier.keyId(fixture.otherKey.public) }
         reject(Rejection.UNKNOWN_SIGNING_KEY, fixture.entries(manifest, key = fixture.otherKey))

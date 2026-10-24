@@ -114,6 +114,20 @@ private data class PendingMismatchedDownload(
 class AppUpdaterViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
+    private val nativeUpdates get() = chromahub.rhythm.runtime.api.RuntimeComponentRegistry.optionalHost()?.updates()
+    @Volatile private var nativeStatus: android.os.Bundle? = null
+    private val _nativeApplyPending = MutableStateFlow(false)
+    val nativeApplyPending = _nativeApplyPending.asStateFlow()
+    private val nativeObserver = nativeUpdates?.observe {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val status = requireNotNull(nativeUpdates).status()
+                nativeStatus = status
+                _nativeApplyPending.value = status.getBundle("candidate")?.getBoolean("approved") == true
+                chromahub.rhythm.app.features.updates.UpdateJournal.get(getApplication()).reconcile()
+            }.onFailure { Log.w("NativeUpdater", "Unable to refresh module state", it) }
+        }
+    }
     private val tag = "AppUpdaterViewModel"
     private val updateDownloadChannelId = "update_download_progress"
     private val updateDownloadNotificationId = 1401
@@ -268,6 +282,32 @@ class AppUpdaterViewModel(
      */
     private fun loadDownloadState() {
         try {
+            nativeUpdates?.let { controller ->
+                val status = controller.status().also { nativeStatus = it }
+                val notes = status.getString("notes").orEmpty()
+                _currentVersion.value = _currentVersion.value.copy(
+                    versionName = status.getString("versionName").orEmpty(),
+                    versionCode = status.getLong("versionCode").toInt(), releaseNotes = notes,
+                    whatsNew = parseReleaseBody(notes).whatsNew)
+                val candidate = status.getBundle("candidate")
+                _nativeApplyPending.value = candidate?.getBoolean("approved") == true
+                if (candidate != null) {
+                    val verified = controller.verifyCandidate(requireNotNull(candidate.getString("archiveHash")))
+                    val candidateNotes = verified.getString("notes").orEmpty()
+                    _latestVersion.value = _currentVersion.value.copy(
+                        versionName = verified.getString("versionName").orEmpty(), versionCode = verified.getLong("versionCode").toInt(),
+                        releaseNotes = candidateNotes, whatsNew = parseReleaseBody(candidateNotes).whatsNew)
+                    _updateAvailable.value = true
+                    _downloadedFile.value = File(requireNotNull(verified.getString("path")))
+                    _downloadProgress.value = 100f
+                    _isDownloading.value = false
+                    return
+                }
+                if (downloadPrefs.getString("downloaded_file", null)?.endsWith(".t2module") == true) {
+                    // The archive may now be active. UI cleanup must never delete host-managed code.
+                    clearDownloadState()
+                }
+            }
             val downloadStateJson = downloadPrefs.getString("active_download", null)
             val downloadProgress = downloadPrefs.getFloat("download_progress", 0f)
             val isDownloading = downloadPrefs.getBoolean("is_downloading", false)
@@ -519,7 +559,8 @@ class AppUpdaterViewModel(
             tag,
             "Version comparison: current=${_currentVersion.value.versionName} (code=${BuildConfig.VERSION_CODE}) vs latest=${candidate.versionName} (code=${candidate.versionCode}) -> isNewer=$isNewer, isDowngrade=$hasVersionCodeDowngrade"
         )
-        _updateAvailable.value = isNewer
+        _updateAvailable.value = isNewer && (!candidate.apkAssetName.endsWith(".t2module") ||
+            candidate.versionCode.toLong() > (nativeStatus?.getLong("highestApprovedVersion") ?: BuildConfig.VERSION_CODE.toLong()))
     }
 
     private fun extractBuildNumber(
@@ -634,14 +675,19 @@ class AppUpdaterViewModel(
         Log.d(tag, "Parsed whatsNew: ${releaseContent.whatsNew}")
         Log.d(tag, "Parsed knownIssues: ${releaseContent.knownIssues}")
 
-        val apkAsset = selectReleaseApkAsset(release)
+        val runtimeAsset = nativeUpdates?.let { controller ->
+            val pattern = Regex("T2Rhythm-feature-([1-9][0-9]*)-${controller.fingerprint()}\\.t2module")
+            release.assets.filter { pattern.matches(it.name) && it.size in 1..224L * 1024 * 1024 }
+                .maxByOrNull { pattern.matchEntire(it.name)!!.groupValues[1].toLong() }
+        }
+        val apkAsset = runtimeAsset ?: selectReleaseApkAsset(release)
         val downloadUrl = apkAsset?.browser_download_url ?: release.html_url
         val apkSize = apkAsset?.size ?: 0
         val versionName = release.tag_name.removePrefix("v").removePrefix("V")
 
         return AppVersion(
             versionName = versionName,
-            versionCode = calculateVersionCode(versionName),
+            versionCode = runtimeAsset?.name?.substringAfter("T2Rhythm-feature-")?.substringBefore('-')?.toIntOrNull() ?: calculateVersionCode(versionName),
             releaseDate = releaseDateString,
             whatsNew = releaseContent.whatsNew,
             knownIssues = releaseContent.knownIssues,
@@ -822,7 +868,8 @@ class AppUpdaterViewModel(
                 return@launch
             }
 
-            if (UpdateIntegrity.sha256(latestVersion.sha256) == null || !latestVersion.apkAssetName.endsWith(".apk", true)) {
+            val nativePackage = nativeUpdates != null && latestVersion.apkAssetName.endsWith(".t2module")
+            if (UpdateIntegrity.sha256(latestVersion.sha256) == null || (!nativePackage && !latestVersion.apkAssetName.endsWith(".apk", true))) {
                 _error.value = getApplication<Application>().getString(R.string.update_integrity_missing)
                 openInBrowser(downloadUrl)
                 return@launch
@@ -885,7 +932,9 @@ class AppUpdaterViewModel(
         val release = _latestVersion.value?.takeIf { it.downloadUrl == downloadUrl }
         val expectedDigest = release?.sha256 ?: activeDownload?.checksum
         val size = if (expectedSize > 0) expectedSize else activeDownload?.totalBytes ?: 0
-        if (File(fileName).name != fileName || '\\' in fileName || !fileName.endsWith(".apk", true) || size <= 0 || UpdateIntegrity.sha256(expectedDigest) == null) {
+        val nativePackage = nativeUpdates != null && fileName.endsWith(".t2module")
+        if (File(fileName).name != fileName || '\\' in fileName || (!nativePackage && !fileName.endsWith(".apk", true)) || size <= 0 ||
+            (nativePackage && size > 224L * 1024 * 1024) || UpdateIntegrity.sha256(expectedDigest) == null) {
             _error.value = getApplication<Application>().getString(R.string.update_integrity_failed)
             return
         }
@@ -937,13 +986,23 @@ class AppUpdaterViewModel(
                 }
                 if (!_isDownloading.value || activeCall !== call) return@launch
                 UpdateIntegrity.verifyBytes(file, size, expectedDigest)
-                UpdateIntegrity.verifyPackage(context, file, release?.versionCode)
-                runCatching { chromahub.rhythm.app.features.updates.UpdateJournal.get(context).ready(file, release?.releaseNotes.orEmpty()) }
-                    .onFailure { Log.w(tag, "Unable to save update history", it) }
+                val readyFile = if (nativePackage) {
+                    val verified = requireNotNull(nativeUpdates).stage(file.path, release?.versionCode?.toLong() ?: 0)
+                    val signedNotes = verified.getString("notes").orEmpty()
+                    _latestVersion.value = _latestVersion.value?.copy(releaseNotes = signedNotes, whatsNew = parseReleaseBody(signedNotes).whatsNew)
+                    nativeStatus = requireNotNull(nativeUpdates).status()
+                    File(requireNotNull(verified.getString("path")))
+                } else {
+                    UpdateIntegrity.verifyPackage(context, file, release?.versionCode)
+                    runCatching { chromahub.rhythm.app.features.updates.UpdateJournal.get(context).ready(file, release?.releaseNotes.orEmpty()) }
+                        .onFailure { Log.w(tag, "Unable to save update history", it) }
+                    file
+                }
                 downloadPrefs.edit(commit = true) { putString("verified_checksum", expectedDigest); putLong("verified_size", size) }
-                _downloadedFile.value = file; _downloadProgress.value = 100f; _isDownloading.value = false
+                _downloadedFile.value = readyFile; _downloadProgress.value = 100f; _isDownloading.value = false
                 activeDownload = null; activeCall = null; _downloadState.value = null; saveDownloadState()
-                showDownloadCompletedNotification(file.name)
+                showDownloadCompletedNotification(readyFile.name)
+                if (nativePackage && readyFile != file) file.delete()
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 call?.cancel(); throw cancelled
             } catch (invalid: IllegalArgumentException) {
@@ -1170,6 +1229,14 @@ class AppUpdaterViewModel(
     fun installDownloadedApk() {
         viewModelScope.launch {
             val file = _downloadedFile.value ?: return@launch
+            if (nativeUpdates != null && file.extension == "t2module") {
+                val controller = requireNotNull(nativeUpdates)
+                val hash = file.nameWithoutExtension
+                val valid = withContext(Dispatchers.IO) { runCatching { controller.verifyCandidate(hash) }.isSuccess }
+                if (valid) controller.requestApproval(hash)
+                else _error.value = getApplication<Application>().getString(R.string.update_integrity_failed)
+                return@launch
+            }
             val valid = withContext(Dispatchers.IO) { runCatching {
                 UpdateIntegrity.verifyBytes(file, downloadPrefs.getLong("verified_size", 0), downloadPrefs.getString("verified_checksum", null))
                 UpdateIntegrity.verifyPackage(getApplication(), file, _latestVersion.value?.versionCode)
@@ -1365,6 +1432,7 @@ class AppUpdaterViewModel(
     }
 
     override fun onCleared() {
+        nativeObserver?.close()
         Log.d(tag, "ViewModel cleared")
         // Note: Active downloads will be cancelled when ViewModel is cleared
         // Download state is persisted and can be resumed later

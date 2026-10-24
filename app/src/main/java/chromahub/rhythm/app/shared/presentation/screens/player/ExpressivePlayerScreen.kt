@@ -342,7 +342,7 @@ fun ExpressivePlayerScreen(
     val playerMergeControlsToBottom by appSettings.playerMergeControlsToBottom.collectAsState()
     val playerShowAudioQualityBadges by appSettings.playerShowAudioQualityBadges.collectAsState()
     val expressiveQualityBadgeAlwaysVisible by appSettings.expressiveQualityBadgeAlwaysVisible.collectAsState()
-    val currentPlaybackQuality by (musicViewModel?.currentPlaybackQuality ?: MediaPlaybackService.currentPlaybackQuality).collectAsState()
+    val currentPlaybackQuality by (musicViewModel?.currentPlaybackQuality ?: chromahub.rhythm.app.shared.data.model.PlaybackQualityState.current).collectAsState()
     var showPlaybackQualitySheet by remember { mutableStateOf(false) }
     var showAudioRoutingDialog by remember { mutableStateOf(false) }
     var qualityBadgeRevealToken by remember { mutableIntStateOf(0) }

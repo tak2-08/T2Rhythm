@@ -5,6 +5,6 @@ import android.content.Context;
 import android.view.View;
 
 /** Experimental shared boundary. The returned view may contain the module's native Compose UI. */
-public interface NativeUiModule {
+public interface NativeUiModule extends NativeModuleEntry {
     View createView(Context context);
 }

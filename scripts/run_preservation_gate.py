@@ -7,11 +7,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--project', default='.')
 parser.add_argument('--group', required=True)
 parser.add_argument('--output', required=True)
+parser.add_argument('--native-base', action='store_true', help='Run the same behavior tests through the fixed base and child feature loader')
 args = parser.parse_args()
 root = Path(args.project).resolve()
 out = Path(args.output).resolve(); out.mkdir(parents=True, exist_ok=True)
 pkg = 'chromahub.rhythm.app.debug'
 runner = pkg + '.test/androidx.test.runner.AndroidJUnitRunner'
+if args.native_base:
+    runner = pkg + '.test/androidx.test.runner.NativeModuleJUnitRunner'
 
 def adb(*values, check=True, timeout=120):
     result = subprocess.run(['adb', *values], text=True, errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
@@ -20,7 +23,9 @@ def adb(*values, check=True, timeout=120):
     return result.stdout
 
 sources = {}
-for path in (root / 'app/src/androidTest/java').rglob('*.kt'):
+source_directories = [root / 'app/src/androidTest/java']
+if args.native_base: source_directories.append(root / 'runtime-app-base/src/androidTest/java')
+for path in (path for directory in source_directories for path in directory.rglob('*.kt')):
     text = path.read_text()
     names = re.findall(r'@Test(?:\([^)]*\))?(?:\s+@Suppress\([^)]*\))?\s+fun\s+(\w+)', text)
     # Multiline @Test annotations and method declarations are normal Kotlin syntax.
@@ -30,6 +35,7 @@ for path in (root / 'app/src/androidTest/java').rglob('*.kt'):
         sources[path.stem] = (namespace + '.' + path.stem, count, names)
 
 groups = {
+ 'native_boot': ['NativeRuntimeBootTest'],
  'runtime': ['NativeModuleLoadingTest'],
  'fixes': ['PlaybackContinuityTest','ReleaseNotesUiTest','PlayerRegressionTest','MetadataConsistencyTest','LyricsEntryAndUpdatesTest','LibrarySearchNavigationTest','PopularPlaybackNavigationTest'],
  'metadata': ['MetadataConsistencyTest','ListeningRecapFlowTest','PageArtworkFlowTest','LearningFileNamesTest','LibraryPagesTest','GenreControlsTest','ManualLyricTimingFlowTest','PersonalInsightsScreensTest','ArtworkRefreshTest','LyricsEntryAndUpdatesTest','UsabilityBehaviorTest'],
@@ -66,12 +72,16 @@ while True:
     assert time.monotonic() < scan_deadline, library
     time.sleep(1)
 print('MediaStore fixture:',library,flush=True)
-app = root / 'app/build/outputs/apk/github/debug/Rhythm-5.5.499.1325-githubDebug.apk'
-if not app.exists():
-    apps = [p for p in (root/'app/build/outputs/apk/github/debug').glob('*.apk') if not any(s in p.name for s in ['-arm64-v8a','-armeabi-v7a','-x86'])]
-    assert len(apps) == 1, apps
-    app = apps[0]
-test_app = root / 'app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk'
+if args.native_base:
+    app = root / 'runtime-app-base/build/outputs/apk/debug/runtime-app-base-debug.apk'
+    test_app = root / 'runtime-app-base/build/outputs/apk/androidTest/debug/runtime-app-base-debug-androidTest.apk'
+else:
+    app = root / 'app/build/outputs/apk/github/debug/Rhythm-5.5.499.1325-githubDebug.apk'
+    if not app.exists():
+        apps = [p for p in (root/'app/build/outputs/apk/github/debug').glob('*.apk') if not any(s in p.name for s in ['-arm64-v8a','-armeabi-v7a','-x86'])]
+        assert len(apps) == 1, apps
+        app = apps[0]
+    test_app = root / 'app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk'
 adb('install','-r','-t',str(app), timeout=180)
 adb('install','-r','-t',str(test_app), timeout=180)
 results=[]

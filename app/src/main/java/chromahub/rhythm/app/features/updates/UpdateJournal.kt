@@ -79,10 +79,11 @@ class UpdateJournal private constructor(private val context: Context, namespace:
 
     /** Only this app's managed update directory is touched. Future/cancelled APKs stay retryable. */
     @Synchronized fun reconcile(): Long {
+        reconcileNativeModule()
         val installed = context.packageManager.getPackageInfo(context.packageName, 0)
         val previousName = document.optString("seenName")
         var records = _records.value.map { r ->
-            if (r.stage in setOf(UpdateStage.READY, UpdateStage.INSTALL_REQUESTED)) {
+            if (!r.id.startsWith("module:") && r.stage in setOf(UpdateStage.READY, UpdateStage.INSTALL_REQUESTED)) {
                 when {
                     UpdateInstallPolicy.confirmed(r.code, r.fromCode, installed.installCode, r.time, installed.lastUpdateTime) -> r.copy(stage = UpdateStage.INSTALLED, time = installed.lastUpdateTime)
                     r.code < installed.installCode -> r.copy(stage = UpdateStage.SUPERSEDED)
@@ -116,6 +117,34 @@ class UpdateJournal private constructor(private val context: Context, namespace:
             }
         }
         return freed
+    }
+
+    /** Module activation is proven by the fixed host's verified journal and healthy-start marker. */
+    private fun reconcileNativeModule() {
+        val controller = chromahub.rhythm.runtime.api.RuntimeComponentRegistry.optionalHost()?.updates() ?: return
+        val status = controller.status()
+        var records = _records.value
+        val currentHash = status.getString("archiveHash").orEmpty()
+        val currentId = "module:$currentHash"
+        if (!status.getBoolean("trialInProgress") && records.none { it.id == currentId && it.stage == UpdateStage.INSTALLED }) {
+            val existing = records.firstOrNull { it.id == currentId }
+            val installed = UpdateRecord(currentId, existing?.from.orEmpty(), status.getString("versionName").orEmpty(),
+                status.getLong("versionCode"), System.currentTimeMillis(), UpdateStage.INSTALLED,
+                notes = status.getString("notes").orEmpty(), fromCode = existing?.fromCode ?: 0)
+            records = records.filterNot { it.id == currentId } + installed
+        }
+        status.getBundle("candidate")?.let { candidate ->
+            val id = "module:${candidate.getString("archiveHash")}"
+            val stage = if (candidate.getBoolean("approved")) UpdateStage.INSTALL_REQUESTED else UpdateStage.READY
+            val existing = records.firstOrNull { it.id == id }
+            if (existing == null || existing.stage != stage) {
+                val record = UpdateRecord(id, status.getString("versionName").orEmpty(), candidate.getString("versionName").orEmpty(),
+                    candidate.getLong("versionCode"), System.currentTimeMillis(), stage,
+                    notes = candidate.getString("notes").orEmpty(), fromCode = status.getLong("versionCode"))
+                records = records.filterNot { it.id == id } + record
+            }
+        }
+        if (records != _records.value) persist(records)
     }
     private fun managedDirectories(): List<File> = (context.getExternalFilesDirs(Environment.DIRECTORY_DOWNLOADS).filterNotNull()
         .map { File(it, "verified-updates") } + File(context.filesDir, "verified-updates")).distinctBy { it.absolutePath }

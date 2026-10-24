@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="runtime_apply_pending">다음 안전한 앱 시작 때 적용</string>
+    <string name="runtime_approval_title">%1$s 기능 업데이트</string>
+    <string name="runtime_approval_message">다음 안전한 앱 시작 때 적용할까요? 지금 재생 중인 음악과 공유 연결은 계속 유지됩니다.\n\n%1$s</string>
+    <string name="runtime_approval_confirmed">확인했습니다. 다음 안전한 앱 시작 때 적용합니다.</string>
+    <string name="runtime_verification_failed">업데이트를 확인하지 못했습니다. 다시 확인해 주세요.</string>
+    <string name="runtime_recovery_message">기능을 시작하지 못했습니다. 완료되지 않은 업데이트는 다시 시작하면 이전 정상 버전으로 복구합니다. 음악과 설정은 유지됩니다.</string>
+    <string name="runtime_recover_restart">복구하고 다시 시작</string>
+    <string name="runtime_widget_recovery">T2Rhythm 앱에서 복구를 진행해 주세요</string>
+</resources>

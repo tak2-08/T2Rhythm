@@ -18,6 +18,42 @@ class ModuleActivationPolicyTest {
         policy.approve(policy.stage(state, candidate), candidate.archiveSha256)
     }
 
+    @Test fun androidConfirmedBaseCanAdoptItsNewerEmbeddedDefault() {
+        val previous = initial()
+        val embedded = module(3)
+        val adopted = policy.reconcileEmbeddedBaseUpdate(previous, embedded, host)
+        assertEquals(embedded.reference, adopted.active)
+        assertEquals(previous.active, adopted.previousGood)
+        assertEquals(3L, adopted.highestApprovedVersion)
+        assertFalse(adopted.trialInProgress)
+    }
+
+    @Test fun embeddedDefaultCannotDowngradeAnAlreadyApprovedNewerFeature() {
+        val previous = approved()
+        assertEquals(previous, policy.reconcileEmbeddedBaseUpdate(previous, module(1), host))
+    }
+
+    @Test fun acceptingANewerEmbeddedDefaultStillLeavesUnapprovedDownloadsUnapproved() {
+        val candidate = module(4)
+        val previous = policy.stage(initial(), candidate)
+        val adopted = policy.reconcileEmbeddedBaseUpdate(previous, module(3), host)
+        assertEquals(3L, adopted.active.manifest.versionCode)
+        assertEquals(candidate.reference, adopted.candidate!!.module)
+        assertFalse(adopted.candidate.approved)
+        assertTrue(policy.prepareStartup(adopted, host, safe) is StartupDecision.Keep)
+    }
+
+    @Test fun aSameVersionEmbeddedRebuildCanRepairCompatibilityAfterABaseSdkUpgrade() {
+        val previous = initial()
+        val changedHost = host.copy(runtimeFingerprint = "f".repeat(64))
+        val manifest = PackageFixture.manifest(1).apply { this["runtimeFingerprint"] = changedHost.runtimeFingerprint }
+        val rebuilt = RuntimePackageVerifier(listOf(PackageFixture.signingKey.public)).verify(
+            PackageFixture.archive(temporary.root, PackageFixture.entries(manifest)), changedHost)
+        val adopted = policy.reconcileEmbeddedBaseUpdate(previous, rebuilt, changedHost)
+        assertEquals(rebuilt.reference, adopted.active)
+        assertNull(adopted.previousGood)
+    }
+
     @Test fun downloadingDoesNotApproveOrActivateCode() {
         val state = policy.stage(initial(), module(2))
         assertFalse(state.candidate!!.approved)
