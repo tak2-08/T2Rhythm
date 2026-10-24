@@ -65,12 +65,22 @@ while True:
     time.sleep(1)
 fixture = out / 'library-fixture.m4a'
 shutil.copyfile(Path(__file__).resolve().parents[1] / 'app/src/androidTest/assets/library-fixture.m4a',fixture)
-adb('push', str(fixture), '/sdcard/Music/T2-preservation-fixture.m4a')
-adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file:///sdcard/Music/T2-preservation-fixture.m4a')
+def fixture_library():
+    return adb('shell','content','query','--uri','content://media/external/audio/media',
+        '--projection','title:artist:album:duration','--where',"_display_name='T2-preservation-fixture.m4a'",check=False)
+
+# Multiple suites share this exact recording. Replacing an already indexed file can make Android
+# 11's scanner replace its valid tags with a temporary empty row; preserve a verified ready fixture.
+existing = fixture_library()
+remote_hash = adb('shell','sha256sum','/sdcard/Music/T2-preservation-fixture.m4a',check=False).split()
+ready = ('Archive test track' in existing and 'T2 Regression' in existing and remote_hash and
+         remote_hash[0] == hashlib.sha256(fixture.read_bytes()).hexdigest())
+if not ready:
+    adb('push', str(fixture), '/sdcard/Music/T2-preservation-fixture.m4a')
+    adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file:///sdcard/Music/T2-preservation-fixture.m4a')
 scan_deadline = time.monotonic() + 60
 while True:
-    library = adb('shell','content','query','--uri','content://media/external/audio/media',
-        '--projection','title:artist:album:duration',check=False)
+    library = fixture_library()
     if 'Archive test track' in library and 'T2 Regression' in library: break
     assert time.monotonic() < scan_deadline, library
     time.sleep(1)
