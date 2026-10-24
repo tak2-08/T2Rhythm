@@ -47,8 +47,9 @@
     </queries>
 
     <application
-        android:name=".RhythmApplication"
+        android:name="chromahub.rhythm.runtime.base.BaseRhythmApplication"
         android:allowBackup="true"
+        android:testOnly="${runtimeTestOnly}"
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -96,7 +97,18 @@
             <intent-filter><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter>
         </receiver>
 
-        <!-- FileProvider for APK installation -->
+        <provider android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup" tools:node="merge">
+            <meta-data android:name="androidx.work.WorkManagerInitializer" tools:node="remove" />
+        </provider>
+        <activity android:name="chromahub.rhythm.runtime.base.RuntimeRecoveryActivity"
+            android:exported="false" android:theme="@style/Theme.Rhythm" />
+        <activity android:name="chromahub.rhythm.runtime.base.RuntimeApprovalActivity"
+            android:exported="false" android:theme="@style/Theme.Rhythm" />
+        <activity android:name="chromahub.rhythm.runtime.base.RuntimeRestartActivity"
+            android:exported="false" android:process=":runtime_restart"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" />
+        <!-- FileProvider remains available for the occasional required base APK upgrade. -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"

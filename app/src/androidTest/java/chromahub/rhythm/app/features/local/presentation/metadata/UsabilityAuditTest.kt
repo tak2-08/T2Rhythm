@@ -24,6 +24,7 @@ import chromahub.rhythm.app.R
 import chromahub.rhythm.app.activities.MainActivity
 import chromahub.rhythm.app.features.local.data.experience.*
 import chromahub.rhythm.app.features.local.presentation.viewmodel.MusicViewModel
+import chromahub.rhythm.app.features.local.presentation.components.settings.LanguageHelper
 import chromahub.rhythm.app.shared.data.model.*
 import chromahub.rhythm.app.shared.presentation.screens.settings.SettingsScreen
 import java.io.File
@@ -46,6 +47,8 @@ class UsabilityAuditTest {
         compose.runOnUiThread { compose.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT }
         compose.waitUntil(10_000) { compose.activity.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT }
         compose.runOnUiThread {
+            // Use the real per-app language API so newly created Activities share the same locale.
+            LanguageHelper.setLanguage(base, "ko")
             Locale.setDefault(Locale.KOREAN)
             listOf(base.resources, compose.activity.resources).forEach { resources ->
                 resources.updateConfiguration(Configuration(resources.configuration).apply { setLocale(Locale.KOREAN); fontScale = 1f }, resources.displayMetrics)
@@ -110,6 +113,13 @@ class UsabilityAuditTest {
         compose.onNodeWithText(base.getString(R.string.download_song_name)).performClick()
         compose.onNode(hasSetTextAction() and hasText(base.getString(R.string.download_song_name))).performTextInput("노래 제목")
         assertFontScale(base.getString(R.string.download_song_name))
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        automation.serviceInfo = automation.serviceInfo.apply {
+            flags = flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
+        compose.waitUntil(10_000) {
+            automation.windows.any { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD && it.root != null }
+        }
         capture("audit-03-download-search-large-text.png")
         androidx.test.espresso.Espresso.pressBack()
         compose.onNodeWithTag("download-search-list").performScrollToIndex(0)
@@ -120,6 +130,7 @@ class UsabilityAuditTest {
     @Test fun findingAlgorithmManagementThroughSettingsSearch() {
         content { SettingsScreen(onBackClick = {}, onNavigateTo = {}) }
         compose.onNode(hasSetTextAction()).performTextInput("알고리즘")
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
         capture("audit-04-settings-search.png")
     }
     @Test fun listeningReportWithLargeText() {
@@ -141,6 +152,11 @@ class UsabilityAuditTest {
         settings.setHasShownBetaPopup(true)
         settings.setUpdatesEnabled(false)
         settings.setDefaultScreen("home")
+        // The optional suggestions rotate independently between launches; compare the stable page.
+        settings.setShowSettingsSuggestions(false)
+        // The release-notes dialog has its own coverage; compare the actual underlying pages.
+        base.getSharedPreferences("installed_release_notes", 0).edit()
+            .putInt("seen", chromahub.rhythm.app.BuildConfig.VERSION_CODE).commit()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             var settingsDescription = ""
             scenario.onActivity { settingsDescription = it.getString(R.string.home_settings_cd) }

@@ -53,6 +53,8 @@ class PopularNavigationTest {
                 settings.setDefaultScreen("home")
                 settings.setFloatingNavigationBar(true)
                 settings.setInitialStreamingRoute(null)
+                context.getSharedPreferences("installed_release_notes", 0).edit()
+                    .putInt("seen", chromahub.rhythm.app.BuildConfig.VERSION_CODE).commit()
                 instrumentation.runOnMainSync { LanguageHelper.setLanguage(context, "ko") }
                 val now = System.currentTimeMillis()
                 PopularRanking.weights.keys.forEach { provider ->

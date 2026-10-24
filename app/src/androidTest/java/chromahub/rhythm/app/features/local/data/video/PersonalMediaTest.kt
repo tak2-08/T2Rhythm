@@ -24,6 +24,16 @@ import java.nio.ByteBuffer
 class PersonalMediaTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
     private fun isolated(directory: File) = object : ContextWrapper(context) { override fun getFilesDir(): File = directory }
+    private suspend fun rebuildWhenIdle(learning: RecommendationLearning): RecommendationModel {
+        // A busy emulator legitimately defers background analysis. Wait for the same real budget
+        // as production, then run every persistence/model assertion; never disable the guard.
+        var deferred: AnalysisDeferred? = null
+        repeat(20) {
+            try { return learning.rebuild() }
+            catch (busy: AnalysisDeferred) { deferred = busy; kotlinx.coroutines.delay(2500) }
+        }
+        throw requireNotNull(deferred)
+    }
     @Test fun artworkIsActualWebPWithTransparentPixelsAndBoundedDimensions() {
         val bitmap = Bitmap.createBitmap(2400, 1200, Bitmap.Config.ARGB_8888)
         bitmap.eraseColor(0x80ff0000.toInt())
@@ -71,10 +81,10 @@ class PersonalMediaTest {
             val feature = List(AdaptiveRecommendation.featureNames.size) { if (it == 8) 1.0 else 0.0 }
             learning.offer(listOf(RecommendationScore("song", 1.0, listOf("place"), feature)))
             learning.feedback("song", 1.0)
-            val model = learning.rebuild(); assertEquals(1, model.samples); assertEquals(1.0, model.explicit["song"])
+            val model = rebuildWhenIdle(learning); assertEquals(1, model.samples); assertEquals(1.0, model.explicit["song"])
             val file = File(directory, "music_metadata/recommendations").listFiles()!!.single { it.extension == "jsonl" }
             file.appendText(file.readText()) // same event ID, not a second learning outcome
-            val restored = constructor.newInstance(isolated(directory)).rebuild()
+            val restored = rebuildWhenIdle(constructor.newInstance(isolated(directory)))
             assertEquals(model, restored)
             learning.feedback("song", 0.0); assertEquals(0.0, learning.model().explicit["song"])
             learning.feedback("song", null); assertFalse(learning.model().explicit.containsKey("song"))
@@ -87,7 +97,7 @@ class PersonalMediaTest {
             val event = RecommendationEvent("old-event", 1, "outcome", "song", schema = 1, features = List(13) { .5 }, reward = 1.0, prediction = .5)
             File(root, "old.jsonl").writeText(Gson().toJson(event) + "\n")
             val constructor = RecommendationLearning::class.java.getDeclaredConstructor(Context::class.java).apply { isAccessible = true }
-            val model = constructor.newInstance(isolated(directory)).rebuild()
+            val model = rebuildWhenIdle(constructor.newInstance(isolated(directory)))
             assertEquals(1, model.samples); assertEquals(AdaptiveRecommendation.featureNames.size, model.weights.size); assertEquals(0.0, model.weights.last(), .000001)
         } finally { directory.deleteRecursively() }
     }
@@ -159,16 +169,16 @@ class PersonalMediaTest {
             learning.offer(listOf(RecommendationScore("song", 1.0, emptyList(), features)))
             val id = "collection:DAYLIST:"
             learning.collectionFeedback(id, listOf("song"), 0.0)
-            learning.rebuild()
+            rebuildWhenIdle(learning)
             assertTrue(learning.model().weights[0] < 0); assertEquals(0.0, learning.model().collections[id])
             learning.collectionFeedback(id, emptyList(), null)
-            learning.rebuild()
+            rebuildWhenIdle(learning)
             assertTrue(learning.model().weights.all { it == 0.0 }); assertFalse(learning.model().collections.containsKey(id))
             learning.collectionFeedback(id, emptyList(), 1.0)
-            learning.rebuild()
+            rebuildWhenIdle(learning)
             assertTrue(learning.model().weights[0] > 0); assertEquals(1, learning.model().samples)
             learning.collectionFeedback(id, emptyList(), 0.0)
-            learning.rebuild()
+            rebuildWhenIdle(learning)
             assertTrue(learning.model().weights[0] < 0); assertEquals(1, learning.model().samples)
             assertFalse(learning.model().explicit.containsKey("song"))
             assertEquals(learning.model(), constructor.newInstance(isolated(directory)).model())

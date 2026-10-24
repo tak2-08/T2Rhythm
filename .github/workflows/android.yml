@@ -20,11 +20,14 @@ jobs:
           distribution: 'zulu'
           cache: gradle
 
+      - name: Prepare native packaging tools
+        uses: ./.github/actions/setup-native-packaging
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
       - name: Run Lint
-        run: ./gradlew lint
+        run: ./gradlew lint --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --console=plain
       
       - name: Upload lint results
         if: always()
@@ -44,6 +47,9 @@ jobs:
         distribution: 'zulu'
         cache: gradle
 
+    - name: Prepare native packaging tools
+      uses: ./.github/actions/setup-native-packaging
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
@@ -60,10 +66,18 @@ jobs:
     - name: Build with Gradle (GitHub flavor only)
       env:
         APPLE_MUSIC_FALLBACK_TOKEN: ${{ secrets.APPLE_MUSIC_FALLBACK_TOKEN }}
-      run: ./gradlew assembleGithubRelease assembleGithubDebug
+      run: ./gradlew :app:assembleGithubRelease :app:assembleGithubDebug --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --console=plain
 
     - name: Run unit tests
-      run: ./gradlew :crawler:test :app:testGithubDebugUnitTest
+      run: ./gradlew :runtime-core:test :crawler:test :runtime-content:testGithubDebugUnitTest --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --console=plain
+
+    - name: Upload runtime verification results
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: runtime-core-test-results
+        path: runtime-core/build/test-results/test/*.xml
+        retention-days: 7
 
     - name: Generate build info
       if: github.event_name == 'pull_request'

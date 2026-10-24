@@ -31,6 +31,9 @@ jobs:
           java-version: 17
           distribution: zulu
           cache: gradle
+      - name: Prepare native packaging tools
+        uses: ./.github/actions/setup-native-packaging
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules

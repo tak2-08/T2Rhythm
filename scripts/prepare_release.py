@@ -206,34 +206,22 @@ def format_fastlane_changelog(version_name, changes_text, release_type):
     return content
 
 def update_build_gradle(new_version_code, new_version_name):
-    with open(BUILD_GRADLE_PATH, "r", encoding="utf-8") as f:
-        content = f.read()
-        
     code_pattern = r"(versionCode\s*=\s*(?:overrideVersionCode\s*\?:\s*)?)(\d+)"
-    name_pattern = r"(versionName\s*=\s*(?:overrideVersionName\s*\?:\s*)?\")(.*?)(\")"
-    date_pattern = r"(overrideReleaseDate\s*\?:\s*\")(\d{4}-\d{2}-\d{2})(\"\})"
-    
-    if not re.search(code_pattern, content):
-        print("Error: Could not find versionCode pattern in build.gradle.kts")
-        sys.exit(1)
-        
-    if not re.search(name_pattern, content):
-        print("Error: Could not find versionName pattern in build.gradle.kts")
-        sys.exit(1)
-        
-    if not re.search(date_pattern, content):
-        print("Error: Could not find RELEASE_DATE pattern in build.gradle.kts")
-        sys.exit(1)
-        
+    name_pattern = r'(versionName\s*=\s*(?:overrideVersionName\s*\?:\s*)?")(.*?)(")'
+    date_pattern = r'(overrideReleaseDate\s*\?:\s*")(\d{4}-\d{2}-\d{2})("\})'
     today_date = datetime.today().strftime('%Y-%m-%d')
-    content = re.sub(code_pattern, lambda m: m.group(1) + str(new_version_code), content)
-    content = re.sub(name_pattern, lambda m: m.group(1) + new_version_name + m.group(3), content)
-    content = re.sub(date_pattern, lambda m: m.group(1) + today_date + m.group(3), content)
-    
-    with open(BUILD_GRADLE_PATH, "w", encoding="utf-8") as f:
-        f.write(content)
-        
-    print(f"Updated app/build.gradle.kts with versionCode={new_version_code}, versionName='{new_version_name}', releaseDate='{today_date}'")
+    for module in ('app', 'runtime-content'):
+        path = os.path.join(ROOT_DIR, module, 'build.gradle.kts')
+        with open(path, encoding='utf-8') as source:
+            content = source.read()
+        if not re.search(code_pattern, content) or not re.search(name_pattern, content):
+            raise ValueError(f'Could not find the version declaration in {module}/build.gradle.kts')
+        content = re.sub(code_pattern, lambda m: m.group(1) + str(new_version_code), content)
+        content = re.sub(name_pattern, lambda m: m.group(1) + new_version_name + m.group(3), content)
+        content = re.sub(date_pattern, lambda m: m.group(1) + today_date + m.group(3), content)
+        with open(path, 'w', encoding='utf-8') as target:
+            target.write(content)
+        print(f'Updated {module}/build.gradle.kts: {new_version_name} ({new_version_code})')
 
 def update_changelog_file(new_version_name, raw_unreleased):
     with open(CHANGELOG_PATH, "r", encoding="utf-8") as f:

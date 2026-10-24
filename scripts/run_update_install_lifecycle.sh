@@ -25,7 +25,7 @@ run_phase() {
   adb shell am instrument -w \
     -e class chromahub.rhythm.app.features.updates.UpdateInstallLifecycleTest \
     -e updateLifecyclePhase "$phase" \
-    chromahub.rhythm.app.debug.test/androidx.test.runner.AndroidJUnitRunner | tee "$evidence/$phase.txt"
+    chromahub.rhythm.app.debug.test/androidx.test.runner.NativeModuleJUnitRunner | tee "$evidence/$phase.txt"
   python3 - "$evidence/$phase.txt" <<'PY'
 import pathlib, re, sys
 text = pathlib.Path(sys.argv[1]).read_text()

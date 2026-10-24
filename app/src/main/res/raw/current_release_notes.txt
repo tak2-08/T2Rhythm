@@ -1,5 +1,8 @@
 Changes in this version
 
-• Update notes are available inside the app, including after installation and while offline.
-• An active local playback queue is preserved when reconnecting or restoring saved state.
-• The repeat-one icon now matches continuous repetition of the current song. The plain repeat icon repeats the queue.
+• T2Rhythm now includes an offline native music package inside the base app, keeping the current player, library and design.
+• Compatible feature updates download inside the app. Review the release notes, download, then confirm application separately.
+• Approved code updates start at the next safe, fresh app launch. Current playback continues on its existing version.
+• Signed package verification and recovery protect updates. The included offline version remains available for recovery.
+• Existing playlists, settings, local music, streaming and genre discovery remain available. Android 8 and later are supported.
+• Initial installation and rare base upgrades still use Android's installation confirmation. Feature updates do not install an APK.

@@ -7,11 +7,17 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--project', default='.')
 parser.add_argument('--group', required=True)
 parser.add_argument('--output', required=True)
+parser.add_argument('--native-base', action='store_true', help='Run the same behavior tests through the fixed base and child feature loader')
+parser.add_argument('--legacy-apk', type=Path, help='Explicit baseline APK for the pre-migration comparison')
+parser.add_argument('--legacy-test-apk', type=Path)
+parser.add_argument('--app-apk', type=Path)
+parser.add_argument('--test-apk', type=Path)
+parser.add_argument('--package', default='chromahub.rhythm.app.debug')
 args = parser.parse_args()
 root = Path(args.project).resolve()
 out = Path(args.output).resolve(); out.mkdir(parents=True, exist_ok=True)
-pkg = 'chromahub.rhythm.app.debug'
-runner = pkg + '.test/androidx.test.runner.AndroidJUnitRunner'
+pkg = args.package
+runner = pkg + '.test/androidx.test.runner.' + ('AndroidJUnitRunner' if args.legacy_apk else 'NativeModuleJUnitRunner')
 
 def adb(*values, check=True, timeout=120):
     result = subprocess.run(['adb', *values], text=True, errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
@@ -20,7 +26,8 @@ def adb(*values, check=True, timeout=120):
     return result.stdout
 
 sources = {}
-for path in (root / 'app/src/androidTest/java').rglob('*.kt'):
+source_directories = [root / 'app/src/androidTest/java']
+for path in (path for directory in source_directories for path in directory.rglob('*.kt')):
     text = path.read_text()
     names = re.findall(r'@Test(?:\([^)]*\))?(?:\s+@Suppress\([^)]*\))?\s+fun\s+(\w+)', text)
     # Multiline @Test annotations and method declarations are normal Kotlin syntax.
@@ -30,6 +37,9 @@ for path in (root / 'app/src/androidTest/java').rglob('*.kt'):
         sources[path.stem] = (namespace + '.' + path.stem, count, names)
 
 groups = {
+ 'native_boot': ['NativeRuntimeBootTest'],
+ 'file_names': ['LearningFileNamesTest'],
+ 'runtime': ['NativeModuleLoadingTest'],
  'fixes': ['PlaybackContinuityTest','ReleaseNotesUiTest','PlayerRegressionTest','MetadataConsistencyTest','LyricsEntryAndUpdatesTest','LibrarySearchNavigationTest','PopularPlaybackNavigationTest'],
  'metadata': ['MetadataConsistencyTest','ListeningRecapFlowTest','PageArtworkFlowTest','LearningFileNamesTest','LibraryPagesTest','GenreControlsTest','ManualLyricTimingFlowTest','PersonalInsightsScreensTest','ArtworkRefreshTest','LyricsEntryAndUpdatesTest','UsabilityBehaviorTest'],
  'persistence': ['MetadataEditRaceTest','ContentFlowRegressionTest','DiscoveryPipelineTest','PersonalMediaTest','MaintenanceLifecycleTest','AssetIntegrityRegressionTest','DiscoveryContextTest','PerformancePersistenceTest','DurableStorageTest','LegacyHistoryMigrationTest','ListeningPersistenceTest','LibraryProgressRegressionTest','LocalModeMigrationTest'],
@@ -55,22 +65,40 @@ while True:
     time.sleep(1)
 fixture = out / 'library-fixture.m4a'
 shutil.copyfile(Path(__file__).resolve().parents[1] / 'app/src/androidTest/assets/library-fixture.m4a',fixture)
-adb('push', str(fixture), '/sdcard/Music/T2-preservation-fixture.m4a')
-adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file:///sdcard/Music/T2-preservation-fixture.m4a')
+def fixture_library():
+    rows = adb('shell','content','query','--uri','content://media/external/audio/media',
+        '--projection','_display_name:title:artist:album:duration',check=False)
+    return '\n'.join(row for row in rows.splitlines() if '_display_name=T2-preservation-fixture.m4a,' in row)
+
+# Multiple suites share this exact recording. Replacing an already indexed file can make Android
+# 11's scanner replace its valid tags with a temporary empty row; preserve a verified ready fixture.
+existing = fixture_library()
+remote_hash = adb('shell','sha256sum','/sdcard/Music/T2-preservation-fixture.m4a',check=False).split()
+ready = ('Archive test track' in existing and 'T2 Regression' in existing and remote_hash and
+         remote_hash[0] == hashlib.sha256(fixture.read_bytes()).hexdigest())
+if not ready:
+    adb('push', str(fixture), '/sdcard/Music/T2-preservation-fixture.m4a')
+    adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file:///sdcard/Music/T2-preservation-fixture.m4a')
 scan_deadline = time.monotonic() + 60
 while True:
-    library = adb('shell','content','query','--uri','content://media/external/audio/media',
-        '--projection','title:artist:album:duration',check=False)
+    library = fixture_library()
     if 'Archive test track' in library and 'T2 Regression' in library: break
     assert time.monotonic() < scan_deadline, library
     time.sleep(1)
 print('MediaStore fixture:',library,flush=True)
-app = root / 'app/build/outputs/apk/github/debug/Rhythm-5.5.499.1325-githubDebug.apk'
-if not app.exists():
-    apps = [p for p in (root/'app/build/outputs/apk/github/debug').glob('*.apk') if not any(s in p.name for s in ['-arm64-v8a','-armeabi-v7a','-x86'])]
-    assert len(apps) == 1, apps
-    app = apps[0]
-test_app = root / 'app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk'
+if args.app_apk:
+    assert args.test_apk
+    app, test_app = args.app_apk, args.test_apk
+elif args.legacy_apk:
+    assert args.legacy_test_apk, 'A baseline test APK is required'
+    app, test_app = args.legacy_apk, args.legacy_test_apk
+else:
+    app = root / 'app/build/outputs/apk/github/debug/Rhythm-5.5.499.1325-githubDebug.apk'
+    if not app.exists():
+        apps = [p for p in (root/'app/build/outputs/apk/github/debug').glob('*.apk') if not any(s in p.name for s in ['-arm64-v8a','-armeabi-v7a','-x86'])]
+        assert len(apps) == 1, apps
+        app = apps[0]
+    test_app = root / 'app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk'
 adb('install','-r','-t',str(app), timeout=180)
 adb('install','-r','-t',str(test_app), timeout=180)
 results=[]
@@ -87,7 +115,7 @@ def collect(name):
 
 def targets_for(name):
     class_name, expected, methods = sources[name]
-    isolate = args.group in ('artwork', 'compat', 'compat_remaining')
+    isolate = args.group in ('artwork', 'compat', 'compat_remaining') or name == 'LearningFileNamesTest'
     if args.group == 'compat_remaining' and name == 'GenreControlsTest':
         wanted = {'visibilitySwitchHidesTrainingEntryAndKeepsAlgorithmServiceAndData',
                   'hidingTrainingToolsKeepsRecommendationPlaybackAndLyricsContent'}
@@ -109,7 +137,8 @@ for name in selected:
             if api >= 37: permissions.append('android.permission.ACCESS_LOCAL_NETWORK')
             for permission in permissions: adb('shell','pm','grant',pkg,permission,check=False)
             adb('shell','settings','put','system','font_scale','1.0')
-            adb('logcat','-c')
+            # Android 8 images may refuse clearing logd; diagnostic cleanup must not skip tests.
+            adb('logcat','-c',check=False)
             if name in ('ContentFlowRegressionTest','DiscoveryPipelineTest'):
                 model = Path(os.environ['PRESERVATION_MODEL'])
                 assert hashlib.sha256(model.read_bytes()).hexdigest() == 'eea36124087fed26c59996a4761519458e3bd185e8ea9d9865ad8760c4a1d989'

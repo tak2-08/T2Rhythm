@@ -1,0 +1,21 @@
+name: Native feature packaging tools
+description: Install signing tools and optionally materialize the protected production module key outside artifacts.
+inputs:
+  production-key:
+    description: Base64 PKCS#8 key from the repository secret; omit for disposable integration trust.
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: python3 -m pip install --disable-pip-version-check cryptography==46.0.3
+    - shell: bash
+      env:
+        PRODUCTION_SIGNING_KEY: ${{ inputs.production-key }}
+      run: |
+        if [[ -n "$PRODUCTION_SIGNING_KEY" ]]; then
+          umask 077
+          printf '%s' "$PRODUCTION_SIGNING_KEY" | base64 --decode > "$RUNNER_TEMP/t2-runtime-production.pk8"
+          printf 'RUNTIME_SIGNING_KEY_FILE=%s\n' "$RUNNER_TEMP/t2-runtime-production.pk8" >> "$GITHUB_ENV"
+        fi
