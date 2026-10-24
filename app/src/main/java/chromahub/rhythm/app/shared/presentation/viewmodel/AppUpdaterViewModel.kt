@@ -163,8 +163,15 @@ class AppUpdaterViewModel(
         notesPrefs.getString("body", null).orEmpty().ifBlank { bundledReleaseNotes() }
     else bundledReleaseNotes()
 
-    private fun bundledReleaseNotes(): String = getApplication<Application>().resources
-        .openRawResource(R.raw.current_release_notes).bufferedReader().use { it.readText() }
+    private fun bundledReleaseNotes(): String {
+        val application = getApplication<Application>()
+        val language = chromahub.rhythm.app.features.local.presentation.components.settings.LanguageHelper.getCurrentLanguage(application)
+        val configuration = android.content.res.Configuration(application.resources.configuration).apply {
+            setLocale(Locale.forLanguageTag(language))
+        }
+        return application.createConfigurationContext(configuration).resources
+            .openRawResource(R.raw.current_release_notes).bufferedReader().use { it.readText() }
+    }
 
     // Current app version info
     private val _currentVersion =

@@ -85,8 +85,8 @@ class PlayerRegressionTest {
     @Test fun videoAppearsWithValidCoverAndAmbientBackdrop() {
         val song = song(); val controls = MusicVideoControls()
         val root = File(context.filesDir, "music_metadata/videos").apply { mkdirs() }
-        val video = File(root, "regression-${System.nanoTime()}.webm"); files.add(video)
-        InstrumentationRegistry.getInstrumentation().context.assets.open("video-test.webm").use { input -> video.outputStream().use(input::copyTo) }
+        val video = File(root, "regression-${System.nanoTime()}.mp4"); files.add(video)
+        InstrumentationRegistry.getInstrumentation().context.assets.open("video-test-software.mp4").use { input -> video.outputStream().use(input::copyTo) }
         MusicVideoRepository(context).save(MusicVideo(song.uri.toString(), "local", fileName = video.name, title = "Regression"))
         files.add(File(root, "records/${kr.co.metadata.crawler.CatalogFileStore.hash(song.uri.toString())}.json"))
         settings.setAutoFetchArtwork(false); settings.setPlayerAmbientBackdropEnabled(true)
@@ -132,9 +132,9 @@ class PlayerRegressionTest {
 
     @Test fun videoFailureOffersRetryAndWorkingManagementOutsideTheBackdrop() {
         val song = song(); val controls = MusicVideoControls()
-        val local = File(context.filesDir, "music_metadata/videos/status-${System.nanoTime()}.webm")
+        val local = File(context.filesDir, "music_metadata/videos/status-${System.nanoTime()}.mp4")
         local.parentFile!!.mkdirs(); files.add(local)
-        InstrumentationRegistry.getInstrumentation().context.assets.open("video-test.webm").use { input -> local.outputStream().use(input::copyTo) }
+        InstrumentationRegistry.getInstrumentation().context.assets.open("video-test-software.mp4").use { input -> local.outputStream().use(input::copyTo) }
         val video = MusicVideo(song.uri.toString(), "local", fileName = local.name, title = song.title)
         MusicVideoRepository(context).save(video); controls.video.value = video
         files.add(File(context.filesDir, "music_metadata/videos/records/${kr.co.metadata.crawler.CatalogFileStore.hash(song.uri.toString())}.json"))
