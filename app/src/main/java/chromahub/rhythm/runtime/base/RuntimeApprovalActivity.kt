@@ -15,6 +15,12 @@ import kotlinx.coroutines.withContext
 
 /** Fixed, non-exported confirmation UI: a successful download never approves itself. */
 class RuntimeApprovalActivity : AppCompatActivity() {
+    override fun attachBaseContext(base: android.content.Context) {
+        val configuration = android.content.res.Configuration(base.resources.configuration).apply {
+            setLocale(java.util.Locale.getDefault())
+        }
+        super.attachBaseContext(base.createConfigurationContext(configuration))
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val hash = intent.getStringExtra("archive_hash") ?: run { finish(); return }

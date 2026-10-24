@@ -64,6 +64,10 @@ def main():
     if not 1 <= args.version_code <= 2_147_483_647 or not args.version_name.strip():
         parser.error('Invalid feature version')
     notes = args.notes.read_bytes()
+    korean_notes = root / 'app/src/main/res/raw-ko/current_release_notes.txt'
+    if korean_notes.is_file():
+        notes = ('## 한국어\n\n' + korean_notes.read_text().strip() + '\n\n## English\n\n' +
+                 notes.decode('utf-8', errors='strict').strip() + '\n').encode('utf-8')
     if not 1 <= len(notes) <= 128 * 1024 or not notes.decode('utf-8', errors='strict').strip() or b'\0' in notes:
         parser.error('Release notes must be bounded UTF-8 text')
     # A schema change needs a new base/data contract, rather than silently breaking rollback.

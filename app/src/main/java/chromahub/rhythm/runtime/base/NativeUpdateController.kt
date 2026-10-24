@@ -120,12 +120,20 @@ internal class NativeUpdateController(
     private fun info(verified: VerifiedModule) = Bundle().apply {
         putLong("versionCode", verified.manifest.versionCode)
         putString("versionName", verified.manifest.versionName)
-        putString("notes", verified.releaseNotes)
+        putString("notes", localizedNotes(verified.releaseNotes))
         putString("archiveHash", verified.archiveSha256)
         putString("path", file(verified.archiveSha256).path)
     }
     private fun file(hash: String): File {
         require(hash.matches(HASH)); return File(archives, "$hash.t2module")
+    }
+    private fun localizedNotes(notes: String): String {
+        val korean = "## 한국어\n\n"
+        val english = "\n\n## English\n\n"
+        val separator = notes.indexOf(english)
+        if (!notes.startsWith(korean) || separator < 0) return notes
+        return if (java.util.Locale.getDefault().language == "ko") notes.substring(korean.length, separator)
+        else notes.substring(separator + english.length).trimEnd()
     }
     private companion object { val HASH = Regex("[0-9a-f]{64}") }
 }

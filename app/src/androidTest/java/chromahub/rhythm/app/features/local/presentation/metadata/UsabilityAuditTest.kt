@@ -120,6 +120,7 @@ class UsabilityAuditTest {
     @Test fun findingAlgorithmManagementThroughSettingsSearch() {
         content { SettingsScreen(onBackClick = {}, onNavigateTo = {}) }
         compose.onNode(hasSetTextAction()).performTextInput("알고리즘")
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
         capture("audit-04-settings-search.png")
     }
     @Test fun listeningReportWithLargeText() {
@@ -141,6 +142,9 @@ class UsabilityAuditTest {
         settings.setHasShownBetaPopup(true)
         settings.setUpdatesEnabled(false)
         settings.setDefaultScreen("home")
+        // The release-notes dialog has its own coverage; compare the actual underlying pages.
+        base.getSharedPreferences("installed_release_notes", 0).edit()
+            .putInt("seen", chromahub.rhythm.app.BuildConfig.VERSION_CODE).commit()
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             var settingsDescription = ""
             scenario.onActivity { settingsDescription = it.getString(R.string.home_settings_cd) }

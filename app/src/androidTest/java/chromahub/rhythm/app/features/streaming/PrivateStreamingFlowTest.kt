@@ -210,6 +210,7 @@ class PrivateStreamingFlowTest {
         compose.waitUntil(30_000) { manager.state.value.running }
         scroll(base.getString(R.string.streaming_invite)); compose.onNodeWithText(base.getString(R.string.streaming_invite)).performClick()
         compose.onNode(hasSetTextAction()).performTextReplacement("https://127.0.0.1:8898")
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
         compose.onNodeWithText(base.getString(R.string.streaming_create_invite)).performClick()
         val qr = compose.onNodeWithContentDescription(base.getString(R.string.streaming_qr_description))
         compose.waitUntil(10_000) { runCatching { qr.fetchSemanticsNode() }.isSuccess }

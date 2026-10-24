@@ -83,7 +83,7 @@ dependencies {
 }
 
 /** Signing keys are execution inputs only and never enter Gradle's build cache. */
-@org.gradle.work.DisableCachingByDefault(because = "Produces signed bundles with private, external trust material")
+@UntrackedTask(because = "External private signing keys must never enter tracked or cached build inputs")
 abstract class PrepareSignedRuntimeDistribution @Inject constructor(private val execOperations: ExecOperations) : DefaultTask() {
     @get:InputDirectory @get:PathSensitive(PathSensitivity.RELATIVE) abstract val featureApks: DirectoryProperty
     @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val featureDex: RegularFileProperty
@@ -140,9 +140,8 @@ androidComponents.onVariants { variant ->
     val featureVariant = if (variant.buildType == "benchmark") variant.name.replace("Benchmark", "Release") else variant.name
     val featureCapitalized = featureVariant.replaceFirstChar(Char::uppercase)
     val external = providers.gradleProperty("runtimeDistributionDir")
-    val selectedDistribution = if (external.isPresent) layout.dir(external.map { file(it) }) else {
+    val selectedDistribution = if (external.isPresent) layout.dir(external.map { java.io.File(it) }) else {
         val prepare = tasks.register<PrepareSignedRuntimeDistribution>("prepare${capitalized}RuntimeDistribution") {
-            outputs.upToDateWhen { false } // A private signing key may be rotated outside tracked build inputs.
             dependsOn(":runtime-content:assemble$featureCapitalized", ":runtime-content:dex${featureCapitalized}Feature", ":runtime-content:export${featureCapitalized}SharedContract")
             repository.set(rootProject.layout.projectDirectory)
             featureApks.set(rootProject.layout.projectDirectory.dir("runtime-content/build/outputs/apk/${variant.flavorName}/${if (variant.buildType == "benchmark") "release" else variant.buildType}"))
@@ -157,7 +156,7 @@ androidComponents.onVariants { variant ->
             versionCode.set(variant.outputs.single().versionCode)
             versionName.set(variant.outputs.single().versionName)
             testOnly.set(runtimeTestOnly)
-            privateKey.set(layout.file(moduleSigningPath.orElse(rootProject.layout.buildDirectory.file("runtime-signing/integration.pk8").map { it.asFile.path }).map { file(it) }))
+            privateKey.set(layout.file(moduleSigningPath.orElse(rootProject.layout.buildDirectory.file("runtime-signing/integration.pk8").map { it.asFile.path }).map { java.io.File(it) }))
             distribution.set(rootProject.layout.buildDirectory.dir("runtime-distribution/${variant.name}"))
         }
         prepare.flatMap { it.distribution }

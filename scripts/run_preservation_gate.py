@@ -97,7 +97,7 @@ def collect(name):
 
 def targets_for(name):
     class_name, expected, methods = sources[name]
-    isolate = args.group in ('artwork', 'compat', 'compat_remaining')
+    isolate = args.group in ('artwork', 'compat', 'compat_remaining') or name == 'LearningFileNamesTest'
     if args.group == 'compat_remaining' and name == 'GenreControlsTest':
         wanted = {'visibilitySwitchHidesTrainingEntryAndKeepsAlgorithmServiceAndData',
                   'hidingTrainingToolsKeepsRecommendationPlaybackAndLyricsContent'}
