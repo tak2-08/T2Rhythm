@@ -66,8 +66,9 @@ while True:
 fixture = out / 'library-fixture.m4a'
 shutil.copyfile(Path(__file__).resolve().parents[1] / 'app/src/androidTest/assets/library-fixture.m4a',fixture)
 def fixture_library():
-    return adb('shell','content','query','--uri','content://media/external/audio/media',
-        '--projection','title:artist:album:duration','--where',"_display_name='T2-preservation-fixture.m4a'",check=False)
+    rows = adb('shell','content','query','--uri','content://media/external/audio/media',
+        '--projection','_display_name:title:artist:album:duration',check=False)
+    return '\n'.join(row for row in rows.splitlines() if '_display_name=T2-preservation-fixture.m4a,' in row)
 
 # Multiple suites share this exact recording. Replacing an already indexed file can make Android
 # 11's scanner replace its valid tags with a temporary empty row; preserve a verified ready fixture.
