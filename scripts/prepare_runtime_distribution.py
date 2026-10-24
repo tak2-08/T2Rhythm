@@ -48,7 +48,12 @@ def main():
     actual_ids, _ = export(args.apk, args.aapt2, 'chromahub.rhythm.app')
     actual = set(actual_ids.splitlines())
     expected = set((root / 'runtime-contract/resource-ids-v1.txt').read_text().splitlines())
-    if not expected <= actual:
+    debug_only = set((root / 'runtime-contract/debug-only-resource-ids-v1.txt').read_text().splitlines())
+    assert debug_only <= expected
+    required = expected if args.version_name.endswith('-debug') else expected - debug_only
+    actual_map = dict(line.split(' = ') for line in actual)
+    if not required <= actual or any(name in actual_map and actual_map[name] != value
+                                     for name, value in (line.split(' = ') for line in expected)):
         parser.error('The feature removed or renumbered fixed base resources')
     badging = subprocess.run([str(args.aapt2), 'dump', 'badging', str(args.apk)],
                              check=True, capture_output=True, text=True).stdout
@@ -82,6 +87,7 @@ def main():
     inputs = {'shared': shared, 'hostApi': 1, 'database': list(schema.groups()),
               'applicationId': package_name, 'distribution': channel,
               'signingKeyId': hashlib.sha256(public).hexdigest(),
+              'debugOnlyResourceIds': digest(root / 'runtime-contract/debug-only-resource-ids-v1.txt'),
               'kotlin': '2.4.21', 'agp': '9.4.1', 'desugar': '2.1.5', 'resourceIds': digest(root / 'runtime-contract/resource-ids-v1.txt')}
     # The feature's ordinary screen/business source is deliberately absent from this fingerprint.
     # Changing a base ABI or pinned SDK requires a base update; ordinary feature code does not.

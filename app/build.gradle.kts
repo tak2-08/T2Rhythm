@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import java.util.Properties
+import java.io.File
 import javax.inject.Inject
 import org.gradle.process.ExecOperations
 
@@ -20,6 +21,7 @@ val signingProperties = Properties().also { properties ->
 android {
     namespace = "chromahub.rhythm.app"
     compileSdk = 37
+    testBuildType = providers.gradleProperty("nativeTestBuildType").orElse("debug").get()
     defaultConfig {
         applicationId = "chromahub.rhythm.app"
         minSdk = 26
@@ -60,6 +62,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { buildConfig = true; compose = true }
+    lint { disable.add("MissingTranslation") }
     kotlin.compilerOptions.freeCompilerArgs.addAll(
         "-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
         "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api"
@@ -140,7 +143,7 @@ androidComponents.onVariants { variant ->
     val featureVariant = if (variant.buildType == "benchmark") variant.name.replace("Benchmark", "Release") else variant.name
     val featureCapitalized = featureVariant.replaceFirstChar(Char::uppercase)
     val external = providers.gradleProperty("runtimeDistributionDir")
-    val selectedDistribution = if (external.isPresent) layout.dir(external.map { java.io.File(it) }) else {
+    val selectedDistribution = if (external.isPresent) layout.dir(external.map { File(it) }) else {
         val prepare = tasks.register<PrepareSignedRuntimeDistribution>("prepare${capitalized}RuntimeDistribution") {
             dependsOn(":runtime-content:assemble$featureCapitalized", ":runtime-content:dex${featureCapitalized}Feature", ":runtime-content:export${featureCapitalized}SharedContract")
             repository.set(rootProject.layout.projectDirectory)
@@ -156,7 +159,7 @@ androidComponents.onVariants { variant ->
             versionCode.set(variant.outputs.single().versionCode)
             versionName.set(variant.outputs.single().versionName)
             testOnly.set(runtimeTestOnly)
-            privateKey.set(layout.file(moduleSigningPath.orElse(rootProject.layout.buildDirectory.file("runtime-signing/integration.pk8").map { it.asFile.path }).map { java.io.File(it) }))
+            privateKey.set(layout.file(moduleSigningPath.orElse(rootProject.layout.buildDirectory.file("runtime-signing/integration.pk8").map { it.asFile.path }).map { File(it) }))
             distribution.set(rootProject.layout.buildDirectory.dir("runtime-distribution/${variant.name}"))
         }
         prepare.flatMap { it.distribution }

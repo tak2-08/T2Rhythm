@@ -74,6 +74,12 @@ android {
     }
     buildFeatures { compose = true; buildConfig = true }
     testOptions.unitTests.isReturnDefaultValues = true
+    // Retain the original application's lint policy after moving its unchanged music sources.
+    lint {
+        abortOnError = true
+        disable.addAll(listOf("MissingTranslation", "UnsafeOptInUsageError", "NonObservableLocale",
+            "StateFlowValueCalledInComposition", "LocalContextGetResourceValueCall", "UnusedMaterial3ScaffoldPaddingParameter"))
+    }
     packaging.resources {
         merges += "/META-INF/INDEX.LIST"
         merges += "**/io.netty.versions.properties"

@@ -10,10 +10,13 @@ parser.add_argument('--output', required=True)
 parser.add_argument('--native-base', action='store_true', help='Run the same behavior tests through the fixed base and child feature loader')
 parser.add_argument('--legacy-apk', type=Path, help='Explicit baseline APK for the pre-migration comparison')
 parser.add_argument('--legacy-test-apk', type=Path)
+parser.add_argument('--app-apk', type=Path)
+parser.add_argument('--test-apk', type=Path)
+parser.add_argument('--package', default='chromahub.rhythm.app.debug')
 args = parser.parse_args()
 root = Path(args.project).resolve()
 out = Path(args.output).resolve(); out.mkdir(parents=True, exist_ok=True)
-pkg = 'chromahub.rhythm.app.debug'
+pkg = args.package
 runner = pkg + '.test/androidx.test.runner.' + ('AndroidJUnitRunner' if args.legacy_apk else 'NativeModuleJUnitRunner')
 
 def adb(*values, check=True, timeout=120):
@@ -71,7 +74,10 @@ while True:
     assert time.monotonic() < scan_deadline, library
     time.sleep(1)
 print('MediaStore fixture:',library,flush=True)
-if args.legacy_apk:
+if args.app_apk:
+    assert args.test_apk
+    app, test_app = args.app_apk, args.test_apk
+elif args.legacy_apk:
     assert args.legacy_test_apk, 'A baseline test APK is required'
     app, test_app = args.legacy_apk, args.legacy_test_apk
 else:
