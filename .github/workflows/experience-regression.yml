@@ -18,7 +18,7 @@ on:
       preservation_batch:
         description: Preservation groups to run (streaming repeats the affected flows after an invitation fix)
         type: choice
-        options: [full, streaming, remaining, navigation, compat, genres, android15]
+        options: [full, streaming, remaining, navigation, compat, genres, android15, fixes]
         default: full
       baseline_ref:
         description: Baseline source for visual comparison
@@ -89,7 +89,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(inputs.preservation_batch == 'android15' && '[{"api":"35","group":"compat_remaining"},{"api":"35","group":"newflows"}]' || inputs.preservation_batch == 'compat' && '[{"api":"35","group":"compat_remaining"}]' || (inputs.preservation_batch == 'navigation' || inputs.preservation_batch == 'genres') && '[{"api":"29","group":"navigation"},{"api":"35","group":"newflows"},{"api":"37.0","group":"newflows"}]' || inputs.preservation_batch == 'remaining' && '[{"api":"29","group":"streaming"},{"api":"29","group":"visual_baseline"}]' || inputs.preservation_batch == 'streaming' && '[{"api":"29","group":"streaming"},{"api":"35","group":"newflows"},{"api":"37.0","group":"streaming"},{"api":"37.0","group":"newflows"}]' || '[{"api":"29","group":"metadata"},{"api":"29","group":"persistence"},{"api":"29","group":"navigation"},{"api":"29","group":"streaming"},{"api":"35","group":"compat"},{"api":"35","group":"artwork"},{"api":"35","group":"newflows"},{"api":"37.0","group":"streaming"},{"api":"37.0","group":"newflows"},{"api":"29","group":"visual_baseline"},{"api":"29","group":"visual_candidate"}]') }}
+        include: ${{ fromJSON(inputs.preservation_batch == 'fixes' && '[{"api":"29","group":"fixes"},{"api":"35","group":"fixes"},{"api":"37.0","group":"fixes"}]' || inputs.preservation_batch == 'android15' && '[{"api":"35","group":"compat_remaining"},{"api":"35","group":"newflows"}]' || inputs.preservation_batch == 'compat' && '[{"api":"35","group":"compat_remaining"}]' || (inputs.preservation_batch == 'navigation' || inputs.preservation_batch == 'genres') && '[{"api":"29","group":"navigation"},{"api":"35","group":"newflows"},{"api":"37.0","group":"newflows"}]' || inputs.preservation_batch == 'remaining' && '[{"api":"29","group":"streaming"},{"api":"29","group":"visual_baseline"}]' || inputs.preservation_batch == 'streaming' && '[{"api":"29","group":"streaming"},{"api":"35","group":"newflows"},{"api":"37.0","group":"streaming"},{"api":"37.0","group":"newflows"}]' || '[{"api":"29","group":"metadata"},{"api":"29","group":"persistence"},{"api":"29","group":"navigation"},{"api":"29","group":"streaming"},{"api":"35","group":"compat"},{"api":"35","group":"artwork"},{"api":"35","group":"newflows"},{"api":"37.0","group":"streaming"},{"api":"37.0","group":"newflows"},{"api":"29","group":"visual_baseline"},{"api":"29","group":"visual_candidate"}]') }}
     env:
       GATE_PROJECT: ${{ matrix.group == 'visual_baseline' && 'baseline' || '.' }}
       PRESERVATION_MODEL: /tmp/t2-preservation-vosk.zip

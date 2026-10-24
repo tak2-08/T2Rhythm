@@ -214,7 +214,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
         },
         resumePlaybackAfterWrite = { songId, playbackState ->
-            if (playbackState != null) {
+            if (playbackState != null && mediaController?.currentMediaItem?.mediaId == songId) {
                 val (seekPos, shouldPlay) = playbackState
                 refreshPlayingMediaItem(seekPos, shouldPlay)
             }
@@ -1865,6 +1865,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     // Restore the queue to MediaController
                     withContext(Dispatchers.Main) {
                         mediaController?.let { controller ->
+                            // Playback may have started while the saved songs were loading.
+                            // The live service is authoritative; never seek it to an old snapshot.
+                            if (controller.mediaItemCount > 0) {
+                                pendingQueueRestore = null
+                                syncQueueWithMediaController()
+                                return@withContext
+                            }
                             pendingQueueRestore = null
                             isRestoringQueue = true
                             try {
@@ -1946,9 +1953,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             val savedQueueIds = pendingRestore?.first ?: appSettings.savedQueue.value
             val savedIndex = pendingRestore?.second ?: appSettings.savedQueueIndex.value
             val controllerItemCount = mediaController?.mediaItemCount ?: 0
-            val hasActiveQueue = _currentQueue.value.songs.isNotEmpty() && _currentQueue.value.currentIndex >= 0
 
-            if (pendingRestore == null && hasActiveQueue && controllerItemCount > 0) {
+            if (controllerItemCount > 0) {
+                pendingQueueRestore = null
+                syncQueueWithMediaController()
                 Log.d(TAG, "Active queue already present in controller, skipping persisted queue restore")
                 return
             }

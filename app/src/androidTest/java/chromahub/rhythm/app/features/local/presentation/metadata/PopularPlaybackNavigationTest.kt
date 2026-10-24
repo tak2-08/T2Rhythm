@@ -62,6 +62,7 @@ class PopularPlaybackNavigationTest {
                 shell("pm grant ${context.packageName} $permission")
                 val settings = AppSettings.getInstance(context)
                 settings.setOnboardingCompleted(true)
+                context.getSharedPreferences("installed_release_notes", 0).edit().putInt("seen", chromahub.rhythm.app.BuildConfig.VERSION_CODE).commit()
                 settings.setDefaultScreen("home")
                 settings.setFloatingNavigationBar(true)
                 settings.setInitialStreamingRoute(null)

@@ -754,6 +754,9 @@ fun LocalNavigation(
 
     // Global Update Bottom Sheet - shows automatically when update is available
     val isOnUpdatesScreen = currentRoute == Screen.TunerUpdates.route
+    val installedVersion by updaterViewModel.currentVersion.collectAsState()
+    chromahub.rhythm.app.features.updates.InstalledReleaseNotesPrompt(
+        installedVersion, enabled = !showUpdateBottomSheet && !isOnUpdatesScreen)
     if (showUpdateBottomSheet && !isOnUpdatesScreen) {
         UpdateBottomSheet(
             updaterViewModel = updaterViewModel,

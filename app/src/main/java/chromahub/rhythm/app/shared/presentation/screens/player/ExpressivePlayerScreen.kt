@@ -1826,11 +1826,7 @@ fun ExpressivePlayerScreen(
                                                 )
                                             }
                                             "REPEAT" -> {
-                                                val repeatIcon = when (repeatMode) {
-                                                    2 -> RhythmIcons.Player.RepeatOne
-                                                    1 -> RhythmIcons.Player.Repeat
-                                                    else -> RhythmIcons.Player.Repeat
-                                                }
+                                                val repeatIcon = chromahub.rhythm.app.shared.presentation.components.player.repeatModeIcon(repeatMode)
                                                 RhythmDetailActionButton(
                                                     onClick = { HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT); onToggleRepeat() },
                                                     onLongClick = onButtonLongClick,
@@ -1842,7 +1838,7 @@ fun ExpressivePlayerScreen(
                                                     icon = repeatIcon,
                                                     iconSize = 20.dp,
                                                     text = null,
-                                                    contentDescription = stringResource(R.string.player_chip_repeat),
+                                                    contentDescription = stringResource(chromahub.rhythm.app.shared.presentation.components.player.repeatModeLabel(repeatMode)),
                                                     containerColor = if (repeatMode != 0) primaryColor.copy(alpha = 0.35f) else controlsContainerColor,
                                                     contentColor = if (repeatMode != 0) primaryColor else defaultContentColor
                                                 )
@@ -2098,11 +2094,7 @@ fun ExpressivePlayerScreen(
                                                 )
                                             }
                                             "REPEAT" -> {
-                                                val repeatIcon = when (repeatMode) {
-                                                    2 -> RhythmIcons.Player.RepeatOne
-                                                    1 -> RhythmIcons.Player.Repeat
-                                                    else -> RhythmIcons.Player.Repeat
-                                                }
+                                                val repeatIcon = chromahub.rhythm.app.shared.presentation.components.player.repeatModeIcon(repeatMode)
                                                 RhythmDetailActionButton(
                                                     onClick = { HapticUtils.performHapticFeedback(context, haptic, HapticType.LIGHT); onToggleRepeat() },
                                                     onLongClick = onButtonLongClick,
@@ -2113,7 +2105,7 @@ fun ExpressivePlayerScreen(
                                                     type = RhythmButtonType.Tonal,
                                                     icon = repeatIcon,
                                                     iconSize = 20.dp,
-                                                    contentDescription = stringResource(R.string.player_chip_repeat),
+                                                    contentDescription = stringResource(chromahub.rhythm.app.shared.presentation.components.player.repeatModeLabel(repeatMode)),
                                                     containerColor = if (repeatMode != 0) primaryColor.copy(alpha = 0.35f) else controlsContainerColor,
                                                     contentColor = if (repeatMode != 0) primaryColor else defaultContentColor
                                                 )

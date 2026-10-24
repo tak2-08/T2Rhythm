@@ -1,0 +1,9 @@
+<resources>
+    <string name="repeat_current_forever">Repeat this song continuously</string>
+    <string name="repeat_queue_forever">Repeat the entire queue</string>
+    <string name="repeat_disabled">Repeat off</string>
+    <string name="installed_release_notes">Changes in this version</string>
+    <string name="release_notes_open">Read update notes</string>
+    <string name="release_notes_done">Done</string>
+    <string name="release_notes_title">Update notes</string>
+</resources>

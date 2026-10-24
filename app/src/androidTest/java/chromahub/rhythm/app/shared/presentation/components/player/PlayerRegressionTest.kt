@@ -37,6 +37,8 @@ class PlayerRegressionTest {
     private val oldAccent = settings.playerAccentBackgroundEnabled.value
     private val oldFetch = settings.autoFetchArtwork.value
     private val oldMerge = settings.playerMergeControlsToBottom.value
+    private val oldNormalOrder = settings.expressiveBottomButtonsNormal.value
+    private val oldNormalHidden = settings.expressiveHiddenBottomButtonsNormal.value
     private val oldOrder = settings.expressiveBottomButtonsMerge.value
     private val oldHidden = settings.expressiveHiddenBottomButtonsMerge.value
     private val files = mutableListOf<File>()
@@ -46,6 +48,8 @@ class PlayerRegressionTest {
         settings.setPlayerAccentBackgroundEnabled(oldAccent)
         settings.setAutoFetchArtwork(oldFetch)
         settings.setPlayerMergeControlsToBottom(oldMerge)
+        settings.setExpressiveBottomButtonsNormal(oldNormalOrder)
+        settings.setExpressiveHiddenBottomButtonsNormal(oldNormalHidden)
         settings.setExpressiveBottomButtonsMerge(oldOrder)
         settings.setExpressiveHiddenBottomButtonsMerge(oldHidden)
         files.forEach { it.delete() }
@@ -195,18 +199,40 @@ class PlayerRegressionTest {
         compose.runOnIdle { assertTrue(seek < .5f) }
     }
 
-    private fun render(song: Song, controls: MusicVideoControls, liked: MutableState<Boolean> = mutableStateOf(false), onSeek: (Float) -> Unit = {}) {
+    @Test fun repeatActionsDescribeTheCurrentModeInBothPlayerLayouts() {
+        val track = song(); val controls = MusicVideoControls()
+        val repeat = mutableStateOf(androidx.media3.common.Player.REPEAT_MODE_ALL)
+        settings.setAutoFetchArtwork(false)
+        settings.setPlayerMergeControlsToBottom(true)
+        settings.setExpressiveBottomButtonsMerge(listOf("FAVORITE", "LYRICS", "SHUFFLE", "REPEAT"))
+        settings.setExpressiveHiddenBottomButtonsMerge(emptySet())
+        settings.setExpressiveBottomButtonsNormal(listOf("FAVORITE", "LYRICS", "SHUFFLE", "REPEAT"))
+        settings.setExpressiveHiddenBottomButtonsNormal(emptySet())
+        render(track, controls, repeat = repeat, onRepeat = {
+            repeat.value = when (repeat.value) { 0 -> 2; 2 -> 1; else -> 0 }
+        })
+        compose.onNodeWithContentDescription(context.getString(R.string.repeat_queue_forever)).assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.repeat_current_forever)).assertIsDisplayed()
+        screenshot("repeat-one-1326.png")
+        compose.onNodeWithContentDescription(context.getString(R.string.repeat_current_forever)).performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.repeat_disabled)).assertIsDisplayed().performClick()
+        compose.runOnIdle { settings.setPlayerMergeControlsToBottom(false) }
+        compose.onNodeWithContentDescription(context.getString(R.string.repeat_queue_forever)).assertIsDisplayed().performClick()
+        compose.onNodeWithContentDescription(context.getString(R.string.repeat_current_forever)).assertIsDisplayed()
+    }
+
+    private fun render(song: Song, controls: MusicVideoControls, liked: MutableState<Boolean> = mutableStateOf(false), repeat: androidx.compose.runtime.State<Int>? = null, onRepeat: () -> Unit = {}, onSeek: (Float) -> Unit = {}) {
         compose.setContent {
             MaterialTheme {
                 Box(Modifier.fillMaxSize()) {
                     MusicVideoSession(song, controls)
                     ExpressivePlayerScreen(song = song, videoControls = controls, isPlaying = false, isFavorite = liked.value,
                         progress = { .5f }, currentTimeStr = "0:00", totalTimeStr = "0:24", queuePosition = 1, queueTotal = 1,
-                        isShuffleEnabled = false, repeatMode = 0, showLyricsView = false, showLyrics = true, lyrics = null,
+                        isShuffleEnabled = false, repeatMode = repeat?.value ?: 0, showLyricsView = false, showLyrics = true, lyrics = null,
                         isLoadingLyrics = false, onlineOnlyLyrics = false, onLyricsSeek = null, onRetryLyrics = {},
                         onShowLyricsEditor = {}, onPickLyricsFile = {}, isMediaLoading = false, isSeeking = false,
                         onPlayPause = {}, onSeek = onSeek, onSkipPrevious = {}, onSkipNext = {}, onToggleFavorite = { liked.value = !liked.value }, onLikeSong = { liked.value = true },
-                        onToggleShuffle = {}, onToggleRepeat = {}, onToggleLyrics = {}, onSongInfoClick = {},
+                        onToggleShuffle = {}, onToggleRepeat = onRepeat, onToggleLyrics = {}, onSongInfoClick = {},
                         onShowAlbumBottomSheet = {}, onShowArtist = {}, onMoreClick = { controls.managing.value = true },
                         onDeviceClick = {}, onQueueClick = {}, onBack = {}, location = null, appSettings = settings)
                 }

@@ -243,9 +243,15 @@ fun UpdatesSettingsScreen(onBackClick: () -> Unit) {
     } else {
         latestVersion
     }
-    val activeWhatsNew = activeLatestVersion?.whatsNew ?: emptyList()
+    val activeWhatsNew = activeLatestVersion?.whatsNew ?: currentVersion.whatsNew
     val activeKnownIssues = activeLatestVersion?.knownIssues ?: emptyList()
 
+    var showInstalledReleaseNotes by remember { mutableStateOf(false) }
+    if (showInstalledReleaseNotes) {
+        chromahub.rhythm.app.features.updates.ReleaseNotesDialog(
+            activeLatestVersion?.takeIf { activeUpdateAvailable } ?: currentVersion
+        ) { showInstalledReleaseNotes = false }
+    }
     // Dialog states
     var showChannelDialog by remember { mutableStateOf(false) }
     var showSourceDialog by remember { mutableStateOf(false) }
@@ -893,18 +899,7 @@ fun UpdatesSettingsScreen(onBackClick: () -> Unit) {
                         .clip(RoundedCornerShape(12.dp))
                         .clickable {
                             HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
-                            val tag = currentVersion.versionName
-                            val releaseUrl = if (tag.startsWith("v", ignoreCase = true)) {
-                                "https://github.com/cromaguy/Rhythm/releases/tag/$displayVersionName"
-                            } else {
-                                "https://github.com/cromaguy/Rhythm/releases/tag/v$displayVersionName"
-                            }
-                            try {
-                                val intent = Intent(Intent.ACTION_VIEW, (releaseUrl).toUri())
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, R.string.updatessettingsscreen_unable_to_open_release, Toast.LENGTH_SHORT).show()
-                            }
+                            showInstalledReleaseNotes = true
                         }
                         .padding(vertical = 8.dp, horizontal = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -1065,6 +1060,7 @@ fun UpdatesSettingsScreen(onBackClick: () -> Unit) {
                 }
             }
 
+            item { chromahub.rhythm.app.features.updates.InstalledReleaseNotesCard(currentVersion) }
             item { chromahub.rhythm.app.features.updates.UpdateHistoryPanel() }
 
             // 5. Settings Section below
