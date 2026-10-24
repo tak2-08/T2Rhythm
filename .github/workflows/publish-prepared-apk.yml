@@ -1,0 +1,43 @@
+name: Stage prepared native release assets
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_branch:
+        required: true
+      source_revision:
+        required: true
+      tag:
+        required: true
+      release_id:
+        required: true
+permissions:
+  contents: write
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.artifact_branch }}
+          persist-credentials: false
+      - name: Verify reconstructed public files, original APK signer and feature signatures
+        env:
+          EXPECTED_REVISION: ${{ inputs.source_revision }}
+        run: |
+          python3 -m pip install --disable-pip-version-check cryptography==46.0.3
+          python3 verify_publication.py
+      - name: Upload verified assets to existing draft without publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          assert os.environ['RELEASE_ID'].isdigit()
+          r=json.loads(subprocess.check_output(['gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/releases/{os.environ['RELEASE_ID']}"]))
+          assert r['draft'] and r['tag_name']==os.environ['RELEASE_TAG']
+          PY
+          gh release upload "$RELEASE_TAG" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber

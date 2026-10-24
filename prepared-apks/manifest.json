@@ -1,0 +1,141 @@
+{
+  "source_revision": "797281e88359854ef51a0cb75d53545d333a04b8",
+  "certificate_sha256": "c55ec7843dd8190f2ce249ddc1562c616647c50c317930076e2e98bf7e304c18",
+  "assets": [
+    {
+      "name": "SHA256SUMS",
+      "size": 1314,
+      "sha256": "ea02946beb84027c1758e49925673991c647b54e649f2c39a0bd265e56fa5606",
+      "parts": [
+        "asset00-000.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-5.5.499.1327-debug.apk",
+      "size": 131215027,
+      "sha256": "6f89eccb03c8ac0d1cf8693c6f9ab9f3e2c93f1aff2a0ddc066b3154908c0cac",
+      "parts": [
+        "asset01-000.part",
+        "asset01-001.part",
+        "asset01-002.part",
+        "asset01-003.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-5.5.499.1327-debug.apk.sha256",
+      "size": 98,
+      "sha256": "60e879a5baccdcba6052e43c279829f230900362d71bb99cc7b1d990989c83a7",
+      "parts": [
+        "asset02-000.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-5.5.499.1327-fdroid.apk",
+      "size": 102143894,
+      "sha256": "9ab57d5462f0f94240d450aafd8378e872d572217a597521baf995a427e51176",
+      "parts": [
+        "asset03-000.part",
+        "asset03-001.part",
+        "asset03-002.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-5.5.499.1327-fdroid.apk.sha256",
+      "size": 99,
+      "sha256": "e5957ecfebdd7aca2ed0a9dbf33eeb16aa77333e9e63b3a203843eff3ca6ff06",
+      "parts": [
+        "asset04-000.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-5.5.499.1327-regular.apk",
+      "size": 102143894,
+      "sha256": "dae7bdf70281bb44c7f25f1ced629b7d6b09c9aa51beea1f80e074dc56c41ed3",
+      "parts": [
+        "asset05-000.part",
+        "asset05-001.part",
+        "asset05-002.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-5.5.499.1327-regular.apk.sha256",
+      "size": 100,
+      "sha256": "12ad549223852aa01b5a6d93db63da2c8b3e2bddb661c456229562e4b68e4534",
+      "parts": [
+        "asset06-000.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-feature-554991327-2b3b4a87083f2c03d68da28a8ab9c78ecf6658da56c555451737215892c72f34.contract.json",
+      "size": 38694,
+      "sha256": "e58666641ad178943aaedb85ff23022cff6b85180a2a1e49669796aacfde890f",
+      "parts": [
+        "asset07-000.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-feature-554991327-2b3b4a87083f2c03d68da28a8ab9c78ecf6658da56c555451737215892c72f34.t2module",
+      "size": 27208544,
+      "sha256": "0dc7b94b1683154a7e0315647dee5b5b69ea8b990e2e99669ba223529f691b4e",
+      "parts": [
+        "asset08-000.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-feature-554991327-2b3b4a87083f2c03d68da28a8ab9c78ecf6658da56c555451737215892c72f34.t2module.sha256",
+      "size": 167,
+      "sha256": "e3ecafaa60b15b03720291374a04b40b7f84d0b8fbb816ec1f8f17ce54ddd2ed",
+      "parts": [
+        "asset09-000.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-feature-554991327-d084fc40a3b0d0d180f8735d55191fc59c7981c5c52dee1daa697447048d48f5.contract.json",
+      "size": 35607,
+      "sha256": "9711e9129a919e3a74b29b176266972e18cc0a0e82bb7577c66c331dc3045547",
+      "parts": [
+        "asset10-000.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-feature-554991327-d084fc40a3b0d0d180f8735d55191fc59c7981c5c52dee1daa697447048d48f5.t2module",
+      "size": 26164390,
+      "sha256": "8d91fc6753b1ba24ed6cd1ec3bcb077a7221b9bd1371fe79ac9af46c666e8ca3",
+      "parts": [
+        "asset11-000.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-feature-554991327-d084fc40a3b0d0d180f8735d55191fc59c7981c5c52dee1daa697447048d48f5.t2module.sha256",
+      "size": 167,
+      "sha256": "b784f04d20e00d642434953875478bc909da6a9ceaba12bdaefd8bc170a37a97",
+      "parts": [
+        "asset12-000.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-feature-554991327-e01609e2ec4119946b54e274b89a7755e7a8ccc112e37d0758d543961631e12d.contract.json",
+      "size": 35607,
+      "sha256": "7ee2735319b1ebb896342a735febf7ed2336b1a5f9156913b2570a22f17a49f9",
+      "parts": [
+        "asset13-000.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-feature-554991327-e01609e2ec4119946b54e274b89a7755e7a8ccc112e37d0758d543961631e12d.t2module",
+      "size": 26164319,
+      "sha256": "cc5afca9c0ccd8b590759d89b20c45904a8b68899b73c12493f6d15786eb2d48",
+      "parts": [
+        "asset14-000.part"
+      ]
+    },
+    {
+      "name": "T2Rhythm-feature-554991327-e01609e2ec4119946b54e274b89a7755e7a8ccc112e37d0758d543961631e12d.t2module.sha256",
+      "size": 167,
+      "sha256": "5ed6d45c86309fd5d509dcd20e1cb50b107b37c8549293f8ddca8367c611fafb",
+      "parts": [
+        "asset15-000.part"
+      ]
+    }
+  ]
+}
