@@ -38,6 +38,7 @@ for path in (path for directory in source_directories for path in directory.rglo
 
 groups = {
  'native_boot': ['NativeRuntimeBootTest'],
+ 'file_names': ['LearningFileNamesTest'],
  'runtime': ['NativeModuleLoadingTest'],
  'fixes': ['PlaybackContinuityTest','ReleaseNotesUiTest','PlayerRegressionTest','MetadataConsistencyTest','LyricsEntryAndUpdatesTest','LibrarySearchNavigationTest','PopularPlaybackNavigationTest'],
  'metadata': ['MetadataConsistencyTest','ListeningRecapFlowTest','PageArtworkFlowTest','LearningFileNamesTest','LibraryPagesTest','GenreControlsTest','ManualLyricTimingFlowTest','PersonalInsightsScreensTest','ArtworkRefreshTest','LyricsEntryAndUpdatesTest','UsabilityBehaviorTest'],

@@ -12,7 +12,10 @@ if [[ "$runtime_batch" == native_release ]]; then
     exit 0
 fi
 if [[ "$runtime_batch" == native_full || "$runtime_batch" == native_diagnostics || "$runtime_batch" == native_upgrade ]]; then
-    if [[ "$runtime_group" == baseline_newflows ]]; then
+    if [[ "$runtime_group" == baseline_file_names ]]; then
+        python3 scripts/run_preservation_gate.py --group file_names --output "native-results/baseline-file-names-api${runtime_api_level}" \
+            --legacy-apk native-baseline-artifacts/legacy.apk --legacy-test-apk native-baseline-artifacts/legacy-test.apk
+    elif [[ "$runtime_group" == baseline_newflows ]]; then
         python3 scripts/run_preservation_gate.py --group newflows --output "native-results/baseline-newflows-api${runtime_api_level}" \
             --legacy-apk native-baseline-artifacts/legacy.apk --legacy-test-apk native-baseline-artifacts/legacy-test.apk
     elif [[ "$runtime_group" == upgrade_visual ]]; then

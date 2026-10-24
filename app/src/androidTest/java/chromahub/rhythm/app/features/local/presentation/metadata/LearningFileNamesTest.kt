@@ -32,14 +32,13 @@ import java.nio.ByteOrder
 import java.util.*
 import kotlin.math.*
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.StandardTestDispatcher
 import kr.co.metadata.crawler.CatalogFileStore
 import org.junit.Assert.*
 import org.junit.*
 
 class LearningFileNamesTest {
     @OptIn(ExperimentalTestApi::class)
-    @get:Rule val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>(effectContext = StandardTestDispatcher())
+    @get:Rule val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
     private val settings get() = AppSettings.getInstance(context)
     private val token = UUID.randomUUID().toString()
