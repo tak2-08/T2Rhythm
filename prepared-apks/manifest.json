@@ -5,7 +5,7 @@
     {
       "name": "SHA256SUMS",
       "size": 1314,
-      "sha256": "ea02946beb84027c1758e49925673991c647b54e649f2c39a0bd265e56fa5606",
+      "sha256": "d0b69671cc3cb2f11d888b3ca0f42931e9f12275cd67d9eaa928702bc3d0a880",
       "parts": [
         "asset00-000.part"
       ]
@@ -30,7 +30,7 @@
       ]
     },
     {
-      "name": "T2Rhythm-5.5.499.1327-fdroid.apk",
+      "name": "T2Rhythm-5.5.499.1327-fdroid-release.apk",
       "size": 102143894,
       "sha256": "9ab57d5462f0f94240d450aafd8378e872d572217a597521baf995a427e51176",
       "parts": [
@@ -40,15 +40,15 @@
       ]
     },
     {
-      "name": "T2Rhythm-5.5.499.1327-fdroid.apk.sha256",
-      "size": 99,
-      "sha256": "e5957ecfebdd7aca2ed0a9dbf33eeb16aa77333e9e63b3a203843eff3ca6ff06",
+      "name": "T2Rhythm-5.5.499.1327-fdroid-release.apk.sha256",
+      "size": 107,
+      "sha256": "84bc4a2fda4dd519238438634aadf4fdc75f95045e24d9b6ddc4818c38d3e3b4",
       "parts": [
         "asset04-000.part"
       ]
     },
     {
-      "name": "T2Rhythm-5.5.499.1327-regular.apk",
+      "name": "T2Rhythm-5.5.499.1327.apk",
       "size": 102143894,
       "sha256": "dae7bdf70281bb44c7f25f1ced629b7d6b09c9aa51beea1f80e074dc56c41ed3",
       "parts": [
@@ -58,9 +58,9 @@
       ]
     },
     {
-      "name": "T2Rhythm-5.5.499.1327-regular.apk.sha256",
-      "size": 100,
-      "sha256": "12ad549223852aa01b5a6d93db63da2c8b3e2bddb661c456229562e4b68e4534",
+      "name": "T2Rhythm-5.5.499.1327.apk.sha256",
+      "size": 92,
+      "sha256": "00f6443cc2f1d225390131820e32cf5300248ef2a20ff9055688b7f7f4182492",
       "parts": [
         "asset06-000.part"
       ]
