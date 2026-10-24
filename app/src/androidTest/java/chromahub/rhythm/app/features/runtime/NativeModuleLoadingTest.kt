@@ -29,6 +29,7 @@ import chromahub.rhythm.runtime.host.ModuleResourceContext
 import com.google.gson.Gson
 import dalvik.system.DexClassLoader
 import java.io.File
+import java.io.RandomAccessFile
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import java.security.Signature
@@ -241,6 +242,32 @@ class NativeModuleLoadingTest {
         }
         assertEquals(context.packageName, context.packageManager.getPackageArchiveInfo(loaded.readOnlyDex.path, 0)!!.packageName)
         assertNotEquals(loaded.readOnlyDex.path, context.packageManager.getPackageInfo(context.packageName, 0).applicationInfo!!.sourceDir)
+    }
+
+    @Test fun resourceCacheRemovesDeadCopiesAndPreservesLiveProcessLeases() {
+        val cache = File(context.codeCacheDir, "runtime-resources")
+        val dead = File(cache, "${hash(UUID.randomUUID().toString().toByteArray())}/dead-process")
+        val live = File(cache, "${hash(UUID.randomUUID().toString().toByteArray())}/live-process")
+        assertTrue(dead.mkdirs())
+        assertTrue(live.mkdirs())
+        File(dead, "content.apk").writeText("dead assets")
+        File(live, "content.apk").writeText("live assets")
+        try {
+            RandomAccessFile(File(live, ".lease"), "rw").use { handle -> handle.channel.lock().use {
+                val payload = instrumentation.context.assets.open("resource-probe.apk").use { it.readBytes() }
+                val archive = makeArchive(2, payloadBytes = payload, entryPoint = "chromahub.rhythm.module.ResourceProbeEntry")
+                val loaded = loader().loadTrial(activation(archive), archive)
+                val resources = ModuleResourceContext.attach(context, loaded)
+                assertFalse("Dead process resources accumulated", dead.exists())
+                assertEquals("live assets", File(live, "content.apk").readText())
+                instrumentation.runOnMainSync {
+                    assertEquals("New resource from the signed module", (loaded.entry.createView(resources) as android.widget.TextView).text.toString())
+                }
+            } }
+        } finally {
+            dead.parentFile?.deleteRecursively()
+            live.parentFile?.deleteRecursively()
+        }
     }
 
     private data class StoreFixture(

@@ -8,13 +8,13 @@ parser.add_argument('--project', default='.')
 parser.add_argument('--group', required=True)
 parser.add_argument('--output', required=True)
 parser.add_argument('--native-base', action='store_true', help='Run the same behavior tests through the fixed base and child feature loader')
+parser.add_argument('--legacy-apk', type=Path, help='Explicit baseline APK for the pre-migration comparison')
+parser.add_argument('--legacy-test-apk', type=Path)
 args = parser.parse_args()
 root = Path(args.project).resolve()
 out = Path(args.output).resolve(); out.mkdir(parents=True, exist_ok=True)
 pkg = 'chromahub.rhythm.app.debug'
-runner = pkg + '.test/androidx.test.runner.AndroidJUnitRunner'
-if args.native_base:
-    runner = pkg + '.test/androidx.test.runner.NativeModuleJUnitRunner'
+runner = pkg + '.test/androidx.test.runner.' + ('AndroidJUnitRunner' if args.legacy_apk else 'NativeModuleJUnitRunner')
 
 def adb(*values, check=True, timeout=120):
     result = subprocess.run(['adb', *values], text=True, errors='replace', stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
@@ -24,7 +24,6 @@ def adb(*values, check=True, timeout=120):
 
 sources = {}
 source_directories = [root / 'app/src/androidTest/java']
-if args.native_base: source_directories.append(root / 'runtime-app-base/src/androidTest/java')
 for path in (path for directory in source_directories for path in directory.rglob('*.kt')):
     text = path.read_text()
     names = re.findall(r'@Test(?:\([^)]*\))?(?:\s+@Suppress\([^)]*\))?\s+fun\s+(\w+)', text)
@@ -72,9 +71,9 @@ while True:
     assert time.monotonic() < scan_deadline, library
     time.sleep(1)
 print('MediaStore fixture:',library,flush=True)
-if args.native_base:
-    app = root / 'runtime-app-base/build/outputs/apk/debug/runtime-app-base-debug.apk'
-    test_app = root / 'runtime-app-base/build/outputs/apk/androidTest/debug/runtime-app-base-debug-androidTest.apk'
+if args.legacy_apk:
+    assert args.legacy_test_apk, 'A baseline test APK is required'
+    app, test_app = args.legacy_apk, args.legacy_test_apk
 else:
     app = root / 'app/build/outputs/apk/github/debug/Rhythm-5.5.499.1325-githubDebug.apk'
     if not app.exists():

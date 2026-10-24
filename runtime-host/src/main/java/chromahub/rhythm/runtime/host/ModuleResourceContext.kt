@@ -40,7 +40,6 @@ class ModuleResourceContext private constructor(
         private val contexts = java.util.WeakHashMap<ModuleResourceContext, Boolean>()
         private val owners = java.util.WeakHashMap<Context, Long>()
         private var nextOwner = 0L
-        private val process = "${android.os.Process.myPid()}-${java.util.UUID.randomUUID()}"
 
         @Synchronized fun refreshAll() {
             // All wrappers keep the override configuration of their own Android Context.
@@ -58,8 +57,7 @@ class ModuleResourceContext private constructor(
             val owner = owners.getOrPut(base) { ++nextOwner }
             // AssetManager is mutable. A locale/font change in one component must not alter an
             // explicitly configured context that happened to start with the same configuration.
-            val directory = File(base.codeCacheDir,
-                "runtime-resources/${loaded.reference.archiveSha256}/$process/$owner/$configurationId")
+            val directory = File(RuntimeResourceCache.directory(base, loaded.reference.archiveSha256), "$owner/$configurationId")
             check(directory.mkdirs() || directory.isDirectory)
             val alias = File(directory, "content.apk")
             if (!alias.exists()) {

@@ -1,4 +1,23 @@
-# First complete native-music host validation
+# Native music migration validation
+
+## Code-only update lifecycle
+
+Source: `63e8c309b6caea7d68d1e91d73cb57fd434270a5`.
+Run: https://github.com/tak2-08/T2Rhythm/actions/runs/40110653244 — all five Android jobs passed.
+
+Each API 26/29/30/35/37 job verified three actual application checks and six ordered update phases: **45 checks, no skipped assertions**. The API26 permission setup correction is now verified.
+
+The installed base remained at v1 while a genuine independent v2 DEX and new string resource were staged, cancelled, approved during local audio, then activated on a fresh user launch. Its APK installation timestamp stayed unchanged. A correctly signed package with an invalid entry point displayed the fixed recovery screen; a later process recovered the verified v2 with the seeded playlist/settings preserved. Tampered notes were rejected before execution.
+
+Local JVM checks after recovery additions passed **504 assertions** (378 application, 61 crawler, 65 runtime), without failures/errors/skips. The final source relocation preserves the 378 application tests in `runtime-content`.
+
+## Full preservation and final packaging
+
+The full original behavior groups, original-to-base APK upgrade and seven-screen visual comparison are running at https://github.com/tak2-08/T2Rhythm/actions/runs/40111672913. They are **pending** and are not counted as preservation evidence yet. The final `:app` base layout and automatic Gradle production/test packaging require their own final verification before PR/publication.
+
+A source comparison against original `8f0be268f397081a612d08358b6bf9261bebecc7` found 496 byte-identical ordinary Kotlin files, eight targeted integration changes and sixteen Android component files moved behind fixed wrappers. This supports scope review, but does not replace actual device/UI assertions.
+
+## Earlier smoke checkpoint
 
 Source: `26ff4d26b29f5a5e633c6a877996bad552d3444d`.
 Run: https://github.com/tak2-08/T2Rhythm/actions/runs/40107230359

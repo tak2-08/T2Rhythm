@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - 
 
+## [5.5.499.1327] - 2026-10-24
+
+### Added
+- Signed native feature packages loaded by the existing T2Rhythm app, with the complete music feature included for offline startup and recovery.
+- In-app update notes, separate download/application confirmation, activation at a fresh safe launch, and recovery to a verified previous version.
+- Fixed Android entry points and a shared SDK/resource contract preserve installed services, widgets, permissions and application data on Android 8 and later.
+
 ## [5.5.499.1302] - 2026-10-13
 
 ### Fixed

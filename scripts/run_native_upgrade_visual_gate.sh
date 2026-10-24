@@ -2,10 +2,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 set -euo pipefail
 runtime_package=chromahub.rhythm.app.debug
-mkdir -p app/build/outputs/apk/github/debug app/build/outputs/apk/androidTest/github/debug native-results/upgrade
-cp native-baseline-artifacts/legacy.apk app/build/outputs/apk/github/debug/Rhythm-legacy-githubDebug.apk
-cp native-baseline-artifacts/legacy-test.apk app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk
-python3 scripts/run_preservation_gate.py --group visual_baseline --output native-results/visual-baseline
+mkdir -p native-results/upgrade
+python3 scripts/run_preservation_gate.py --group visual_baseline --output native-results/visual-baseline \
+    --legacy-apk native-baseline-artifacts/legacy.apk --legacy-test-apk native-baseline-artifacts/legacy-test.apk
 
 run_upgrade_assertion() {
     local runtime_class="$1"
@@ -24,8 +23,8 @@ adb shell am force-stop "$runtime_package"
 run_upgrade_assertion chromahub.rhythm.app.features.runtime.LegacyUpgradeSeedTest \
     "$runtime_package.test/androidx.test.runner.AndroidJUnitRunner" native-results/upgrade/legacy-seed.txt
 # The same CI-generated Android signer is used by both builds. This is a genuine in-place upgrade.
-adb install -r -t runtime-app-base/build/outputs/apk/debug/runtime-app-base-debug.apk
-adb install -r -t runtime-app-base/build/outputs/apk/androidTest/debug/runtime-app-base-debug-androidTest.apk
+adb install -r -t app/build/outputs/apk/github/debug/Rhythm-5.5.499.1327-githubDebug.apk
+adb install -r -t app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk
 run_upgrade_assertion chromahub.rhythm.app.features.runtime.NativeApkUpgradeTest \
     "$runtime_package.test/androidx.test.runner.NativeModuleJUnitRunner" native-results/upgrade/native-data-preserved.txt
 adb logcat -d > native-results/upgrade/logcat.txt 2>&1 || true

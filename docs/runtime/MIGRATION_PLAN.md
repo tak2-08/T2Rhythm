@@ -1,3 +1,5 @@
+> Historical foundation-stage migration plan. The current module layout and signing instructions are in [NATIVE_APP_PORT.md](NATIVE_APP_PORT.md); current test evidence is in [NATIVE_VALIDATION_20261024.md](NATIVE_VALIDATION_20261024.md). Statements below about not-yet-connected modules describe the earlier checkpoint.
+
 # 기존 앱을 실행기 + 기본/갱신 기능 패키지로 옮기는 순서
 
 2026-10-24. 이 문서는 다음 구현의 경계다. 현재 코드는 검증기·상태 기록·시험 로더·리소스 실험이며, 음악 앱 전체의 전환이나 배포 완료가 아니다.

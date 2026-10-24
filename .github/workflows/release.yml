@@ -25,6 +25,10 @@ jobs:
           distribution: 'zulu'
           cache: gradle
 
+      - name: Prepare native packaging tools
+        uses: ./.github/actions/setup-native-packaging
+        with:
+          production-key: ${{ secrets.RUNTIME_MODULE_SIGNING_KEY }}
       - name: Setup Android-SDK
         uses: android-actions/setup-android@v4
         with:
@@ -48,7 +52,18 @@ jobs:
       - name: Build app (GitHub and F-Droid flavors)
         env:
           APPLE_MUSIC_FALLBACK_TOKEN: ${{ secrets.APPLE_MUSIC_FALLBACK_TOKEN }}
-        run: ./gradlew assembleGithubRelease assembleFdroidRelease -PrequireReleaseSigning=true --stacktrace
+        run: ./gradlew :app:assembleGithubRelease :app:assembleGithubDebug :app:assembleFdroidRelease -PrequireReleaseSigning=true -PruntimeTestOnly=false --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --stacktrace
+
+      - name: Verify original Android signer and export signed feature updates
+        run: >-
+          python3 scripts/export_runtime_release.py
+          --distribution build/runtime-distribution/githubRelease
+          --distribution build/runtime-distribution/githubDebug
+          --distribution build/runtime-distribution/fdroidRelease
+          --apk app/build/outputs/apk/github/release/Rhythm-*-githubRelease.apk
+          --apk app/build/outputs/apk/github/debug/Rhythm-*-githubDebug.apk
+          --apk app/build/outputs/apk/fdroid/release/Rhythm-*-fdroidRelease.apk
+          --apksigner "$ANDROID_HOME/build-tools/37.0.0/apksigner" --out build/runtime-release
 
       - name: Generate checksums
         run: |
@@ -87,6 +102,8 @@ jobs:
           prerelease: ${{ steps.prerelease.outputs.value }}
           body_path: release_notes.md
           files: |
+            build/runtime-release/*
+            app/build/outputs/apk/github/debug/Rhythm-*-githubDebug*.apk
             app/build/outputs/apk/github/release/Rhythm-*-githubRelease*.apk
             app/build/outputs/apk/github/release/Rhythm-*-githubRelease*.apk.sha256
             app/build/outputs/apk/github/release/Rhythm-*-githubRelease*.apk.md5

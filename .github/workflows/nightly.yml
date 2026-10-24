@@ -63,6 +63,10 @@ jobs:
           distribution: 'zulu'
           cache: gradle
 
+      - name: Prepare native packaging tools
+        uses: ./.github/actions/setup-native-packaging
+        with:
+          production-key: ${{ secrets.RUNTIME_MODULE_SIGNING_KEY }}
       - name: Setup Android-SDK
         if: steps.check_version.outputs.should_run == 'true'
         uses: android-actions/setup-android@v4
@@ -210,12 +214,24 @@ jobs:
         env:
           APPLE_MUSIC_FALLBACK_TOKEN: ${{ secrets.APPLE_MUSIC_FALLBACK_TOKEN }}
         run: |
-          ./gradlew assembleGithubRelease assembleFdroidRelease \
+          ./gradlew :app:assembleGithubRelease :app:assembleGithubDebug :app:assembleFdroidRelease -PrequireReleaseSigning=true -PruntimeTestOnly=false \
             -PversionCodeOverride=${{ steps.version_info.outputs.code }} \
             -PversionNameOverride="${{ steps.version_info.outputs.name }}" \
             -PreleaseDateOverride=$(date +%Y-%m-%d) \
             -Pnightly=true \
             --stacktrace
+
+      - name: Export signed native nightly updates
+        if: steps.check_version.outputs.should_run == 'true'
+        run: >-
+          python3 scripts/export_runtime_release.py
+          --distribution build/runtime-distribution/githubRelease
+          --distribution build/runtime-distribution/githubDebug
+          --distribution build/runtime-distribution/fdroidRelease
+          --apk app/build/outputs/apk/github/release/Rhythm-*-githubRelease.apk
+          --apk app/build/outputs/apk/github/debug/Rhythm-*-githubDebug.apk
+          --apk app/build/outputs/apk/fdroid/release/Rhythm-*-fdroidRelease.apk
+          --apksigner "$ANDROID_HOME/build-tools/37.0.0/apksigner" --out build/runtime-release
 
       - name: Upload Nightly APKs
         if: steps.check_version.outputs.should_run == 'true'
@@ -223,6 +239,8 @@ jobs:
         with:
           name: Rhythm-Nightly-Artifacts
           path: |
+            build/runtime-release/*
+            app/build/outputs/apk/github/debug/Rhythm-*-githubDebug*.apk
             app/build/outputs/apk/github/release/Rhythm-*-githubRelease*.apk
             app/build/outputs/apk/fdroid/release/Rhythm-*-fdroidRelease*.apk
           retention-days: 30

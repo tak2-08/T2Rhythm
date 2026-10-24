@@ -73,15 +73,24 @@ def main():
     shared = json.loads(args.shared_contract.read_text())
     if not shared or any(set(item) != {'id', 'sha256'} for item in shared):
         parser.error('Invalid shared SDK contract')
+    package_name = re.search(r"^package: name='([^']+)'", badging, re.M).group(1)
+    channel = 'fdroid' if '-fdroid' in args.version_name else 'github'
     inputs = {'shared': shared, 'hostApi': 1, 'database': list(schema.groups()),
+              'applicationId': package_name, 'distribution': channel,
+              'signingKeyId': hashlib.sha256(public).hexdigest(),
               'kotlin': '2.4.21', 'agp': '9.4.1', 'desugar': '2.1.5', 'resourceIds': digest(root / 'runtime-contract/resource-ids-v1.txt')}
     # The feature's ordinary screen/business source is deliberately absent from this fingerprint.
     # Changing a base ABI or pinned SDK requires a base update; ordinary feature code does not.
     inputs['baseSources'] = {
         str(path.relative_to(root)): digest(path)
-        for module in ('runtime-api', 'runtime-components')
+        for module in ('runtime-api', 'runtime-components', 'runtime-host')
         for path in sorted((root / module / 'src/main').rglob('*')) if path.is_file()
     }
+    inputs['baseSources'].update({
+        str(path.relative_to(root)): digest(path)
+        for path in sorted((root / 'app/src/main/java').rglob('*')) if path.is_file()
+    })
+    inputs['baseSources']['app/src/main/AndroidManifest.xml'] = digest(root / 'app/src/main/AndroidManifest.xml')
     fingerprint = hashlib.sha256(json.dumps(inputs, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     args.out.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='t2-native-package-', dir=args.out) as temporary:

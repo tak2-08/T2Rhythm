@@ -1,397 +1,238 @@
-// SPDX-FileCopyrightText: 2024-2026 Anjishnu Nandi <https://github.com/cromaguy>
 // SPDX-License-Identifier: GPL-3.0-or-later
-
 import java.util.Properties
-import com.android.build.api.variant.FilterConfiguration
-
-val localProperties = Properties().also { props ->
-    val f = rootProject.file("local.properties")
-    if (f.exists()) props.load(f.inputStream())
-}
+import javax.inject.Inject
+import org.gradle.process.ExecOperations
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.ksp)
-    // Note: androidx.baselineprofile plugin is NOT applied here because it is
-    // incompatible with AGP 9.x. AGP 8.3+ includes native baseline profile
-    // support via com.android.application; the baselineProfile() dep below and
-    // the baseline-prof.txt file are sufficient.
-    id("kotlin-parcelize")
-//    alias(libs.plugins.kotlin.serialization)
 }
 
+
+
+val moduleSigningPath = providers.gradleProperty("runtimeSigningKey")
+    .orElse(providers.environmentVariable("RUNTIME_SIGNING_KEY_FILE"))
+val runtimeTestOnly = providers.gradleProperty("runtimeTestOnly").map { it.toBooleanStrict() }
+    .orElse(moduleSigningPath.map { false }.orElse(true))
+val signingProperties = Properties().also { properties ->
+    rootProject.file(".config/keystore.properties").takeIf { it.isFile }?.inputStream()?.use(properties::load)
+}
 android {
     namespace = "chromahub.rhythm.app"
     compileSdk = 37
-
     defaultConfig {
         applicationId = "chromahub.rhythm.app"
         minSdk = 26
         targetSdk = 37
-        
-        val overrideVersionCode = project.findProperty("versionCodeOverride")?.toString()?.toIntOrNull()
-        val overrideVersionName = project.findProperty("versionNameOverride")?.toString()
-        versionCode = overrideVersionCode ?: 554991326
-        versionName = overrideVersionName ?: "5.5.499.1326"
-
-        val overrideReleaseDate = project.findProperty("releaseDateOverride")?.toString()
-        buildConfigField("String", "RELEASE_DATE", "\"${overrideReleaseDate ?: "2026-10-24"}\"")
-
-        val isNightly = project.findProperty("nightly")?.toString() == "true"
-        buildConfigField("boolean", "IS_NIGHTLY", isNightly.toString())
-
-        // Apple Music: fallback token from environment variable (GitHub secrets), local.properties, or fallback
-        val appleMusicToken = System.getenv("APPLE_MUSIC_FALLBACK_TOKEN")
-            ?: localProperties.getProperty("APPLE_MUSIC_FALLBACK_TOKEN")
-            ?: "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IldlYlBsYXlLaWQifQ.eyJpc3MiOiJBTVBXZWJQbGF5IiwiaWF0IjoxNzgxMDMyODU1LCJleHAiOjE3ODQwNTY4NTUsInJvb3RfaHR0cHNfb3JpZ2luIjpbImFwcGxlLmNvbSJdfQ.fiMFcJWkfSlxKP9NVA0UW9CbItD1Rge0SISuepz203XcpU762OqdCpU9M-YkmtKkjRmaIWtjsfGgqZPrlMonpA"
-        buildConfigField("String", "APPLE_MUSIC_FALLBACK_TOKEN", "\"$appleMusicToken\"")
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        val overrideVersionCode = providers.gradleProperty("versionCodeOverride").orNull?.toInt()
+        val overrideVersionName = providers.gradleProperty("versionNameOverride").orNull
+        versionCode = overrideVersionCode ?: 554991327
+        versionName = overrideVersionName ?: "5.5.499.1327"
+        manifestPlaceholders["runtimeTestOnly"] = runtimeTestOnly.get().toString()
+        buildConfigField("long", "RUNTIME_BASE_VERSION", "1L")
+        testInstrumentationRunner = "androidx.test.runner.NativeModuleJUnitRunner"
+        // These methods intentionally span process exits; the lifecycle gate drives them in order.
+        testInstrumentationRunnerArguments["notClass"] = "chromahub.rhythm.app.features.runtime.NativeUpdateLifecycleTest,chromahub.rhythm.app.features.runtime.NativeApkUpgradeTest"
     }
-
-    testOptions {
-        unitTests.isReturnDefaultValues = true
-    }
-
-    // Product flavors for different distribution channels
     flavorDimensions += "distribution"
-    
     productFlavors {
-        create("fdroid") {
-            dimension = "distribution"
-            applicationId = "chromahub.rhythm.app"
-            
-            // F-Droid build: Enable all features (FOSS ethos)
-            buildConfigField("boolean", "ENABLE_YOUTUBE_MUSIC", "true")
-            buildConfigField("boolean", "ENABLE_LYRICALLY_API", "true")
-            buildConfigField("boolean", "ENABLE_DEEZER", "true")
-            buildConfigField("boolean", "ENABLE_LRCLIB", "true")
-            buildConfigField("boolean", "ENABLE_BETTERLYRICS", "true")
-            buildConfigField("boolean", "ENABLE_SPOTIFY_SEARCH", "true")
-            buildConfigField("boolean", "ENABLE_WIKIPEDIA", "true")
-            buildConfigField("String", "FLAVOR", "\"fdroid\"")
-            
-            versionNameSuffix = "-fdroid"
-        }
-        
-        create("github") {
-            dimension = "distribution"
-            applicationId = "chromahub.rhythm.app"
-            
-            // GitHub releases: Enable all features (same as F-Droid)
-            buildConfigField("boolean", "ENABLE_YOUTUBE_MUSIC", "true")
-            buildConfigField("boolean", "ENABLE_LYRICALLY_API", "true")
-            buildConfigField("boolean", "ENABLE_DEEZER", "true")
-            buildConfigField("boolean", "ENABLE_LRCLIB", "true")
-            buildConfigField("boolean", "ENABLE_BETTERLYRICS", "true")
-            buildConfigField("boolean", "ENABLE_SPOTIFY_SEARCH", "true")
-            buildConfigField("boolean", "ENABLE_WIKIPEDIA", "true")
-            buildConfigField("String", "FLAVOR", "\"github\"")
-            
-            versionNameSuffix = "-gh"
-        }
+        create("github") { dimension = "distribution"; versionNameSuffix = "-gh" }
+        create("fdroid") { dimension = "distribution"; versionNameSuffix = "-fdroid" }
     }
-
-    val signingProperties = getProperties(".config/keystore.properties")
-    check(project.findProperty("requireReleaseSigning")?.toString() != "true" || signingProperties != null) {
-        "Release signing configuration is required; refusing to fall back to a different debug key."
+    val apkSigning = if (signingProperties.isNotEmpty()) signingConfigs.create("release") {
+        keyAlias = signingProperties.getProperty("key_alias")
+        keyPassword = signingProperties.getProperty("key_password")
+        storePassword = signingProperties.getProperty("store_password")
+        storeFile = rootProject.file(signingProperties.getProperty("store_file"))
+    } else signingConfigs.getByName("debug")
+    check(!providers.gradleProperty("requireReleaseSigning").map { it == "true" }.getOrElse(false) || signingProperties.isNotEmpty()) {
+        "The original APK signing configuration is required for publication."
     }
-    val releaseSigning = if (signingProperties != null) {
-        signingConfigs.create("release") {
-            keyAlias = signingProperties.property("key_alias")
-            keyPassword = signingProperties.property("key_password")
-            storePassword = signingProperties.property("store_password")
-            storeFile = rootProject.file(signingProperties.property("store_file"))
-        }
-    } else {
-        signingConfigs.getByName("debug")
-    }
-
-    defaultConfig {
-    }
-
     buildTypes {
-        release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-            signingConfig = releaseSigning
-//            ndk {
-//                debugSymbolLevel = "SYMBOL_TABLE"
-//            }
-            // Reproducible builds: disable build timestamp
-            if (System.getenv("CI") == "true" || System.getenv("BUILD_REPRODUCIBLE") == "true") {
-                // Use a fixed timestamp for reproducible builds  
-                tasks.configureEach {
-                    // Disable timestamps in bundle reports for reproducible builds
-                    if (name.contains("BundleReport", ignoreCase = true)) {
-                        enabled = false
-                    }
-                }
-            }
-        }
-        debug {
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
-            //isMinifyEnabled = false
-            //isDebuggable = true
-            signingConfig = releaseSigning
-        }
-        // Required by the macrobenchmark module for baseline profile generation.
-        // Mirrors release (fully minified + signed) so the profile reflects production.
-        create("benchmark") {
-            initWith(buildTypes.getByName("release"))
-            signingConfig = releaseSigning
-            matchingFallbacks += listOf("release")
-            isDebuggable = false
-        }
+        debug { applicationIdSuffix = ".debug"; versionNameSuffix = "-debug"; signingConfig = apkSigning }
+        // The base publishes this complete SDK ABI to independently compiled future features.
+        release { isMinifyEnabled = false; signingConfig = apkSigning }
+        create("benchmark") { initWith(getByName("release")); matchingFallbacks += "release" }
     }
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-            freeCompilerArgs.addAll(
-                "-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
-                "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api"
-            )
-        }
-    }
-    buildFeatures {
-        compose = true
-        buildConfig = true
-    }
-
-    dependenciesInfo {
-        // Disables dependency metadata when building APKs (for IzzyOnDroid/F-Droid)
-        includeInApk = false
-        // Disables dependency metadata when building Android App Bundles
-        includeInBundle = false
-    }
-
-    packaging {
-        resources {
-            merges += "/META-INF/INDEX.LIST"
-            merges += "**/io.netty.versions.properties"
-        }
-    }
-
-    // ABI splits: create smaller per-architecture APKs (reduces size by ~5–10 MB each)
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
-            isUniversalApk = true // also keep a universal APK for IzzyOnDroid/F-Droid
-        }
-    }
-
-    lint {
-        abortOnError = true
-        disable.addAll(
-            listOf(
-                "MissingTranslation",
-                "UnsafeOptInUsageError",
-                "NonObservableLocale",
-                "StateFlowValueCalledInComposition",
-                "LocalContextGetResourceValueCall",
-                "UnusedMaterial3ScaffoldPaddingParameter"
-            )
-        )
-    }
-
-}
-
-abstract class PrepareRuntimeProbeAssets : DefaultTask() {
-    @get:InputFile abstract val dexJar: RegularFileProperty
-    @get:InputFile abstract val resourcesApk: RegularFileProperty
-    @get:OutputDirectory abstract val directory: DirectoryProperty
-
-    @TaskAction fun copyDex() {
-        val output = directory.get().asFile
-        output.mkdirs()
-        dexJar.get().asFile.copyTo(output.resolve("content.dex.jar"), overwrite = true)
-        resourcesApk.get().asFile.copyTo(output.resolve("resource-probe.apk"), overwrite = true)
-    }
-}
-
-val prepareRuntimeProbeAssets = tasks.register<PrepareRuntimeProbeAssets>("prepareRuntimeProbeAssets") {
-    dependsOn(":runtime-probe:dexDebugProbe")
-    dependsOn(":runtime-resource-probe:assembleDebug")
-    dexJar.set(project(":runtime-probe").layout.buildDirectory.file("outputs/runtime-probe/content.dex.jar"))
-    resourcesApk.set(project(":runtime-resource-probe").layout.buildDirectory.file("outputs/apk/debug/runtime-resource-probe-debug.apk"))
-    directory.set(layout.buildDirectory.dir("generated/runtime-probe-assets"))
-}
-
-androidComponents {
-    onVariants { variant ->
-        // Test APK only: external DEX is an asset, never linked into the application.
-        variant.androidTest?.sources?.assets?.addGeneratedSourceDirectory(
-            prepareRuntimeProbeAssets, PrepareRuntimeProbeAssets::directory
-        )
-        variant.outputs.forEach { output ->
-            val abiSuffix = output.filters
-                .find { it.filterType == FilterConfiguration.FilterType.ABI }
-                ?.identifier
-                ?.let { "-$it" }
-                ?: ""
-
-            output.outputFileName.set(
-                "Rhythm-${android.defaultConfig.versionName}-${variant.name}${abiSuffix}.apk"
-            )
-        }
+    buildFeatures { buildConfig = true; compose = true }
+    kotlin.compilerOptions.freeCompilerArgs.addAll(
+        "-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
+        "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api"
+    )
+    packaging.resources {
+        merges += "/META-INF/INDEX.LIST"
+        merges += "**/io.netty.versions.properties"
     }
 }
 
 dependencies {
-    implementation(project(":runtime-api"))
-    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
-    implementation("com.google.zxing:core:3.5.3")
-    implementation(project(":crawler"))
-    implementation("com.alphacephei:vosk-android:0.3.75")
-    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5") {
-        // Extractor uses Rhino's Android interpreter directly, never the desktop JSR-223 bridge.
-        exclude(group = "org.mozilla", module = "rhino-engine")
-    }
-    implementation("androidx.webkit:webkit:1.12.1")
-    implementation(libs.androidx.compose.ui.unit)
-    // Desugaring library
+    implementation(project(":runtime-components"))
+    implementation(project(":runtime-host"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
-
-    // Core Android dependencies
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.core.splashscreen)
-    implementation(libs.androidx.core)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.appcompat)
-    
-    // Compose dependencies
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.ui.tooling.preview)
-    
-    // Material 3 dependencies
-    implementation(libs.androidx.material3.android)
-    implementation(libs.androidx.material3.window.size)
-    implementation(libs.androidx.window)
-    implementation(libs.com.google.android.material)
-
-    // Media3 dependencies
-    implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.androidx.media3.exoplayer.dash)
-    implementation(libs.androidx.media3.exoplayer.hls)
-    implementation(libs.androidx.media3.ui)
-    implementation(libs.androidx.media3.session)
-    implementation(libs.androidx.media3.datasource.okhttp)
-    implementation(libs.androidx.media3.exoplayer.midi)
-    implementation(libs.org.jellyfin.media3.ffmpeg.decoder)
-    
-    // Icons - Material Symbols variable font (res/font/material_symbols_outlined.ttf)
-    // Replaces the deprecated material-icons-extended library for faster build times
-    implementation(libs.androidx.palette.ktx)
-    
-    // Glance for modern widgets
-    implementation(libs.androidx.glance.appwidget)
-    implementation(libs.androidx.glance.material3)
-    
-    // Physics-based animations
-    implementation(libs.androidx.compose.animation)
-    //noinspection GradleDependency
-    implementation(libs.androidx.compose.animation.graphics)
-    implementation(libs.androidx.compose.animation.core)
-    implementation(libs.reorderables)
-    
-    // Navigation
-    implementation(libs.androidx.navigation.compose)
-    
-    // Permissions
-    implementation(libs.com.google.accompanist.accompanist.permissions)
-    
-    // Fragment
-    implementation(libs.androidx.fragment.ktx)
-    
-    // MediaRouter for Android media output switching
-    implementation(libs.androidx.mediarouter)
-    
-    // Coil for image loading
-    implementation(libs.io.coil.kt.coil.compose)
-    
-    // Audio metadata editing
-    implementation(libs.net.jthink.jaudiotagger)
-    implementation(libs.taglib)
-    
-    // Network
-    implementation(libs.com.squareup.retrofit2.retrofit)
-    implementation(libs.com.squareup.retrofit2.converter.gson)
-    implementation(libs.com.squareup.okhttp3.okhttp)
-    implementation(libs.com.squareup.okhttp3.logging.interceptor)
-    implementation("org.nanohttpd:nanohttpd:2.3.1")
-    implementation(libs.com.google.code.gson.gson)
-//    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-//    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
-
-    // Coroutines for async operations
-    implementation(libs.org.jetbrains.kotlinx.coroutines.core)
-    implementation(libs.org.jetbrains.kotlinx.coroutines.android)
-    implementation(libs.androidx.foundation.layout)
-    
-    // WorkManager for background tasks
-    implementation(libs.androidx.work.runtime.ktx)
-    
-    // Room database
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    implementation(libs.androidx.room.paging)
-    ksp(libs.androidx.room.compiler)
-
-    // Jetpack Paging 3
-    implementation(libs.androidx.paging.runtime.ktx)
-    implementation(libs.androidx.paging.compose)
-
-    // Baseline Profile – installer ensures the .prof asset is loaded into ART on first launch.
-    // AGP 9.x natively picks up app/src/main/baseline-prof/baseline-prof.txt without any
-    // additional plugin wiring; the baselineProfile() configuration is not available without
-    // the standalone plugin (which is AGP 8.x only).
-    implementation(libs.androidx.profileinstaller)
-
-    // Testing
-    testImplementation(libs.junit)
-    testImplementation(libs.com.squareup.okhttp3.mockwebserver3)
-    // Real org.json for JVM tests; android.jar only has stubs.
-    testImplementation(libs.org.json)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
-    androidTestImplementation(project(":runtime-host"))
-    debugImplementation(libs.androidx.ui.tooling)
-    debugImplementation(libs.androidx.ui.test.manifest)
-    
-    // LeakCanary for memory leak detection (debug builds only)
-    debugImplementation(libs.com.squareup.leakcanary.leakcanary.android)
+    androidTestCompileOnly(project(":crawler"))
+    androidTestCompileOnly("org.nanohttpd:nanohttpd:2.3.1")
 }
 
-composeCompiler {
-    includeComposeMappingFile.set(false)
-}
-
-fun getProperties(fileName: String): Properties? {
-    val file = rootProject.file(fileName)
-    return if (file.exists()) {
-        Properties().also { properties ->
-            file.inputStream().use { properties.load(it) }
+/** Signing keys are execution inputs only and never enter Gradle's build cache. */
+@org.gradle.work.DisableCachingByDefault(because = "Produces signed bundles with private, external trust material")
+abstract class PrepareSignedRuntimeDistribution @Inject constructor(private val execOperations: ExecOperations) : DefaultTask() {
+    @get:InputDirectory @get:PathSensitive(PathSensitivity.RELATIVE) abstract val featureApks: DirectoryProperty
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val featureDex: RegularFileProperty
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val sharedContract: RegularFileProperty
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val databaseImplementation: RegularFileProperty
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val aapt2: RegularFileProperty
+    @get:InputFiles @get:PathSensitive(PathSensitivity.RELATIVE) abstract val packagingSources: ConfigurableFileCollection
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val notes: RegularFileProperty
+    @get:Input abstract val versionCode: Property<Int>
+    @get:Input abstract val versionName: Property<String>
+    @get:Input abstract val testOnly: Property<Boolean>
+    @get:Internal abstract val privateKey: RegularFileProperty
+    @get:Internal abstract val repository: DirectoryProperty
+    @get:OutputDirectory abstract val distribution: DirectoryProperty
+    @TaskAction fun prepare() {
+        val root = repository.get().asFile
+        val key = privateKey.get().asFile
+        if (testOnly.get() && !key.exists()) execOperations.exec {
+            commandLine("python3", root.resolve("scripts/ensure_runtime_integration_key.py"), key)
         }
-    } else null
+        check(key.isFile) { "Set runtimeSigningKey to the external PKCS#8 module signing key." }
+        val apk = featureApks.get().asFile.listFiles()!!.single { it.extension == "apk" }
+        val arguments = mutableListOf("python3", root.resolve("scripts/prepare_runtime_distribution.py").path,
+            "--apk", apk.path, "--aapt2", aapt2.get().asFile.path, "--dex", featureDex.get().asFile.path,
+            "--shared-contract", sharedContract.get().asFile.path, "--database-implementation", databaseImplementation.get().asFile.path,
+            "--private-key", key.path, "--notes", notes.get().asFile.path, "--version-code", versionCode.get().toString(),
+            "--version-name", versionName.get(), "--out", distribution.get().asFile.path)
+        if (testOnly.get()) arguments.add("--test-only")
+        execOperations.exec { commandLine(arguments) }
+    }
 }
 
-fun Properties.property(key: String) =
-    this.getProperty(key) ?: "$key missing"
+@CacheableTask
+abstract class PrepareEmbeddedFeature : DefaultTask() {
+    @get:InputDirectory @get:PathSensitive(PathSensitivity.RELATIVE) abstract val distribution: DirectoryProperty
+    @get:Input abstract val testOnly: Property<Boolean>
+    @get:Input abstract val hasOriginalApkSigner: Property<Boolean>
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val productionPublicKey: RegularFileProperty
+    @get:OutputDirectory abstract val assetsDirectory: DirectoryProperty
+    @TaskAction fun copy() {
+        check(testOnly.get() || hasOriginalApkSigner.get()) { "A publishable base APK requires the original Android signer." }
+        val input = distribution.get().asFile
+        check(testOnly.get() || input.resolve("module-public.der").readBytes().contentEquals(productionPublicKey.get().asFile.readBytes())) {
+            "A publishable base requires the pinned production signing key. Test trust requires runtimeTestOnly=true."
+        }
+        val output = assetsDirectory.get().asFile.resolve("runtime").also { it.mkdirs() }
+        listOf("default.t2module", "module-public.der", "host.properties").forEach { name ->
+            input.resolve(name).copyTo(output.resolve(name), overwrite = true)
+        }
+    }
+}
+androidComponents.onVariants { variant ->
+    val capitalized = variant.name.replaceFirstChar(Char::uppercase)
+    val featureVariant = if (variant.buildType == "benchmark") variant.name.replace("Benchmark", "Release") else variant.name
+    val featureCapitalized = featureVariant.replaceFirstChar(Char::uppercase)
+    val external = providers.gradleProperty("runtimeDistributionDir")
+    val selectedDistribution = if (external.isPresent) layout.dir(external.map { file(it) }) else {
+        val prepare = tasks.register<PrepareSignedRuntimeDistribution>("prepare${capitalized}RuntimeDistribution") {
+            outputs.upToDateWhen { false } // A private signing key may be rotated outside tracked build inputs.
+            dependsOn(":runtime-content:assemble$featureCapitalized", ":runtime-content:dex${featureCapitalized}Feature", ":runtime-content:export${featureCapitalized}SharedContract")
+            repository.set(rootProject.layout.projectDirectory)
+            featureApks.set(rootProject.layout.projectDirectory.dir("runtime-content/build/outputs/apk/${variant.flavorName}/${if (variant.buildType == "benchmark") "release" else variant.buildType}"))
+            featureDex.set(rootProject.layout.projectDirectory.file("runtime-content/build/outputs/runtime-feature/$featureVariant/content.dex.jar"))
+            sharedContract.set(rootProject.layout.projectDirectory.file("runtime-content/build/outputs/runtime-feature/$featureVariant/shared-contract.json"))
+            databaseImplementation.set(rootProject.layout.projectDirectory.file("runtime-content/build/generated/ksp/$featureVariant/kotlin/chromahub/rhythm/app/features/local/data/database/RhythmDatabase_Impl.kt"))
+            aapt2.set(androidComponents.sdkComponents.sdkDirectory.map { it.file("build-tools/37.0.0/aapt2") })
+            packagingSources.from(rootProject.fileTree("scripts") { include("prepare_runtime_distribution.py", "export_runtime_resource_ids.py", "ensure_runtime_integration_key.py") },
+                rootProject.fileTree("runtime-contract"), rootProject.fileTree("runtime-api/src/main"), rootProject.fileTree("runtime-components/src/main"),
+                rootProject.fileTree("runtime-host/src/main"), rootProject.fileTree("app/src/main/java"), rootProject.file("app/src/main/AndroidManifest.xml"))
+            notes.set(rootProject.layout.projectDirectory.file("app/src/main/res/raw/current_release_notes.txt"))
+            versionCode.set(variant.outputs.single().versionCode)
+            versionName.set(variant.outputs.single().versionName)
+            testOnly.set(runtimeTestOnly)
+            privateKey.set(layout.file(moduleSigningPath.orElse(rootProject.layout.buildDirectory.file("runtime-signing/integration.pk8").map { it.asFile.path }).map { file(it) }))
+            distribution.set(rootProject.layout.buildDirectory.dir("runtime-distribution/${variant.name}"))
+        }
+        prepare.flatMap { it.distribution }
+    }
+    val embedded = tasks.register<PrepareEmbeddedFeature>("prepare${capitalized}EmbeddedFeature") {
+        distribution.set(selectedDistribution)
+        testOnly.set(runtimeTestOnly)
+        hasOriginalApkSigner.set(signingProperties.isNotEmpty())
+        productionPublicKey.set(rootProject.layout.projectDirectory.file("runtime-contract/module-public.der"))
+        assetsDirectory.set(layout.buildDirectory.dir("generated/runtime-assets/${variant.name}"))
+    }
+    variant.sources.assets?.addGeneratedSourceDirectory(embedded, PrepareEmbeddedFeature::assetsDirectory)
+    variant.outputs.forEach { it.outputFileName.set("Rhythm-${android.defaultConfig.versionName}-${variant.name}.apk") }
+    variant.androidTest?.let { test ->
+        val featureCompile = configurations.create("native${capitalized}TestCompileOnly") {
+            isCanBeConsumed = false
+            isCanBeResolved = false
+        }
+        dependencies.add(featureCompile.name, dependencies.project(mapOf("path" to ":runtime-content", "configuration" to "runtime${featureCapitalized}FeatureClasses")))
+        test.compileConfiguration.extendsFrom(featureCompile)
+        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
+            if (name == "compile${test.name.replaceFirstChar(Char::uppercase)}Kotlin") {
+                compilerOptions.freeCompilerArgs.add("-Xfriend-paths=${rootProject.file("runtime-content/build/outputs/runtime-feature/$featureVariant/feature-classes.jar").path}")
+            }
+        }
+    }
+}
+
+abstract class PrepareNativeTestAssets : DefaultTask() {
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val dexJar: RegularFileProperty
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val resourcesApk: RegularFileProperty
+    @get:Optional @get:InputDirectory @get:PathSensitive(PathSensitivity.RELATIVE) abstract val lifecycleFixtures: DirectoryProperty
+    @get:OutputDirectory abstract val assetsDirectory: DirectoryProperty
+    @TaskAction fun copy() {
+        val output = assetsDirectory.get().asFile.also { it.deleteRecursively(); it.mkdirs() }
+        dexJar.get().asFile.copyTo(output.resolve("content.dex.jar"), overwrite = true)
+        resourcesApk.get().asFile.copyTo(output.resolve("resource-probe.apk"), overwrite = true)
+        lifecycleFixtures.orNull?.asFile?.let { directory ->
+            listOf("next.t2module", "bad-startup.t2module").forEach { name ->
+                directory.resolve(name).copyTo(output.resolve(name), overwrite = true)
+            }
+        }
+    }
+}
+val prepareNativeTestAssets = tasks.register<PrepareNativeTestAssets>("prepareNativeTestAssets") {
+    dependsOn(":runtime-probe:dexDebugProbe", ":runtime-resource-probe:assembleDebug")
+    dexJar.set(rootProject.layout.projectDirectory.file("runtime-probe/build/outputs/runtime-probe/content.dex.jar"))
+    resourcesApk.set(rootProject.layout.projectDirectory.file("runtime-resource-probe/build/outputs/apk/debug/runtime-resource-probe-debug.apk"))
+    providers.gradleProperty("runtimeLifecycleFixturesDir").orNull?.let { lifecycleFixtures.set(file(it)) }
+    assetsDirectory.set(layout.buildDirectory.dir("generated/runtime-test-assets"))
+}
+androidComponents.onVariants { variant ->
+    variant.androidTest?.sources?.assets?.addGeneratedSourceDirectory(prepareNativeTestAssets, PrepareNativeTestAssets::assetsDirectory)
+}
+
+// Keep the native base and feature resource contracts identical.
+@CacheableTask
+abstract class PrepareRuntimeStableIds : DefaultTask() {
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val contract: RegularFileProperty
+    @get:Input abstract val packageName: Property<String>
+    @get:OutputFile abstract val idsFile: RegularFileProperty
+    @TaskAction fun prepare() {
+        idsFile.get().asFile.apply {
+            parentFile.mkdirs()
+            writeText(contract.get().asFile.readText().replace("chromahub.rhythm.app:", "${packageName.get()}:"))
+        }
+    }
+}
+androidComponents.onVariants { variant ->
+    val prepare = tasks.register<PrepareRuntimeStableIds>("prepare${variant.name.replaceFirstChar(Char::uppercase)}RuntimeStableIds") {
+        contract.set(rootProject.layout.projectDirectory.file("runtime-contract/resource-ids-v1.txt"))
+        packageName.set(variant.applicationId)
+        idsFile.set(layout.buildDirectory.file("generated/runtime-resource-ids/${variant.name}.txt"))
+    }
+    variant.androidResources.aaptAdditionalParameters.addAll(prepare.flatMap { it.idsFile }.map {
+        listOf("--stable-ids", it.asFile.path)
+    })
+}

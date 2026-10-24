@@ -14,5 +14,6 @@ if [[ "$runtime_batch" == native_full ]]; then
 fi
 python3 scripts/run_preservation_gate.py --native-base --group native_boot --output "native-results/api${runtime_api_level}"
 if [[ "$runtime_batch" == native_update ]]; then
+    python3 scripts/run_preservation_gate.py --native-base --group runtime --output "native-results/runtime-api${runtime_api_level}"
     python3 scripts/run_native_update_lifecycle.py --output "native-results/lifecycle-api${runtime_api_level}"
 fi

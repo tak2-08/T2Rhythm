@@ -31,8 +31,11 @@ class NativeRuntimeBootstrap(private val application: Application, private val a
     private val publicKey = KeyFactory.getInstance("RSA").generatePublic(X509EncodedKeySpec(
         androidContext.assets.open("runtime/module-public.der").use { it.readBytes() }))
     private val verifier = RuntimePackageVerifier(listOf(publicKey))
+    private val runtimeFingerprint = java.util.Properties().also { properties ->
+        androidContext.assets.open("runtime/host.properties").use(properties::load)
+    }.getProperty("runtimeFingerprint").also { require(it.matches(Regex("[0-9a-f]{64}"))) }
     val environment = HostEnvironment("t2rhythm.main", BuildConfig.RUNTIME_BASE_VERSION, 1,
-        BuildConfig.RUNTIME_FINGERPRINT, Build.VERSION.SDK_INT, databaseSchema())
+        runtimeFingerprint, Build.VERSION.SDK_INT, databaseSchema())
     private val initial: VerifiedModule by lazy { installEmbedded() }
     private val store: ModuleStateStore by lazy {
         ModuleStateStore(androidContext, File(root, "activation"), initial) { hash ->

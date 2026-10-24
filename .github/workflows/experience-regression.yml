@@ -53,6 +53,9 @@ jobs:
           java-version: 17
           distribution: zulu
           cache: gradle
+      - name: Prepare native packaging tools
+        uses: ./.github/actions/setup-native-packaging
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
@@ -107,6 +110,9 @@ jobs:
           java-version: 17
           distribution: zulu
           cache: gradle
+      - name: Prepare native packaging tools
+        uses: ./.github/actions/setup-native-packaging
+
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
@@ -181,9 +187,12 @@ jobs:
           java-version: 17
           distribution: zulu
           cache: gradle
+      - name: Prepare native packaging tools
+        uses: ./.github/actions/setup-native-packaging
+
       - name: Verify unit regressions and translations
         run: |
-          ./gradlew :runtime-core:test :crawler:test :app:testGithubDebugUnitTest --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx4g -Pkotlin.compiler.execution.strategy=in-process --console=plain
+          ./gradlew :runtime-core:test :crawler:test :runtime-content:testGithubDebugUnitTest --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx4g -Pkotlin.compiler.execution.strategy=in-process --console=plain
           python3 scripts/check_plural_specifiers.py
           git diff --check
       - name: Verify native lint
@@ -193,7 +202,7 @@ jobs:
         with:
           name: preservation-unit-lint
           path: |
-            app/build/test-results/
+            runtime-content/build/test-results/
             crawler/build/test-results/
             runtime-core/build/test-results/
             app/build/reports/lint-results*
@@ -214,6 +223,9 @@ jobs:
           java-version: 17
           distribution: zulu
           cache: gradle
+      - name: Prepare native packaging tools
+        uses: ./.github/actions/setup-native-packaging
+
       - uses: actions/checkout@v7
         if: inputs.preservation_batch == 'native_full'
         with:
@@ -249,76 +261,56 @@ jobs:
           with os.fdopen(fd, 'wb') as stream:
               stream.write(key.private_bytes(serialization.Encoding.DER, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
           PYKEY
-      - name: Build independently compiled music feature and original test compile input
+      - name: Build the actual base app with independently signed offline music and its original tests
         run: >-
-          ./gradlew :runtime-content:dexDebugFeature :runtime-content:assembleDebug
-          :runtime-content:exportDebugSharedContract :runtime-app-base:compileDebugAndroidTestKotlin
-          :runtime-app-base:compileDebugAndroidTestJavaWithJavac
-          --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g
-          -Pkotlin.compiler.execution.strategy=in-process -PversionCodeOverride=554991327
-          -PversionNameOverride=5.5.499.1327 --console=plain
-      - name: Verify resource and database contracts and sign the test-only feature
-        run: >-
-          python3 scripts/prepare_runtime_distribution.py
-          --apk runtime-content/build/outputs/apk/debug/runtime-content-debug.apk
-          --aapt2 "$ANDROID_HOME/build-tools/37.0.0/aapt2"
-          --dex runtime-content/build/outputs/runtime-feature/debug/content.dex.jar
-          --shared-contract runtime-content/build/outputs/runtime-feature/debug/shared-contract.json
-          --database-implementation runtime-content/build/generated/ksp/debug/kotlin/chromahub/rhythm/app/features/local/data/database/RhythmDatabase_Impl.kt
-          --private-key "$RUNNER_TEMP/native-integration.pk8"
-          --notes app/src/main/res/raw/current_release_notes.txt
-          --version-code 554991327 --version-name 5.5.499.1327-gh-debug
-          --out "$RUNNER_TEMP/native-distribution" --test-only
-      - name: Build fixed base APK with embedded offline music and separate test APK
-        run: >-
-          ./gradlew :runtime-app-base:assembleDebug :runtime-app-base:assembleDebugAndroidTest
-          "-PruntimeDistributionDir=$RUNNER_TEMP/native-distribution" -PruntimeTestOnly=true
+          ./gradlew :app:assembleGithubDebug :app:assembleGithubDebugAndroidTest
+          "-PruntimeSigningKey=$RUNNER_TEMP/native-integration.pk8" -PruntimeTestOnly=true
           -PversionCodeOverride=554991327 -PversionNameOverride=5.5.499.1327
           --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g
           -Pkotlin.compiler.execution.strategy=in-process --console=plain
       - name: Compile a real next feature with a new resource and build test-only failure fixtures
         if: inputs.preservation_batch == 'native_update'
         run: |
-          cp runtime-app-base/build/outputs/apk/debug/runtime-app-base-debug.apk "$RUNNER_TEMP/native-base-v1.apk"
+          cp app/build/outputs/apk/github/debug/Rhythm-5.5.499.1327-githubDebug.apk "$RUNNER_TEMP/native-base-v1.apk"
           mkdir -p runtime-content/src/main/res/values
           cat > runtime-content/src/main/res/values/native_update_fixture.xml <<'XML'
           <resources><string name="runtime_update_fixture" translatable="false">New resource from independent feature v2</string></resources>
           XML
-          ./gradlew :runtime-content:dexDebugFeature :runtime-content:assembleDebug :runtime-content:exportDebugSharedContract \
+          ./gradlew :runtime-content:dexGithubDebugFeature :runtime-content:assembleGithubDebug :runtime-content:exportGithubDebugSharedContract \
             --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process \
             -PversionCodeOverride=554991328 -PversionNameOverride=5.5.499.1328 --console=plain
           python3 scripts/prepare_runtime_distribution.py \
-            --apk runtime-content/build/outputs/apk/debug/runtime-content-debug.apk \
+            --apk runtime-content/build/outputs/apk/github/debug/runtime-content-github-debug.apk \
             --aapt2 "$ANDROID_HOME/build-tools/37.0.0/aapt2" \
-            --dex runtime-content/build/outputs/runtime-feature/debug/content.dex.jar \
-            --shared-contract runtime-content/build/outputs/runtime-feature/debug/shared-contract.json \
-            --database-implementation runtime-content/build/generated/ksp/debug/kotlin/chromahub/rhythm/app/features/local/data/database/RhythmDatabase_Impl.kt \
+            --dex runtime-content/build/outputs/runtime-feature/githubDebug/content.dex.jar \
+            --shared-contract runtime-content/build/outputs/runtime-feature/githubDebug/shared-contract.json \
+            --database-implementation runtime-content/build/generated/ksp/githubDebug/kotlin/chromahub/rhythm/app/features/local/data/database/RhythmDatabase_Impl.kt \
             --private-key "$RUNNER_TEMP/native-integration.pk8" --notes app/src/main/res/raw/current_release_notes.txt \
             --version-code 554991328 --version-name 5.5.499.1328-gh-debug --out "$RUNNER_TEMP/native-next" --test-only
           python3 - <<'PYCONTRACT'
           import json, os
           from pathlib import Path
           root = Path(os.environ['RUNNER_TEMP'])
-          before = json.loads((root / 'native-distribution/distribution.json').read_text())
+          before = json.loads((Path('build/runtime-distribution/githubDebug/distribution.json')).read_text())
           after = json.loads((root / 'native-next/distribution.json').read_text())
           assert before['manifest']['runtimeFingerprint'] == after['manifest']['runtimeFingerprint'], 'The next feature changed the fixed SDK'
           PYCONTRACT
           python3 scripts/build_native_lifecycle_fixtures.py --next-distribution "$RUNNER_TEMP/native-next" \
             --private-key "$RUNNER_TEMP/native-integration.pk8" --out "$RUNNER_TEMP/native-lifecycle-fixtures"
-          ./gradlew :runtime-app-base:assembleDebugAndroidTest \
-            "-PruntimeDistributionDir=$RUNNER_TEMP/native-distribution" "-PruntimeLifecycleFixturesDir=$RUNNER_TEMP/native-lifecycle-fixtures" \
+          ./gradlew :app:assembleGithubDebugAndroidTest \
+            "-PruntimeDistributionDir=$GITHUB_WORKSPACE/build/runtime-distribution/githubDebug" "-PruntimeLifecycleFixturesDir=$RUNNER_TEMP/native-lifecycle-fixtures" \
             -PruntimeTestOnly=true -PversionCodeOverride=554991327 -PversionNameOverride=5.5.499.1327 \
             --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --console=plain
-          cp "$RUNNER_TEMP/native-base-v1.apk" runtime-app-base/build/outputs/apk/debug/runtime-app-base-debug.apk
+          cp "$RUNNER_TEMP/native-base-v1.apk" app/build/outputs/apk/github/debug/Rhythm-5.5.499.1327-githubDebug.apk
       - name: Audit class ownership and Android 8 desugared methods
         run: >-
           python3 scripts/audit_runtime_classpath.py
-          --base runtime-app-base/build/outputs/apk/debug/runtime-app-base-debug.apk
-          --feature-dex runtime-content/build/outputs/runtime-feature/debug/content.dex.jar
-          --out runtime-app-base/build/reports/native-classpath.json
+          --base app/build/outputs/apk/github/debug/Rhythm-5.5.499.1327-githubDebug.apk
+          --feature-dex runtime-content/build/outputs/runtime-feature/githubDebug/content.dex.jar
+          --out app/build/reports/native-classpath.json
       - name: Verify unit regressions
         run: >-
-          ./gradlew :runtime-core:test :crawler:test :app:testGithubDebugUnitTest
+          ./gradlew :runtime-core:test :crawler:test :runtime-content:testGithubDebugUnitTest
           --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g
           -Pkotlin.compiler.execution.strategy=in-process --console=plain
       - uses: actions/upload-artifact@v7
@@ -327,11 +319,12 @@ jobs:
           name: native-app-build
           path: |
             native-baseline-artifacts/*.apk
-            runtime-app-base/build/outputs/apk/debug/*.apk
-            runtime-app-base/build/outputs/apk/androidTest/debug/*.apk
-            runtime-content/build/outputs/runtime-feature/debug/shared-contract.json
-            runtime-app-base/build/reports/
-            app/build/test-results/
+            app/build/outputs/apk/github/debug/*.apk
+            app/build/outputs/apk/androidTest/github/debug/*.apk
+            runtime-content/build/outputs/runtime-feature/githubDebug/shared-contract.json
+            app/build/reports/
+            build/runtime-distribution/githubDebug/*.json
+            runtime-content/build/test-results/
             crawler/build/test-results/
             runtime-core/build/test-results/
           retention-days: 14

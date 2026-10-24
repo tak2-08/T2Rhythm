@@ -24,8 +24,8 @@ android {
         targetSdk = 37
         val overrideVersionCode = project.findProperty("versionCodeOverride")?.toString()?.toIntOrNull()
         val overrideVersionName = project.findProperty("versionNameOverride")?.toString()
-        versionCode = overrideVersionCode ?: 554991326
-        versionName = overrideVersionName ?: "5.5.499.1326"
+        versionCode = overrideVersionCode ?: 554991327
+        versionName = overrideVersionName ?: "5.5.499.1327"
 
         val overrideReleaseDate = project.findProperty("releaseDateOverride")?.toString()
         buildConfigField("String", "RELEASE_DATE", "\"${overrideReleaseDate ?: "2026-10-24"}\"")
@@ -43,12 +43,15 @@ android {
             "ENABLE_BETTERLYRICS", "ENABLE_SPOTIFY_SEARCH", "ENABLE_WIKIPEDIA").forEach {
             buildConfigField("boolean", it, "true")
         }
-        buildConfigField("String", "FLAVOR", "\"github\"")
+    }
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("github") { dimension = "distribution"; versionNameSuffix = "-gh" }
+        create("fdroid") { dimension = "distribution"; versionNameSuffix = "-fdroid" }
     }
     buildTypes {
-        debug { applicationIdSuffix = ".debug"; versionNameSuffix = "-gh-debug" }
+        debug { applicationIdSuffix = ".debug"; versionNameSuffix = "-debug" }
         release {
-            versionNameSuffix = "-gh"
             // Shared classes must retain their published ABI; independent shrinking is gated later.
             isMinifyEnabled = false
             isShrinkResources = false
@@ -57,10 +60,7 @@ android {
     sourceSets {
         getByName("main") {
             res.directories.add(rootProject.file("app/src/main/res").path)
-            assets.directories.add(rootProject.file("app/src/main/assets").path)
         }
-        getByName("debug").java.directories.add(rootProject.file("app/src/debug/java").path)
-        getByName("debug").kotlin.directories.add(rootProject.file("app/src/debug/java").path)
         getByName("debug").res.directories.add(rootProject.file("app/src/debug/res").path)
     }
     compileOptions {
@@ -73,6 +73,7 @@ android {
         freeCompilerArgs.addAll("-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi", "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api")
     }
     buildFeatures { compose = true; buildConfig = true }
+    testOptions.unitTests.isReturnDefaultValues = true
     packaging.resources {
         merges += "/META-INF/INDEX.LIST"
         merges += "**/io.netty.versions.properties"
@@ -87,41 +88,13 @@ dependencies {
     implementation(libs.net.jthink.jaudiotagger)
     implementation("org.nanohttpd:nanohttpd:2.3.1")
     ksp(libs.androidx.room.compiler)
+    testImplementation(libs.junit)
+    testImplementation(libs.com.squareup.okhttp3.mockwebserver3)
+    testImplementation(libs.org.json)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 }
 composeCompiler { includeComposeMappingFile.set(false) }
 
-
-/** Copy unaffected legacy sources verbatim; component ports live under this module's src/. */
-@CacheableTask
-abstract class PrepareLegacyFeatureSources : DefaultTask() {
-    @get:InputDirectory @get:PathSensitive(PathSensitivity.RELATIVE)
-    abstract val originals: DirectoryProperty
-    @get:Input abstract val excluded: ListProperty<String>
-    @get:OutputDirectory abstract val outputDirectory: DirectoryProperty
-    @TaskAction fun copySources() {
-        val root = originals.get().asFile
-        val output = outputDirectory.get().asFile
-        output.deleteRecursively()
-        val exclusions = excluded.get().toSet()
-        root.walkTopDown().filter { it.isFile }.forEach { original ->
-            val relative = original.relativeTo(root).invariantSeparatorsPath
-            if (relative !in exclusions) {
-                val target = output.resolve(relative)
-                target.parentFile.mkdirs()
-                original.copyTo(target)
-            }
-        }
-    }
-}
-val prepareLegacyFeatureSources = tasks.register<PrepareLegacyFeatureSources>("prepareLegacyFeatureSources") {
-    originals.set(rootProject.layout.projectDirectory.dir("app/src/main/java"))
-    excluded.set(providers.fileContents(layout.projectDirectory.file("component-source-excludes.txt")).asText.map { it.lineSequence().filter(String::isNotBlank).toList() })
-    outputDirectory.set(layout.buildDirectory.dir("generated/legacy-sources"))
-}
-androidComponents.onVariants { variant ->
-    variant.sources.java?.addGeneratedSourceDirectory(prepareLegacyFeatureSources, PrepareLegacyFeatureSources::outputDirectory)
-}
 
 /** D8 sees only feature-owned classes as program input. The fixed SDK remains in the base. */
 @CacheableTask

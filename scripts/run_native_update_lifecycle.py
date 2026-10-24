@@ -111,10 +111,10 @@ try:
     methods = ['seedRealUserDataAndStageWithoutConsent', 'freshProcessStillUsesOldCodeUntilTheUserApproves',
                'cancelThenApproveWhileRealLocalMusicKeepsPlaying', 'actualNewDexAndNewResourceRunWithoutAnotherApkInstallation',
                'approveSignedStartupFailureFixture', 'failedStartupRestoresKnownGoodCodeAndKeepsUserData']
-    source = root / 'runtime-app-base/src/androidTest/java/chromahub/rhythm/app/features/runtime/NativeUpdateLifecycleTest.kt'
+    source = root / 'app/src/androidTest/java/chromahub/rhythm/app/features/runtime/NativeUpdateLifecycleTest.kt'
     assert set(re.findall(r'@Test\s+fun\s+(\w+)', source.read_text())) == set(methods)
-    app = root / 'runtime-app-base/build/outputs/apk/debug/runtime-app-base-debug.apk'
-    tests = root / 'runtime-app-base/build/outputs/apk/androidTest/debug/runtime-app-base-debug-androidTest.apk'
+    app = root / 'app/build/outputs/apk/github/debug/Rhythm-5.5.499.1327-githubDebug.apk'
+    tests = root / 'app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk'
     adb('install', '-r', '-t', str(app), timeout=180)
     adb('install', '-r', '-t', str(tests), timeout=180)
     assert 'Success' in adb('shell', 'pm', 'clear', package)
