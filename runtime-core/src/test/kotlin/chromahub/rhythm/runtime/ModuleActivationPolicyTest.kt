@@ -28,6 +28,46 @@ class ModuleActivationPolicyTest {
         assertFalse(adopted.trialInProgress)
     }
 
+    @Test fun aLaterFatalCrashRecoversKnownGoodAndKeepsUnapprovedFutureCodeUnapproved() {
+        val activation = policy.prepareStartup(approved(), host, safe)
+        val healthy = policy.confirmHealthy(activation.state, activation.state.active.archiveSha256)
+        val pending = policy.stage(healthy, module(3))
+        val recovered = policy.recoverReportedCrash(pending, host)
+        assertEquals(1L, recovered.active.manifest.versionCode)
+        assertEquals(2L, recovered.highestApprovedVersion)
+        assertFalse(recovered.candidate!!.approved)
+        assertEquals(healthy.active.archiveSha256, recovered.lastFailedArchive)
+        assertTrue(policy.prepareStartup(recovered, host, safe) is StartupDecision.Keep)
+    }
+
+    @Test fun crashRecoveryRetainsTheUsersAlreadyApprovedFutureFix() {
+        val activation = policy.prepareStartup(approved(), host, safe)
+        val healthy = policy.confirmHealthy(activation.state, activation.state.active.archiveSha256)
+        val future = module(3)
+        val pending = policy.approve(policy.stage(healthy, future), future.archiveSha256)
+        val recovered = policy.recoverReportedCrash(pending, host)
+        val next = policy.prepareStartup(recovered, host, safe) as StartupDecision.Activate
+        assertEquals(future.reference, next.state.active)
+        assertEquals(recovered.active, next.state.previousGood)
+    }
+
+    @Test fun aFatalCrashCannotRestoreARevokedFallback() {
+        val activation = policy.prepareStartup(approved(), host, safe)
+        val healthy = policy.confirmHealthy(activation.state, activation.state.active.archiveSha256)
+        assertEquals(healthy, policy.recoverReportedCrash(healthy, host.copy(minimumModuleVersion = 2)))
+    }
+
+    @Test fun explicitEmbeddedRecoveryKeepsAKnownSecurityFloorAndChecksCompatibility() {
+        val embedded = module(1)
+        val restored = policy.restoreEmbeddedForRecovery(embedded, host, 5)
+        assertEquals(embedded.reference, restored.active)
+        assertEquals(5L, restored.highestApprovedVersion)
+        assertThrows(IllegalArgumentException::class.java) { policy.stage(restored, module(2)) }
+        assertThrows(IllegalArgumentException::class.java) {
+            policy.restoreEmbeddedForRecovery(embedded, host.copy(dataSchema = 99))
+        }
+    }
+
     @Test fun embeddedDefaultCannotDowngradeAnAlreadyApprovedNewerFeature() {
         val previous = approved()
         assertEquals(previous, policy.reconcileEmbeddedBaseUpdate(previous, module(1), host))

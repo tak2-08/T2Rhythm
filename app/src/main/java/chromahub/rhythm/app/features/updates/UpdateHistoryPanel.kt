@@ -75,6 +75,7 @@ import java.util.Date
                                         UpdateStage.INSTALL_REQUESTED -> R.string.update_history_requested
                                         UpdateStage.INSTALLED -> R.string.update_history_installed
                                         UpdateStage.SUPERSEDED -> R.string.update_history_superseded
+                                        UpdateStage.ROLLED_BACK -> R.string.runtime_history_rollback
                                     }), color = MaterialTheme.colorScheme.primary)
                                     if (record.apkRemoved) Text(stringResource(R.string.update_history_apk_removed) + if (record.bytes > 0) " · " + android.text.format.Formatter.formatShortFileSize(context, record.bytes) else "", style = MaterialTheme.typography.bodySmall)
                                 }

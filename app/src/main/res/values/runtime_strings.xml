@@ -8,4 +8,7 @@
     <string name="runtime_recovery_message">The feature could not start. An unfinished update will roll back to the last working version on restart. Music and settings are kept.</string>
     <string name="runtime_recover_restart">Recover and restart</string>
     <string name="runtime_widget_recovery">Open T2Rhythm to recover</string>
+    <string name="runtime_restore_embedded">Restore included music features</string>
+    <string name="runtime_restore_embedded_prompt">Restore the default included with this base app and restart? Your music and saved settings will be kept.</string>
+    <string name="runtime_history_rollback">Failed update · previous version restored</string>
 </resources>

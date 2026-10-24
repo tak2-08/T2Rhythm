@@ -120,6 +120,11 @@ class NativeRuntimeBootstrap(private val application: Application, private val a
             val value = requireNotNull(selected).entry.createApplication(application)
             callbacks = value
             value.onCreate { } // Android's actual Application.onCreate already ran once.
+            val featureHandler = Thread.getDefaultUncaughtExceptionHandler()
+            Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+                reportFatalError()
+                featureHandler?.uncaughtException(thread, error)
+            }
             return value
         } finally { applicationStarting = false }
     }
@@ -138,6 +143,20 @@ class NativeRuntimeBootstrap(private val application: Application, private val a
     override fun updates(): RuntimeUpdateController = updateController
     override fun selectedArchiveHash(): String = selected?.reference?.archiveSha256.orEmpty()
     override fun refreshConfiguration() { ModuleResourceContext.refreshAll() }
+    private fun reportFatalError() {
+        if (!isMainProcess) return
+        val process = selected ?: return
+        runCatching { store.reportFatalError(process.reference.archiveSha256, environment) }
+            .onFailure { Log.e("NativeRuntime", "Unable to record crash recovery", it) }
+    }
+
+    internal fun restoreEmbeddedForRecovery(): Boolean {
+        if (!isMainProcess || selected != null && failure == null) return false
+        return runCatching {
+            installEmbedded() // Reverify/recreate the offline archive before committing its reference.
+            store.restoreEmbedded(environment)
+        }.isSuccess
+    }
 
     override fun reportUiReady() {
         if (!isMainProcess) return

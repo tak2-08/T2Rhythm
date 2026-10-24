@@ -37,6 +37,23 @@ sealed interface StartupDecision {
 }
 
 object ModuleActivationPolicy {
+    /** Called immediately before an already crashing process exits; it never swaps its loader. */
+    fun recoverReportedCrash(state: ModuleActivationState, host: HostEnvironment): ModuleActivationState {
+        val fallback = state.previousGood ?: return state
+        if (fallback.manifest.incompatibility(host) != null) return state
+        return state.copy(active = fallback, previousGood = null, trialInProgress = false,
+            candidate = state.candidate?.takeIf { it.module.manifest.incompatibility(host) == null },
+            lastFailedArchive = state.active.archiveSha256)
+    }
+
+    /** Explicit offline recovery can replace broken activation metadata, without touching music. */
+    fun restoreEmbeddedForRecovery(embedded: VerifiedModule, host: HostEnvironment,
+        highestApprovedVersion: Long = embedded.manifest.versionCode): ModuleActivationState {
+        require(embedded.manifest.incompatibility(host) == null)
+        return ModuleActivationState(embedded.reference,
+            highestApprovedVersion = maxOf(highestApprovedVersion, embedded.manifest.versionCode))
+    }
+
     /** The Android-confirmed base APK may contain a newer default, or the same feature rebuilt
      * for a new fixed SDK. Never apply this method to a downloaded, unapproved candidate.
      */

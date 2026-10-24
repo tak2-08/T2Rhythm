@@ -45,6 +45,9 @@ object CrashReporter {
                 val packageInfo = application.packageManager.getPackageInfo(application.packageName, 0)
                 val versionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
                 appVersion = "${packageInfo.versionName} ($versionCode)"
+                if (chromahub.rhythm.runtime.api.RuntimeComponentRegistry.optionalHost() != null) {
+                    appVersion = "${chromahub.rhythm.app.BuildConfig.VERSION_NAME} (${chromahub.rhythm.app.BuildConfig.VERSION_CODE}); base $appVersion"
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to get package info", e)
             }

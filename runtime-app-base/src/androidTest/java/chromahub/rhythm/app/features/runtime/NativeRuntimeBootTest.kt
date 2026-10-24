@@ -37,11 +37,17 @@ class NativeRuntimeBootTest {
     private val compose = createAndroidComposeRule<MainActivity>()
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
+    private fun grantPermission(permission: String) {
+        if (Build.VERSION.SDK_INT >= 28) instrumentation.uiAutomation.grantRuntimePermission(context.packageName, permission)
+        else android.os.ParcelFileDescriptor.AutoCloseInputStream(
+            instrumentation.uiAutomation.executeShellCommand("pm grant ${context.packageName} $permission")
+        ).use { it.readBytes() }
+    }
     private val preparation = object : ExternalResource() {
         override fun before() {
             val permission = if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
-            instrumentation.uiAutomation.grantRuntimePermission(context.packageName, permission)
-            if (Build.VERSION.SDK_INT >= 33) instrumentation.uiAutomation.grantRuntimePermission(context.packageName, Manifest.permission.POST_NOTIFICATIONS)
+            grantPermission(permission)
+            if (Build.VERSION.SDK_INT >= 33) grantPermission(Manifest.permission.POST_NOTIFICATIONS)
             AppSettings.getInstance(context).setOnboardingCompleted(true)
             context.getSharedPreferences("installed_release_notes", Context.MODE_PRIVATE).edit()
                 .putInt("seen", chromahub.rhythm.app.BuildConfig.VERSION_CODE).commit()

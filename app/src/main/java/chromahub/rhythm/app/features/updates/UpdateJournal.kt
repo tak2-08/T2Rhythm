@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
-enum class UpdateStage { READY, INSTALL_REQUESTED, INSTALLED, SUPERSEDED }
+enum class UpdateStage { READY, INSTALL_REQUESTED, INSTALLED, SUPERSEDED, ROLLED_BACK }
 data class UpdateRecord(val id: String, val from: String, val version: String, val code: Long,
     val time: Long, val stage: UpdateStage, val file: String = "", val bytes: Long = 0,
     val notes: String = "", val apkRemoved: Boolean = false, val fromCode: Long = 0)
@@ -126,7 +126,11 @@ class UpdateJournal private constructor(private val context: Context, namespace:
         var records = _records.value
         val currentHash = status.getString("archiveHash").orEmpty()
         val currentId = "module:$currentHash"
-        if (!status.getBoolean("trialInProgress") && records.none { it.id == currentId && it.stage == UpdateStage.INSTALLED }) {
+        val failed = status.getString("lastFailedArchive")
+        if (failed != null) records = records.map { if (it.id == "module:$failed") it.copy(stage = UpdateStage.ROLLED_BACK) else it }
+        val embeddedAlsoInstalledByAndroid = status.getLong("versionCode") == context.packageManager.getPackageInfo(context.packageName, 0).installCode
+        if (!status.getBoolean("trialInProgress") && (!embeddedAlsoInstalledByAndroid || records.any { it.id == currentId }) &&
+            records.none { it.id == currentId && it.stage == UpdateStage.INSTALLED }) {
             val existing = records.firstOrNull { it.id == currentId }
             val installed = UpdateRecord(currentId, existing?.from.orEmpty(), status.getString("versionName").orEmpty(),
                 status.getLong("versionCode"), System.currentTimeMillis(), UpdateStage.INSTALLED,

@@ -67,7 +67,8 @@ internal class NativeUpdateController(
                 }
                 output.fd.sync()
             }
-            val verified = verifier.verify(temporary, host)
+            val verified = try { verifier.verify(temporary, host) }
+            catch (rejected: ModuleRejected) { throw IllegalArgumentException("Feature verification failed", rejected) }
             require(expectedVersion <= 0 || verified.manifest.versionCode == expectedVersion)
             val destination = file(verified.archiveSha256)
             withArchiveLock(archives) {

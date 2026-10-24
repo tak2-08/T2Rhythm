@@ -27,6 +27,8 @@ android {
         buildConfigField("long", "RUNTIME_BASE_VERSION", "1L")
         buildConfigField("String", "RUNTIME_FINGERPRINT", "\"${hostMetadata.getProperty("runtimeFingerprint", "0".repeat(64))}\"")
         testInstrumentationRunner = "androidx.test.runner.NativeModuleJUnitRunner"
+        // These methods intentionally span process exits; the lifecycle gate drives them in order.
+        testInstrumentationRunnerArguments["notClass"] = "chromahub.rhythm.app.features.runtime.NativeUpdateLifecycleTest"
     }
     buildTypes {
         debug { applicationIdSuffix = ".debug"; versionNameSuffix = "-gh-debug" }
@@ -97,17 +99,24 @@ androidComponents.onVariants { variant ->
 abstract class PrepareNativeTestAssets : DefaultTask() {
     @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val dexJar: RegularFileProperty
     @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val resourcesApk: RegularFileProperty
+    @get:Optional @get:InputDirectory @get:PathSensitive(PathSensitivity.RELATIVE) abstract val lifecycleFixtures: DirectoryProperty
     @get:OutputDirectory abstract val assetsDirectory: DirectoryProperty
     @TaskAction fun copy() {
-        val output = assetsDirectory.get().asFile.also { it.mkdirs() }
+        val output = assetsDirectory.get().asFile.also { it.deleteRecursively(); it.mkdirs() }
         dexJar.get().asFile.copyTo(output.resolve("content.dex.jar"), overwrite = true)
         resourcesApk.get().asFile.copyTo(output.resolve("resource-probe.apk"), overwrite = true)
+        lifecycleFixtures.orNull?.asFile?.let { directory ->
+            listOf("next.t2module", "bad-startup.t2module").forEach { name ->
+                directory.resolve(name).copyTo(output.resolve(name), overwrite = true)
+            }
+        }
     }
 }
 val prepareNativeTestAssets = tasks.register<PrepareNativeTestAssets>("prepareNativeTestAssets") {
     dependsOn(":runtime-probe:dexDebugProbe", ":runtime-resource-probe:assembleDebug")
     dexJar.set(rootProject.layout.projectDirectory.file("runtime-probe/build/outputs/runtime-probe/content.dex.jar"))
     resourcesApk.set(rootProject.layout.projectDirectory.file("runtime-resource-probe/build/outputs/apk/debug/runtime-resource-probe-debug.apk"))
+    providers.gradleProperty("runtimeLifecycleFixturesDir").orNull?.let { lifecycleFixtures.set(file(it)) }
     assetsDirectory.set(layout.buildDirectory.dir("generated/runtime-test-assets"))
 }
 androidComponents.onVariants { variant ->

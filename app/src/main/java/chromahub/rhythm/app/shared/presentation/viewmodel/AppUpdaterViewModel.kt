@@ -761,6 +761,7 @@ class AppUpdaterViewModel(
     }
 
     private fun updateInstalledReleaseNotes(releases: List<GitHubRelease>) {
+        if (nativeUpdates != null) return // Installed module notes come from its verified signed package.
         val release = releases.firstOrNull { calculateVersionCode(it.tag_name.removePrefix("v").removePrefix("V")) == BuildConfig.VERSION_CODE }
             ?: return
         val body = release.body.take(65_536).takeIf { it.isNotBlank() } ?: return
@@ -869,7 +870,7 @@ class AppUpdaterViewModel(
             }
 
             val nativePackage = nativeUpdates != null && latestVersion.apkAssetName.endsWith(".t2module")
-            if (UpdateIntegrity.sha256(latestVersion.sha256) == null || (!nativePackage && !latestVersion.apkAssetName.endsWith(".apk", true))) {
+            if (!nativePackage && (UpdateIntegrity.sha256(latestVersion.sha256) == null || !latestVersion.apkAssetName.endsWith(".apk", true))) {
                 _error.value = getApplication<Application>().getString(R.string.update_integrity_missing)
                 openInBrowser(downloadUrl)
                 return@launch
@@ -934,7 +935,7 @@ class AppUpdaterViewModel(
         val size = if (expectedSize > 0) expectedSize else activeDownload?.totalBytes ?: 0
         val nativePackage = nativeUpdates != null && fileName.endsWith(".t2module")
         if (File(fileName).name != fileName || '\\' in fileName || (!nativePackage && !fileName.endsWith(".apk", true)) || size <= 0 ||
-            (nativePackage && size > 224L * 1024 * 1024) || UpdateIntegrity.sha256(expectedDigest) == null) {
+            (nativePackage && size > 224L * 1024 * 1024) || (!nativePackage && UpdateIntegrity.sha256(expectedDigest) == null)) {
             _error.value = getApplication<Application>().getString(R.string.update_integrity_failed)
             return
         }
@@ -985,7 +986,8 @@ class AppUpdaterViewModel(
                     } }
                 }
                 if (!_isDownloading.value || activeCall !== call) return@launch
-                UpdateIntegrity.verifyBytes(file, size, expectedDigest)
+                if (nativePackage && UpdateIntegrity.sha256(expectedDigest) == null) require(file.length() == size)
+                else UpdateIntegrity.verifyBytes(file, size, expectedDigest)
                 val readyFile = if (nativePackage) {
                     val verified = requireNotNull(nativeUpdates).stage(file.path, release?.versionCode?.toLong() ?: 0)
                     val signedNotes = verified.getString("notes").orEmpty()
@@ -1001,7 +1003,7 @@ class AppUpdaterViewModel(
                 downloadPrefs.edit(commit = true) { putString("verified_checksum", expectedDigest); putLong("verified_size", size) }
                 _downloadedFile.value = readyFile; _downloadProgress.value = 100f; _isDownloading.value = false
                 activeDownload = null; activeCall = null; _downloadState.value = null; saveDownloadState()
-                showDownloadCompletedNotification(readyFile.name)
+                showDownloadCompletedNotification(if (nativePackage) "T2Rhythm ${_latestVersion.value?.versionName.orEmpty()}" else readyFile.name)
                 if (nativePackage && readyFile != file) file.delete()
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 call?.cancel(); throw cancelled

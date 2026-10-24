@@ -10,6 +10,8 @@ import android.os.Process
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import chromahub.rhythm.runtime.api.RuntimeComponentRegistry
+import java.util.concurrent.Executors
 
 /** Always available from the fixed APK, including when a module's class initialization fails. */
 class RuntimeRecoveryActivity : Activity() {
@@ -33,6 +35,33 @@ class RuntimeRecoveryActivity : Activity() {
                 startActivity(Intent(this@RuntimeRecoveryActivity, RuntimeRestartActivity::class.java)
                     .putExtra("origin_pid", Process.myPid()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 finish()
+            }
+        })
+        root.addView(Button(this).apply {
+            text = getString(R.string.runtime_restore_embedded)
+            setOnClickListener {
+                android.app.AlertDialog.Builder(this@RuntimeRecoveryActivity)
+                    .setMessage(R.string.runtime_restore_embedded_prompt)
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                        isEnabled = false
+                        Executors.newSingleThreadExecutor().apply {
+                            execute {
+                                val restored = (RuntimeComponentRegistry.host() as NativeRuntimeBootstrap).restoreEmbeddedForRecovery()
+                                runOnUiThread {
+                                    if (restored) {
+                                        startActivity(Intent(this@RuntimeRecoveryActivity, RuntimeRestartActivity::class.java)
+                                            .putExtra("origin_pid", Process.myPid()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                        finish()
+                                    } else {
+                                        android.widget.Toast.makeText(this@RuntimeRecoveryActivity, R.string.runtime_verification_failed, android.widget.Toast.LENGTH_LONG).show()
+                                        isEnabled = true
+                                    }
+                                }
+                                shutdown()
+                            }
+                        }
+                    }.show()
             }
         })
         setContentView(root)

@@ -8,4 +8,7 @@
     <string name="runtime_recovery_message">기능을 시작하지 못했습니다. 완료되지 않은 업데이트는 다시 시작하면 이전 정상 버전으로 복구합니다. 음악과 설정은 유지됩니다.</string>
     <string name="runtime_recover_restart">복구하고 다시 시작</string>
     <string name="runtime_widget_recovery">T2Rhythm 앱에서 복구를 진행해 주세요</string>
+    <string name="runtime_restore_embedded">기본 음악 기능으로 복구</string>
+    <string name="runtime_restore_embedded_prompt">베이스 앱에 포함된 기본 음악 기능으로 복구하고 다시 시작할까요? 음악 파일과 저장된 설정은 유지됩니다.</string>
+    <string name="runtime_history_rollback">적용 실패 · 이전 버전으로 복구</string>
 </resources>

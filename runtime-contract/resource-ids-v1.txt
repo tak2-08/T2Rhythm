@@ -13447,3 +13447,6 @@ chromahub.rhythm.app:string/runtime_recover_restart = 0x7f120fee
 chromahub.rhythm.app:string/runtime_recovery_message = 0x7f120fef
 chromahub.rhythm.app:string/runtime_verification_failed = 0x7f120ff0
 chromahub.rhythm.app:string/runtime_widget_recovery = 0x7f120ff1
+chromahub.rhythm.app:string/runtime_history_rollback = 0x7f120ff2
+chromahub.rhythm.app:string/runtime_restore_embedded = 0x7f120ff3
+chromahub.rhythm.app:string/runtime_restore_embedded_prompt = 0x7f120ff4

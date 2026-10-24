@@ -325,6 +325,14 @@ class NativeModuleLoadingTest {
         file.writeBytes(file.readBytes().apply { this[lastIndex] = (this[lastIndex].toInt() xor 1).toByte() })
         assertThrows(CorruptModuleState::class.java) { fixture.reopen().snapshot() }
         assertNull(System.getProperty(MARKER))
+        val music = context.getSharedPreferences("runtime-recovery-preservation", android.content.Context.MODE_PRIVATE)
+        music.edit().putString("playlist", "saved user music").commit()
+        val restored = fixture.reopen().restoreEmbedded(host)
+        assertEquals(1L, restored.active.manifest.versionCode)
+        assertNull(restored.candidate)
+        assertEquals(restored, fixture.reopen().snapshot())
+        assertEquals("saved user music", music.getString("playlist", null))
+        music.edit().clear().commit()
     }
 
     @Test fun unreadableExistingStateCannotBeMistakenForFirstInstallation() {

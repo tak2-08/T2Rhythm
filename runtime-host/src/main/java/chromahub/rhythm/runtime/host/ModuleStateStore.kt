@@ -57,6 +57,18 @@ class ModuleStateStore(
     fun confirmHealthy(archiveSha256: String): ModuleActivationState = update {
         ModuleActivationPolicy.confirmHealthy(it, archiveSha256)
     }
+    fun reportFatalError(archiveSha256: String, host: HostEnvironment): ModuleActivationState = update {
+        require(it.active.archiveSha256 == archiveSha256)
+        ModuleActivationPolicy.recoverReportedCrash(it, host)
+    }
+
+    /** Only the installed base's explicit recovery UI calls this; ordinary reads never reset it. */
+    fun restoreEmbedded(host: HostEnvironment): ModuleActivationState = locked {
+        val highest = runCatching { read().highestApprovedVersion }.getOrDefault(initial.manifest.versionCode)
+        val restored = ModuleActivationPolicy.restoreEmbeddedForRecovery(initial, host, highest)
+        write(restored)
+        restored
+    }
 
     /** The returned decision is safe to consume only AFTER this method returns successfully. */
     fun prepareStartup(host: HostEnvironment, safety: StartupSafety): StartupDecision = locked {
