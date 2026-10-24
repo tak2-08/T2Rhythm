@@ -58,7 +58,8 @@ class NativeModuleTrialLoader(
     private fun materializeDex(archive: File, reference: ModuleReference): File {
         val directory = File(context.noBackupFilesDir, "runtime-trial/${reference.archiveSha256}")
         check(directory.mkdirs() || directory.isDirectory)
-        val dex = File(directory, "content.dex.jar")
+        // APK-shaped payloads may also carry compiled Android resources; no installation occurs.
+        val dex = File(directory, "content.apk")
         if (dex.exists()) {
             require(!Files.isSymbolicLink(dex.toPath()))
             requireReadOnly(dex)

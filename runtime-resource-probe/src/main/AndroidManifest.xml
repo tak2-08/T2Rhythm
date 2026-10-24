@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- A payload fixture. Never installed or launched through Android's package installer. -->
+    <application android:label="@string/runtime_probe_text" android:icon="@drawable/runtime_probe_badge"
+        android:allowBackup="false" android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+</manifest>

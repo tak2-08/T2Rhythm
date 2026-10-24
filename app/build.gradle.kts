@@ -211,18 +211,22 @@ android {
 
 abstract class PrepareRuntimeProbeAssets : DefaultTask() {
     @get:InputFile abstract val dexJar: RegularFileProperty
+    @get:InputFile abstract val resourcesApk: RegularFileProperty
     @get:OutputDirectory abstract val directory: DirectoryProperty
 
     @TaskAction fun copyDex() {
         val output = directory.get().asFile
         output.mkdirs()
         dexJar.get().asFile.copyTo(output.resolve("content.dex.jar"), overwrite = true)
+        resourcesApk.get().asFile.copyTo(output.resolve("resource-probe.apk"), overwrite = true)
     }
 }
 
 val prepareRuntimeProbeAssets = tasks.register<PrepareRuntimeProbeAssets>("prepareRuntimeProbeAssets") {
     dependsOn(":runtime-probe:dexDebugProbe")
+    dependsOn(":runtime-resource-probe:assembleDebug")
     dexJar.set(project(":runtime-probe").layout.buildDirectory.file("outputs/runtime-probe/content.dex.jar"))
+    resourcesApk.set(project(":runtime-resource-probe").layout.buildDirectory.file("outputs/apk/debug/runtime-resource-probe-debug.apk"))
     directory.set(layout.buildDirectory.dir("generated/runtime-probe-assets"))
 }
 

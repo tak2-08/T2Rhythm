@@ -25,6 +25,7 @@ import chromahub.rhythm.runtime.api.NativeUiModule
 import chromahub.rhythm.runtime.host.NativeModuleTrialLoader
 import chromahub.rhythm.runtime.host.ModuleStateStore
 import chromahub.rhythm.runtime.host.CorruptModuleState
+import chromahub.rhythm.runtime.host.ModuleResourceContext
 import com.google.gson.Gson
 import dalvik.system.DexClassLoader
 import java.io.File
@@ -70,8 +71,9 @@ class NativeModuleLoadingTest {
     private fun hash(bytes: ByteArray) = MessageDigest.getInstance("SHA-256")
         .digest(bytes).joinToString("") { "%02x".format(it) }
 
-    private fun makeArchive(version: Long, tamperPayload: Boolean = false, writable: Boolean = false): File {
-        val payload = instrumentation.context.assets.open("content.dex.jar").use { it.readBytes() }
+    private fun makeArchive(version: Long, tamperPayload: Boolean = false, writable: Boolean = false,
+                            payloadBytes: ByteArray? = null, entryPoint: String = ENTRY): File {
+        val payload = payloadBytes ?: instrumentation.context.assets.open("content.dex.jar").use { it.readBytes() }
         val notes = "Native runtime probe $version".toByteArray()
         val manifest = Gson().toJson(linkedMapOf(
             "formatVersion" to 1,
@@ -79,7 +81,7 @@ class NativeModuleLoadingTest {
             "versionCode" to version,
             "versionName" to "probe-$version-${UUID.randomUUID()}",
             "signingKeyId" to RuntimePackageVerifier.keyId(key.public),
-            "entryPointClass" to ENTRY,
+            "entryPointClass" to entryPoint,
             "hostApi" to host.hostApi,
             "runtimeFingerprint" to host.runtimeFingerprint,
             "minBaseVersion" to host.baseVersion,
@@ -211,6 +213,29 @@ class NativeModuleLoadingTest {
         System.clearProperty(MARKER)
         assertThrows(IllegalArgumentException::class.java) { loader().loadTrial(decision, file) }
         assertNull(System.getProperty(MARKER))
+    }
+
+    @Test fun compiledModuleStringsAndDrawablesLoadThroughPublicApisWithoutInstallation() {
+        val payload = instrumentation.context.assets.open("resource-probe.apk").use { it.readBytes() }
+        val file = makeArchive(2, payloadBytes = payload, entryPoint = "chromahub.rhythm.module.ResourceProbeEntry")
+        val loaded = loader().loadTrial(activation(file), file)
+        val moduleContext = ModuleResourceContext.attach(context, loaded)
+        assertEquals(context.packageName, moduleContext.packageName)
+        instrumentation.runOnMainSync {
+            val view = loaded.entry.createView(moduleContext) as android.widget.TextView
+            assertEquals("New resource from the signed module", view.text.toString())
+            assertNotNull(view.compoundDrawables[0])
+            assertTrue(view.compoundDrawables[0].intrinsicWidth > 0)
+            val configuration = android.content.res.Configuration(context.resources.configuration).apply {
+                setLocale(java.util.Locale.KOREAN)
+            }
+            val koreanContext = ModuleResourceContext.attach(context.createConfigurationContext(configuration), loaded)
+            val korean = loaded.entry.createView(koreanContext) as android.widget.TextView
+            assertEquals("서명된 기능 패키지의 새 리소스", korean.text.toString())
+        }
+        assertThrows(android.content.pm.PackageManager.NameNotFoundException::class.java) {
+            context.packageManager.getPackageInfo("chromahub.rhythm.module.resources", 0)
+        }
     }
 
     private data class StoreFixture(

@@ -187,7 +187,7 @@ jobs:
           python3 scripts/check_plural_specifiers.py
           git diff --check
       - name: Verify native lint
-        run: timeout 900s ./gradlew :app:lintGithubDebug :runtime-host:lintDebug :runtime-api:lintDebug :runtime-probe:lintDebug --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx4g -Pkotlin.compiler.execution.strategy=in-process --console=plain
+        run: timeout 900s ./gradlew :app:lintGithubDebug :runtime-host:lintDebug :runtime-api:lintDebug :runtime-probe:lintDebug :runtime-resource-probe:lintDebug --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx4g -Pkotlin.compiler.execution.strategy=in-process --console=plain
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -200,4 +200,5 @@ jobs:
             runtime-host/build/reports/lint-results*
             runtime-api/build/reports/lint-results*
             runtime-probe/build/reports/lint-results*
+            runtime-resource-probe/build/reports/lint-results*
           retention-days: 14

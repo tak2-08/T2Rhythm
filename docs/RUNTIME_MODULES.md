@@ -21,6 +21,8 @@
 
 실제 Android 로딩을 확인하기 위한 시험 경로도 분리했다. `:runtime-api`의 네이티브 View 인터페이스, `:runtime-host`의 읽기 전용 DEX 시험 로더, `:runtime-probe`의 독립 빌드 Compose 화면과 Android instrumentation 검사다. 시험 화면은 새로운 앱 디자인이 아니라 별도 DEX의 실행·클릭을 확인하는 fixture다. 시험 로더는 앱 전용 no-backup 경로의 불변 아카이브를 다시 검증하고, 정확한 적용 승인 결과와 비교한 뒤 읽기 전용 DEX만 로딩한다. 라이브러리 복사본을 DEX에 넣지 않는다.
 
+`runtime-resource-probe`는 새로운 문자열·벡터 이미지가 들어 있는 별도 APK 형태의 페이로드 fixture다. 설치하지 않고 검증된 내부 파일을 공개 `getPackageArchiveInfo`/`getResourcesForApplication` API로 읽는 `ModuleResourceContext`를 시험한다. 앱의 언어·글씨·밀도 설정을 반영하도록 리소스 구성을 복사한다. 아직 일반 앱 테마·공용 리소스 ID·전체 화면의 동일 동작을 보증하지 않는다.
+
 이 단계에는 **내장 기본 모듈 분리, 기존 앱 전체의 원격 모듈 실행, 네트워크 배포/UI 연결이 아직 없다.** `:app`의 런타임 경로는 어떤 모듈도 의존하거나 호출하지 않는다. `androidTestImplementation`과 테스트 전용 생성 자산에만 연결했다. JVM 테스트는 패키지 검증·정책의 증거이며, 시험 화면의 실행도 기존 앱 전체의 동일 동작을 보증하지 않는다. 기존 1326을 이 설계의 완성본으로 배포하지 않는다.
 
 이 실험 뒤 기존 코드를 사용하는 화면을 모듈로 옮겨 기본 구현과 같은 데이터·테마·가로 화면·글씨 크기에서 비교한다. Android 26의 리소스 전달과 R8을 적용한 독립 빌드 조합까지 확인한 뒤 전체 앱의 경계를 옮긴다.
