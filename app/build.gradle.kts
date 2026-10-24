@@ -209,8 +209,29 @@ android {
 
 }
 
+abstract class PrepareRuntimeProbeAssets : DefaultTask() {
+    @get:InputFile abstract val dexJar: RegularFileProperty
+    @get:OutputDirectory abstract val directory: DirectoryProperty
+
+    @TaskAction fun copyDex() {
+        val output = directory.get().asFile
+        output.mkdirs()
+        dexJar.get().asFile.copyTo(output.resolve("content.dex.jar"), overwrite = true)
+    }
+}
+
+val prepareRuntimeProbeAssets = tasks.register<PrepareRuntimeProbeAssets>("prepareRuntimeProbeAssets") {
+    dependsOn(":runtime-probe:dexDebugProbe")
+    dexJar.set(project(":runtime-probe").layout.buildDirectory.file("outputs/runtime-probe/content.dex.jar"))
+    directory.set(layout.buildDirectory.dir("generated/runtime-probe-assets"))
+}
+
 androidComponents {
     onVariants { variant ->
+        // Test APK only: external DEX is an asset, never linked into the application.
+        variant.androidTest?.sources?.assets?.addGeneratedSourceDirectory(
+            prepareRuntimeProbeAssets, PrepareRuntimeProbeAssets::directory
+        )
         variant.outputs.forEach { output ->
             val abiSuffix = output.filters
                 .find { it.filterType == FilterConfiguration.FilterType.ABI }
@@ -346,6 +367,7 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
+    androidTestImplementation(project(":runtime-host"))
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
     

@@ -63,7 +63,15 @@ jobs:
       run: ./gradlew assembleGithubRelease assembleGithubDebug
 
     - name: Run unit tests
-      run: ./gradlew :crawler:test :app:testGithubDebugUnitTest
+      run: ./gradlew :runtime-core:test :crawler:test :app:testGithubDebugUnitTest
+
+    - name: Upload runtime verification results
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: runtime-core-test-results
+        path: runtime-core/build/test-results/test/*.xml
+        retention-days: 7
 
     - name: Generate build info
       if: github.event_name == 'pull_request'

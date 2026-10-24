@@ -29,4 +29,8 @@ dependencyResolutionManagement {
 rootProject.name = "Rhythm"
 include(":app")
 include(":crawler")
+include(":runtime-core")
+include(":runtime-api")
+include(":runtime-host")
+include(":runtime-probe")
 include(":macrobenchmark")
