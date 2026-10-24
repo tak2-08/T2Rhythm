@@ -10,6 +10,7 @@ import chromahub.rhythm.app.features.local.data.database.entity.PlaylistEntity
 import chromahub.rhythm.app.shared.data.model.AppSettings
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.junit.Assert.assertTrue
 import java.io.File
 import java.security.MessageDigest
 
@@ -22,6 +23,7 @@ class LegacyUpgradeSeedTest {
         settings.setOnboardingCompleted(true)
         settings.setShowKeyboardOnSearchOpen(false)
         settings.setDarkMode(true)
+        assertTrue("Seeded preferences must reach disk before Android replaces the APK", settings.prefs.edit().commit())
         runBlocking {
             RhythmDatabase.getInstance(context).playlistDao().insertPlaylist(
                 PlaylistEntity("legacy-native-upgrade", "Legacy playlist before base conversion", 1122, 3344, null))

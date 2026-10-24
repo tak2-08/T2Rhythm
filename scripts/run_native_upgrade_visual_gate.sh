@@ -22,9 +22,26 @@ PY
 adb shell am force-stop "$runtime_package"
 run_upgrade_assertion chromahub.rhythm.app.features.runtime.LegacyUpgradeSeedTest \
     "$runtime_package.test/androidx.test.runner.AndroidJUnitRunner" native-results/upgrade/legacy-seed.txt
+capture_upgrade_preferences() {
+    python3 - "$1" <<'PY'
+import json,subprocess,sys,time,xml.etree.ElementTree as ET
+keys={'show_keyboard_on_search_open':False,'dark_mode':True,'onboarding_completed':True}
+deadline=time.monotonic()+10
+while True:
+    xml=subprocess.check_output(['adb','exec-out','run-as','chromahub.rhythm.app.debug','cat','shared_prefs/rhythm_preferences.xml'])
+    actual={node.attrib['name']:node.attrib.get('value')=='true' for node in ET.fromstring(xml) if node.attrib.get('name') in keys}
+    if actual==keys:break
+    assert time.monotonic()<deadline, actual
+    time.sleep(.2)
+with open('native-results/upgrade/'+sys.argv[1]+'.json','w') as output:json.dump(actual,output,indent=2)
+print('Verified persisted upgrade preferences:',actual)
+PY
+}
+capture_upgrade_preferences before-apk-replacement
 # The same CI-generated Android signer is used by both builds. This is a genuine in-place upgrade.
 adb install -r -t app/build/outputs/apk/github/debug/Rhythm-5.5.499.1327-githubDebug.apk
 adb install -r -t app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk
+capture_upgrade_preferences after-apk-replacement
 run_upgrade_assertion chromahub.rhythm.app.features.runtime.NativeApkUpgradeTest \
     "$runtime_package.test/androidx.test.runner.NativeModuleJUnitRunner" native-results/upgrade/native-data-preserved.txt
 adb logcat -d > native-results/upgrade/logcat.txt 2>&1 || true
