@@ -110,7 +110,8 @@ for name in selected:
             if api >= 37: permissions.append('android.permission.ACCESS_LOCAL_NETWORK')
             for permission in permissions: adb('shell','pm','grant',pkg,permission,check=False)
             adb('shell','settings','put','system','font_scale','1.0')
-            adb('logcat','-c')
+            # Android 8 images may refuse clearing logd; diagnostic cleanup must not skip tests.
+            adb('logcat','-c',check=False)
             if name in ('ContentFlowRegressionTest','DiscoveryPipelineTest'):
                 model = Path(os.environ['PRESERVATION_MODEL'])
                 assert hashlib.sha256(model.read_bytes()).hexdigest() == 'eea36124087fed26c59996a4761519458e3bd185e8ea9d9865ad8760c4a1d989'
