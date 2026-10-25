@@ -183,6 +183,11 @@ class LibrarySearchNavigationTest {
         awaitNode("서른 즈음에")
         assertNull(locate("이등병의 편지"))
         capture("library-search-genre-songs.png")
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
+        compose.waitUntil(10_000) {
+            androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) != true
+        }
         androidx.test.espresso.Espresso.pressBack()
         val songsTitle = label(R.string.settings_tab_songs)
         runCatching { compose.waitUntil(10_000) { compose.onAllNodesWithText(songsTitle).fetchSemanticsNodes().isEmpty() } }
