@@ -183,7 +183,9 @@ class LibrarySearchNavigationTest {
         assertNull(locate("이등병의 편지"))
         capture("library-search-genre-songs.png")
         androidx.test.espresso.Espresso.pressBack()
-        compose.waitForIdle()
+        val songsTitle = label(R.string.settings_tab_songs)
+        compose.waitUntil(10_000) { compose.onAllNodesWithText(songsTitle).fetchSemanticsNodes().isEmpty() }
+        awaitSelectedGenre("FOLK ROCK")
         androidx.test.espresso.Espresso.pressBack()
         compose.waitForIdle()
         awaitSelectedGenre("FOLK")
