@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise consent, live audio, real code/resource replacement and recovery across Android starts."""
 import argparse
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -13,6 +14,11 @@ import xml.etree.ElementTree as ET
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--project', type=Path, default=Path('.'))
 parser.add_argument('--output', type=Path, required=True)
+parser.add_argument('--app-apk', type=Path)
+parser.add_argument('--test-apk', type=Path)
+parser.add_argument('--resource-name', default='runtime_update_fixture')
+parser.add_argument('--resource-text', default='New resource from independent feature v2')
+parser.add_argument('--activation-only', action='store_true', help='Check a real production update without signing artificial failure packages')
 args = parser.parse_args()
 root = args.project.resolve()
 out = args.output.resolve(); out.mkdir(parents=True, exist_ok=True)
@@ -72,6 +78,7 @@ def wait_state(predicate, label, timeout=120):
 
 def phase(method):
     result = adb('shell', 'am', 'instrument', '-w', '-r', '-e', 'class', test_class + '#' + method,
+                 '-e', 'updateResourceName', args.resource_name, '-e', 'updateResourceTextBase64', base64.b64encode(args.resource_text.encode()).decode(),
                  '-e', 'timeout_msec', '240000', runner, timeout=360, check=False)
     (out / (method + '.txt')).write_text(result)
     statuses = [int(value) for value in re.findall(r'INSTRUMENTATION_STATUS_CODE: (-?\d+)', result)]
@@ -113,8 +120,8 @@ try:
                'approveSignedStartupFailureFixture', 'failedStartupRestoresKnownGoodCodeAndKeepsUserData']
     source = root / 'app/src/androidTest/java/chromahub/rhythm/app/features/runtime/NativeUpdateLifecycleTest.kt'
     assert set(re.findall(r'@Test\s+fun\s+(\w+)', source.read_text())) == set(methods)
-    app = root / 'app/build/outputs/apk/github/debug/Rhythm-5.5.499.1327-githubDebug.apk'
-    tests = root / 'app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk'
+    app = args.app_apk or root / 'app/build/outputs/apk/github/debug/Rhythm-5.5.499.1327-githubDebug.apk'
+    tests = args.test_apk or root / 'app/build/outputs/apk/androidTest/github/debug/app-github-debug-androidTest.apk'
     adb('install', '-r', '-t', str(app), timeout=180)
     adb('install', '-r', '-t', str(tests), timeout=180)
     assert 'Success' in adb('shell', 'pm', 'clear', package)
@@ -130,15 +137,17 @@ try:
     launch()
     healthy = wait_state(lambda value: value['active'] == approved['candidate'] and not value['trial'], 'v2-healthy-same-installed-apk')
     phase(methods[3])
-    phase(methods[4])
-    broken = wait_state(lambda value: value['approved'] and value['active'] == healthy['active'], 'signed-failure-approved')
-    launch()
-    wait_state(lambda value: value['active'] == broken['candidate'] and value['trial'], 'signed-failure-left-trial-for-recovery')
-    wait_recovery_activity()
-    launch()
-    wait_state(lambda value: value['active'] == healthy['active'] and not value['trial'] and value['failed'] == broken['candidate'], 'known-good-recovered')
-    phase(methods[5])
-    assert len(results) == 6 and all(result['success'] for result in results)
-    print('Verified 6 native update lifecycle phases across process boundaries.', flush=True)
+    if not args.activation_only:
+        phase(methods[4])
+        broken = wait_state(lambda value: value['approved'] and value['active'] == healthy['active'], 'signed-failure-approved')
+        launch()
+        wait_state(lambda value: value['active'] == broken['candidate'] and value['trial'], 'signed-failure-left-trial-for-recovery')
+        wait_recovery_activity()
+        launch()
+        wait_state(lambda value: value['active'] == healthy['active'] and not value['trial'] and value['failed'] == broken['candidate'], 'known-good-recovered')
+        phase(methods[5])
+    expected = 4 if args.activation_only else 6
+    assert len(results) == expected and all(result['success'] for result in results)
+    print(f'Verified {expected} native update lifecycle phases across process boundaries.', flush=True)
 finally:
     collect()

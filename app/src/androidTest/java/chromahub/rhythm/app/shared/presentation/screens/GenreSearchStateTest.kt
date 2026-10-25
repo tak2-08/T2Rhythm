@@ -38,11 +38,14 @@ class GenreSearchStateTest {
         compose.waitUntil(10_000) { index != null }
         compose.onNodeWithTag("genre-result:ROCK").assertIsDisplayed().performClick()
         compose.onNodeWithTag("genre-result:HARD ROCK").assertIsDisplayed()
-        compose.onNodeWithTag("genre-result:FOLK").performScrollTo().assertIsDisplayed()
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("genre-result:FOLK"))
+        compose.onNodeWithTag("genre-result:FOLK").assertIsDisplayed()
         compose.onNodeWithText("Rock title only").assertDoesNotExist()
-        compose.onNodeWithTag("genre-open-songs").performScrollTo().performClick()
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("genre-open-songs"))
+        compose.onNodeWithTag("genre-open-songs").performClick()
         compose.runOnIdle { assertEquals(listOf("2"), openedSongs.map { it.id }) }
-        compose.onNodeWithTag("genre-result:HARD ROCK").performScrollTo().performClick()
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("genre-result:HARD ROCK"))
+        compose.onNodeWithTag("genre-result:HARD ROCK").performClick()
         compose.onNodeWithTag("genre-open-songs").performClick()
         compose.runOnIdle {
             assertEquals(listOf("3"), openedSongs.map { it.id })

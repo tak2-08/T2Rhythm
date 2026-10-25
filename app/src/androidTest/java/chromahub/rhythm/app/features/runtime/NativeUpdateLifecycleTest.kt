@@ -146,9 +146,14 @@ class NativeUpdateLifecycleTest {
     @Test fun actualNewDexAndNewResourceRunWithoutAnotherApkInstallation() {
         assertCode(NEXT)
         val feature = host.feature("test")
-        val symbol = feature.javaClass.classLoader!!.loadClass("chromahub.rhythm.app.R\$string").getField("runtime_update_fixture")
+        val arguments = InstrumentationRegistry.getArguments()
+        val resourceName = arguments.getString("updateResourceName") ?: "runtime_update_fixture"
+        val expected = arguments.getString("updateResourceTextBase64")?.let {
+            String(android.util.Base64.decode(it, android.util.Base64.DEFAULT), Charsets.UTF_8)
+        } ?: "New resource from independent feature v2"
+        val symbol = feature.javaClass.classLoader!!.loadClass("chromahub.rhythm.app.R\$string").getField(resourceName)
         val text = host.wrap(context, "test-resource").resources.getString(symbol.getInt(null))
-        assertEquals("New resource from independent feature v2", text)
+        assertEquals(expected, text)
         assertFalse(controller.status().getBoolean("trialInProgress"))
         preservedData()
         evidence("new-dex-new-resource-same-installed-apk")
