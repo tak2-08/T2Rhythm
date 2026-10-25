@@ -209,12 +209,8 @@ class LyricsEntryAndUpdatesTest {
     @Test fun explicitAnalysisProducesASeparateProposalAtFiftyFivePercentUnplugged() {
         val resolver = base.contentResolver
         val name = "lyric-analysis-${UUID.randomUUID()}.wav"
-        val values = ContentValues().apply {
-            put(MediaStore.Audio.Media.DISPLAY_NAME, name); put(MediaStore.Audio.Media.TITLE, name)
-            put(MediaStore.Audio.Media.MIME_TYPE, "audio/wav"); put(MediaStore.Audio.Media.IS_MUSIC, 1)
-            put(MediaStore.Audio.Media.DURATION, 20_000); put(MediaStore.Audio.Media.IS_PENDING, 1)
-        }
-        val uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)!!
+        var uri: Uri? = null
+        var legacyFile: File? = null
         val store = EnrichmentStore(base); val previousMode = store.mode()
         fun shell(command: String) { InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command).use { fd -> android.os.ParcelFileDescriptor.AutoCloseInputStream(fd).bufferedReader().use { it.readText() } } }
         var proposal: EnrichmentProposal? = null
@@ -228,9 +224,27 @@ class LyricsEntryAndUpdatesTest {
                 val amplitude = if (t < 2 || t > 18) .002 else .25 + .08 * kotlin.math.sin(t * 3)
                 buffer.putShort((32767 * amplitude * kotlin.math.sin(t * 440 * 2 * Math.PI)).toInt().toShort())
             }
-            resolver.openOutputStream(uri)!!.use { it.write(buffer.array()) }
-            resolver.update(uri, ContentValues().apply { put(MediaStore.Audio.Media.IS_PENDING, 0); put(MediaStore.Audio.Media.DURATION, 20_000) }, null, null)
-            val track = runBlocking { LocalMusicModule.provideMusicRepository(base).loadSongs(forceRefresh = true).first { it.uri == uri } }
+            val mediaUri = if (android.os.Build.VERSION.SDK_INT >= 29) {
+                val pending = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, ContentValues().apply {
+                    put(MediaStore.Audio.Media.DISPLAY_NAME, name); put(MediaStore.Audio.Media.TITLE, name)
+                    put(MediaStore.Audio.Media.MIME_TYPE, "audio/wav"); put(MediaStore.Audio.Media.IS_MUSIC, 1)
+                    put(MediaStore.Audio.Media.DURATION, 20_000); put(MediaStore.Audio.Media.IS_PENDING, 1)
+                })!!
+                uri = pending
+                resolver.openOutputStream(pending)!!.use { it.write(buffer.array()) }
+                resolver.update(pending, ContentValues().apply { put(MediaStore.Audio.Media.IS_PENDING, 0); put(MediaStore.Audio.Media.DURATION, 20_000) }, null, null)
+                pending
+            } else {
+                chromahub.rhythm.app.testing.grantTestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                val file = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MUSIC), "T2Lyrics/$name")
+                legacyFile = file; file.parentFile!!.mkdirs(); file.writeBytes(buffer.array())
+                val scanned = java.util.concurrent.CountDownLatch(1)
+                val result = java.util.concurrent.atomic.AtomicReference<Uri>()
+                android.media.MediaScannerConnection.scanFile(base, arrayOf(file.path), arrayOf("audio/wav")) { _, value -> result.set(value); scanned.countDown() }
+                assertTrue(scanned.await(30, java.util.concurrent.TimeUnit.SECONDS))
+                requireNotNull(result.get()).also { uri = it }
+            }
+            val track = runBlocking { LocalMusicModule.provideMusicRepository(base).loadSongs(forceRefresh = true).first { it.uri == mediaUri } }
             val original = LyricsData(null, text)
             shell("dumpsys battery set ac 0"); shell("dumpsys battery set usb 0"); shell("dumpsys battery set wireless 0"); shell("dumpsys battery set level 55")
             store.mode("LIGHT")
@@ -245,7 +259,7 @@ class LyricsEntryAndUpdatesTest {
             assertNull(AutomaticLyricsStore.get(base).read(track))
         } finally {
             shell("dumpsys battery set level 100"); shell("dumpsys battery set ac 1"); store.mode(previousMode)
-            resolver.delete(uri, null, null)
+            uri?.let { resolver.delete(it, null, null) }; legacyFile?.delete()
             proposal?.let { File(base.filesDir, "music_metadata/personalization/learning/proposals/${it.id}.json").delete() }
         }
     }

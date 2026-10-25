@@ -41,8 +41,13 @@ try:
         (output/'ui-summary.json').write_text(json.dumps(results,indent=2)+'\n')
         assert success,value.stdout[-6000:]
     print('Verified 4 production update phases and 8 UI/playback checks on the unchanged installed 1327 base payload.')
+    # Complete the original preservation suite on the separately verified 1328 base.
+    # This stage intentionally installs the new base only after all unchanged-APK proofs are committed.
+    subprocess.run(['python3',str(root/'scripts/run_preservation_gate.py'),'--native-base','--group','enhancements',
+        '--app-apk',str((args.prepared/'current-base.apk').resolve()),'--test-apk',str((args.prepared/'test.apk').resolve()),
+        '--output',str(output/'preservation')],check=True)
 finally:
-    log=subprocess.run(['adb','logcat','-d'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=30)
+    log=subprocess.run(['adb','logcat','-d'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,errors='replace',timeout=30)
     (output/'logcat.txt').write_text(log.stdout,errors='replace')
     files=subprocess.run(['adb','shell','find',f'/sdcard/Android/data/{package}/files','-type','f'],stdout=subprocess.PIPE,text=True,timeout=30)
     for path in files.stdout.splitlines():

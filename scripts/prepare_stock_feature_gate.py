@@ -25,7 +25,7 @@ args = parser.parse_args()
 prepared = args.prepared.resolve()
 output = args.out.resolve(); output.mkdir(parents=True, exist_ok=True)
 manifest = json.loads((prepared/'manifest.json').read_text())
-assert {x['name'] for x in manifest['assets']} == {'next.t2module', 'instrumentation-unsigned.zip'}
+assert {x['name'] for x in manifest['assets']} == {'next.t2module', 'instrumentation-unsigned.zip', 'current-base-original.apk'}
 for asset in manifest['assets']:
     path = output/asset['name']
     checksum = hashlib.sha256(); size = 0
@@ -53,6 +53,14 @@ with zipfile.ZipFile(baseline) as base:
     public_bytes = base.read('assets/runtime/module-public.der')
     fingerprint = re.fullmatch(r'runtimeFingerprint=([a-f0-9]{64})\n', base.read('assets/runtime/host.properties').decode('ascii'))[1]
 public = serialization.load_der_public_key(public_bytes)
+current_base = output/'current-base-original.apk'
+current_certificates = subprocess.check_output([str(signer), 'verify', '--verbose', '--print-certs', str(current_base)], text=True)
+assert set(re.findall(r'(?m)^(?:Signer #\d+|V\d+(?:\.\d+)? Signer:) certificate SHA-256 digest: ([a-f0-9]+)$', current_certificates)) == {
+    'c55ec7843dd8190f2ce249ddc1562c616647c50c317930076e2e98bf7e304c18'}
+with zipfile.ZipFile(current_base) as current:
+    assert current.read('assets/runtime/module-public.der') == public_bytes
+    assert current.read('assets/runtime/host.properties').decode('ascii') == f'runtimeFingerprint={fingerprint}\n'
+    assert hashlib.sha256(current.read('assets/runtime/default.t2module')).hexdigest() == hashlib.file_digest((output/'next.t2module').open('rb'), 'sha256').hexdigest()
 with zipfile.ZipFile(output/'next.t2module') as package:
     assert set(package.namelist()) == {'manifest.json','manifest.sig','content.dex.jar','notes.md'}
     raw = package.read('manifest.json'); module = json.loads(raw)
@@ -86,7 +94,7 @@ try:
     subprocess.run([shutil.which('keytool'),'-genkeypair','-alias','stock-test','-keyalg','RSA','-keysize','2048',
                     '-validity','2','-dname','CN=T2Rhythm isolated emulator test','-keystore',str(keystore),
                     '-storepass:env','T2_STOCK_TEST_PASS','-keypass:env','T2_STOCK_TEST_PASS'],env=env,check=True,stderr=subprocess.DEVNULL)
-    for source,name in [(baseline,'base.apk'),(aligned,'test.apk')]:
+    for source,name in [(baseline,'base.apk'),(aligned,'test.apk'),(current_base,'current-base.apk')]:
         target = output/name
         subprocess.run([str(signer),'sign','--ks',str(keystore),'--ks-key-alias','stock-test',
                         '--ks-pass','env:T2_STOCK_TEST_PASS','--key-pass','env:T2_STOCK_TEST_PASS',
