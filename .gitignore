@@ -23,5 +23,12 @@ private.properties.base64
 /app/release
 /.config
 
+# Private signing material belongs in protected external storage / GitHub Secrets.
+*.pk8
+*.jks
+*.keystore
+*.p12
+keystore.properties
+
 # Kotlin compiler session files
 .kotlin/

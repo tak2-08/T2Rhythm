@@ -50,6 +50,39 @@ class RuntimePackageVerifierTest {
             assertThrows(ModuleRejected::class.java) { verifier.verifyAuthenticity(archive) }.reason)
     }
 
+    @Test fun rotatedKeyAuthenticatesOldJournalWithoutAuthorizingOldExecutableCode() {
+        val oldArchive = fixture.archive(temporary.root)
+        val current = RuntimePackageVerifier(listOf(fixture.otherKey.public))
+        val journal = RuntimePackageVerifier(listOf(fixture.signingKey.public, fixture.otherKey.public))
+        val old = journal.verifyAuthenticity(oldArchive)
+        assertEquals(2L, old.manifest.versionCode)
+        assertEquals(Rejection.UNKNOWN_SIGNING_KEY,
+            assertThrows(ModuleRejected::class.java) { current.verifyAuthenticity(oldArchive) }.reason)
+
+        val newHost = fixture.host.copy(runtimeFingerprint = "b".repeat(64))
+        val manifest = fixture.manifest(3).apply {
+            this["signingKeyId"] = RuntimePackageVerifier.keyId(fixture.otherKey.public)
+            this["runtimeFingerprint"] = newHost.runtimeFingerprint
+        }
+        val embedded = current.verify(fixture.archive(temporary.root,
+            fixture.entries(manifest, key = fixture.otherKey)), newHost)
+        val restored = ModuleActivationPolicy.reconcileEmbeddedBaseUpdate(
+            ModuleActivationState(old.reference), embedded, newHost)
+        assertEquals(embedded.reference, restored.active)
+        assertNull(restored.previousGood)
+        assertNull(restored.candidate)
+        assertEquals(3L, restored.highestApprovedVersion)
+        assertTrue(ModuleActivationPolicy.prepareStartup(restored, newHost,
+            StartupSafety(true, true, false, false, false)) is StartupDecision.Keep)
+    }
+
+    @Test fun rotatedJournalVerifierStillRejectsTamperedHistoricalArchives() {
+        val journal = RuntimePackageVerifier(listOf(fixture.signingKey.public, fixture.otherKey.public))
+        val archive = fixture.archive(temporary.root, fixture.entries(payload = fixture.payload + 1.toByte()))
+        assertEquals(Rejection.PAYLOAD_INTEGRITY,
+            assertThrows(ModuleRejected::class.java) { journal.verifyAuthenticity(archive) }.reason)
+    }
+
     @Test fun unpinnedSigningKeyIsRejected() {
         val manifest = fixture.manifest().apply { this["signingKeyId"] = RuntimePackageVerifier.keyId(fixture.otherKey.public) }
         reject(Rejection.UNKNOWN_SIGNING_KEY, fixture.entries(manifest, key = fixture.otherKey))

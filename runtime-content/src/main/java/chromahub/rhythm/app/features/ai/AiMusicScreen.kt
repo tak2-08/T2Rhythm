@@ -53,6 +53,7 @@ fun AiMusicScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
     var editConfirm by remember { mutableStateOf<Pair<Song, Song>?>(null) }
     var trashConfirm by remember { mutableStateOf<List<Song>?>(null) }
     var undos by remember { mutableStateOf(emptyList<AiUndo>()) }
+    var forgetConfirm by remember { mutableStateOf<AiUndo?>(null) }
     val router = remember { AiRouter.session }
     val transport = remember { AiTransport() }
     val trashLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
@@ -126,13 +127,11 @@ fun AiMusicScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
                             val favorites = if (preferLikes) viewModel.favoriteSongs.value else emptySet()
                             val s = settings ?: return@launch
                             prepared = withContext(Dispatchers.Default) {
-                                val words = prompt.lowercase().split(Regex("[^\\p{L}\\p{N}]+" )).filter { it.length >= 2 }
-                                val candidates = snapshot.asSequence().filter { it.uri.scheme in setOf("content", "file") }
-                                    .filter { genre.isBlank() || it.genre.orEmpty().contains(genre.trim(), true) }
-                                    .sortedWith(compareByDescending<Song> { song ->
-                                        val text = "${song.title} ${song.artist} ${song.album} ${song.genre}".lowercase()
-                                        words.count { text.contains(it) } * 10 + if (song.id in favorites) 3 else 0
-                                    }.thenBy { it.id.hashCode() }).take(AiProtocol.MAX_TRACKS).toList()
+                                val candidates = AiCandidates.select(snapshot.asSequence()
+                                    .filter { it.uri.scheme == "content" || it.uri.scheme == "file" }
+                                    .filter { genre.isBlank() || it.genre.orEmpty().contains(genre.trim(), true) }, prompt,
+                                    text = { "${it.title} ${it.artist} ${it.album} ${it.genre}" },
+                                    favorite = { it.id in favorites }, id = { it.id })
                                 val mapping = candidates.mapIndexed { index, song -> "t${index + 1}" to song }.toMap()
                                 val tracks = mapping.map { (id, song) -> AiTrack(id, song.title, song.artist, song.album, song.genre.orEmpty(), song.duration / 1000) }
                                 PreparedAiRequest(operation, AiProtocol.payload(operation, prompt, situation, tracks), mapping, s)
@@ -207,9 +206,27 @@ fun AiMusicScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
                             finally { busy = false }
                         }
                     }) { Text("되돌리기") }
+                    TextButton(enabled = !busy, onClick = { forgetConfirm = undo }) { Text("기록 정리") }
                 }
             }
         }
+    }
+    forgetConfirm?.let { undo ->
+        AlertDialog(onDismissRequest = { forgetConfirm = null }, title = { Text("되돌리기 기록 정리") },
+            text = { Text("${undo.before.title}\n현재 보관함 정보는 유지합니다. 이 기록을 지우면 해당 변경을 되돌리는 데 사용할 수 없습니다. 음원 파일은 변경하지 않습니다.") },
+            confirmButton = { TextButton(onClick = {
+                forgetConfirm = null
+                job = scope.launch {
+                    busy = true
+                    try {
+                        withContext(Dispatchers.IO) { AiLibraryEdits(context).forget(undo) }
+                        undos = undos.filterNot { it.id == undo.id }
+                    } catch (cancel: CancellationException) { throw cancel }
+                    catch (_: Exception) { message = "기록을 정리하지 못했습니다. 다시 시도해 주세요." }
+                    finally { busy = false }
+                }
+            }) { Text("기록만 삭제") } },
+            dismissButton = { TextButton(onClick = { forgetConfirm = null }) { Text("취소") } })
     }
     prepared?.let { snapshot ->
         AlertDialog(onDismissRequest = { prepared = null }, title = { Text("전송 내용 확인") }, text = {
