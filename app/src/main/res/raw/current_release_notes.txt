@@ -1,5 +1,8 @@
 What changed in this version
 
+• Restored the original module signing key. Install the base APK update from 1328 or temporary 1330 while retaining the library and settings.
+• Published as a stable GitHub release so the in-app update check can discover this version.
+
 • Compose the expanded player only while opening or visible, preserve its saved UI state, and stop screen subscriptions while the UI is in the background.
 • Warm only the next one or two local tracks, evict obsolete preload sources, and honor shuffle order without copying the whole queue.
 • Defer automatic analysis during playback and clear disposable artwork caches on running-memory pressure.
