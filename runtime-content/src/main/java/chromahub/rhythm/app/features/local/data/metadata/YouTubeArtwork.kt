@@ -22,7 +22,7 @@ internal object YouTubeArtwork {
             fetch("$artist $title".take(500)).mapNotNull { hit ->
                 val id = MusicVideoLinks.youtubeId(hit.url) ?: return@mapNotNull null
                 if (!ArtworkMatchPolicy.accepts(title, artist, hit.title, hit.artist, options.artworkMatchPercent,
-                    durationMs, hit.durationSeconds * 1000, options.durationTolerancePercent, youtube = true)) return@mapNotNull null
+                    if (options.strictDuration) durationMs else 0, hit.durationSeconds * 1000, options.durationTolerancePercent, youtube = true)) return@mapNotNull null
                 YouTubeArtworkMatch(id, hit.title, hit.artist, ArtworkMatchPolicy.score(title, artist, hit.title, hit.artist, youtube = true), hit.durationSeconds * 1000)
             }.distinctBy { it.id }.sortedByDescending { it.score }
         } catch (cancelled: CancellationException) { throw cancelled }

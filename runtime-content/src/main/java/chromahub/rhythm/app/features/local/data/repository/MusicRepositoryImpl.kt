@@ -192,13 +192,19 @@ class MusicRepository(context: Context) {
     
     // Song cache to avoid duplicate MediaStore queries
     private val cachedSongState = MutableStateFlow<List<Song>?>(null)
+    private var genreIndexJob: kotlinx.coroutines.Job? = null
     private var cachedSongs: List<Song>?
         get() = cachedSongState.value
         set(value) {
+            val changed = cachedSongState.value != value
             cachedSongState.value = value
-            value?.let { songs -> repositoryScope.launch {
-                runCatching { chromahub.rhythm.app.util.LibraryGenreIndex.get(context, songs) }
-            } }
+            if (changed) {
+                genreIndexJob?.cancel()
+                genreIndexJob = value?.let { songs -> repositoryScope.launch {
+                    if (cachedSongState.value === songs)
+                        runCatching { chromahub.rhythm.app.util.LibraryGenreIndex.get(context, songs) }
+                } }
+            }
         }
     private val metadataReadDispatcher = Dispatchers.IO.limitedParallelism(2)
     private var cacheTimestamp: Long = 0

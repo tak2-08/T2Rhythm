@@ -40,7 +40,7 @@ class CatalogImportRepository(private val context: Context) {
                 catch (_: Exception) { null }
             if (doc?.has(CatalogField.TRACK_IMAGE) == true && ArtworkMatchPolicy.accepts(song.title, song.artist,
                     doc[CatalogField.TRACK_TITLE].orEmpty(), doc[CatalogField.TRACK_ARTISTS].orEmpty(), options.artworkMatchPercent,
-                    song.duration, doc[CatalogField.TRACK_DURATION_MS]?.toLongOrNull(), options.durationTolerancePercent)) return emptyList()
+                    if (options.strictDuration) song.duration else 0, doc[CatalogField.TRACK_DURATION_MS]?.toLongOrNull(), options.durationTolerancePercent)) return emptyList()
         }
         return YouTubeArtwork.search(song.title, song.artist, song.duration, options)
     }

@@ -23,4 +23,11 @@ class YouTubeArtworkTest {
         assertTrue(disabled.isEmpty())
         assertTrue(YouTubeArtwork.search("Song", "Artist", 200_000, CatalogOptions()) { throw java.io.IOException("Unavailable") }.isEmpty())
     }
+    @Test fun theSharedDurationPreferenceAlsoAppliesToYouTubeMatching() = runBlocking {
+        val fetch: suspend (String) -> List<AudioSourceCandidate> = {
+            listOf(AudioSourceCandidate("https://www.youtube.com/watch?v=abcdefghijk", "Song", "Artist", 400))
+        }
+        assertTrue(YouTubeArtwork.search("Song", "Artist", 200_000, CatalogOptions(), fetch).isEmpty())
+        assertEquals(1, YouTubeArtwork.search("Song", "Artist", 200_000, CatalogOptions(strictDuration = false), fetch).size)
+    }
 }
