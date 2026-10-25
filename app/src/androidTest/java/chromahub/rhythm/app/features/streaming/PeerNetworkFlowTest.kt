@@ -7,7 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import chromahub.rhythm.app.shared.data.model.Playlist
 import chromahub.rhythm.app.shared.data.model.Song
@@ -19,6 +19,7 @@ import org.junit.*
 import org.junit.Assert.*
 
 class PeerNetworkFlowTest {
+    // Match the queued composition scheduler used by the real-service streaming UI tests.
     @get:Rule val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
     private val base get() = InstrumentationRegistry.getInstrumentation().targetContext
     private val manager get() = PrivateStreaming.get(base)
