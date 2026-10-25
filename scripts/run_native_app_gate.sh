@@ -11,7 +11,7 @@ if [[ "$runtime_batch" == native_release ]]; then
         --output "native-results/release-api${runtime_api_level}"
     exit 0
 fi
-if [[ "$runtime_batch" == native_full || "$runtime_batch" == native_diagnostics || "$runtime_batch" == native_upgrade ]]; then
+if [[ "$runtime_batch" == native_full || "$runtime_batch" == native_diagnostics || "$runtime_batch" == native_upgrade || "$runtime_batch" == native_enhancements ]]; then
     if [[ "$runtime_group" == baseline_file_names ]]; then
         python3 scripts/run_preservation_gate.py --group file_names --output "native-results/baseline-file-names-api${runtime_api_level}" \
             --legacy-apk native-baseline-artifacts/legacy.apk --legacy-test-apk native-baseline-artifacts/legacy-test.apk

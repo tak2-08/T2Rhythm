@@ -13,7 +13,7 @@ internal class EnrichmentLearningIndex(context: Context) :
         java.io.File(context.cacheDir, "enrichment-learning.db").path,
         null,
         4,
-    ) {
+    ), java.io.Closeable {
     private val gson = Gson()
 
     override fun onCreate(db: SQLiteDatabase) {

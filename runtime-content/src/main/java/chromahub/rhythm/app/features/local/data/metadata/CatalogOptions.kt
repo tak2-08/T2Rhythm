@@ -25,6 +25,8 @@ data class CatalogOptions(
     val strictDuration: Boolean = true,
     val durationTolerancePercent: Double = 3.0,
     val artworkSource: String = "MUSIC_SITES",
+    val youtubeArtworkFallback: Boolean = true,
+    val artworkMatchPercent: Int = 94,
     val providers: Set<Provider> = setOf(Provider.BUGS_MOBILE, Provider.MELON, Provider.GENIE),
 ) {
     fun replaces(field: CatalogField) = replaceTags || field in forceFields
@@ -37,6 +39,8 @@ class CatalogPreferences(context: Context) {
         forceFields = prefs.getStringSet("forceFields", emptySet()).orEmpty().mapNotNull { runCatching { CatalogField.valueOf(it) }.getOrNull() }.toSet(),
         durationTolerancePercent = prefs.getFloat("durationTolerancePercent", 3f).toDouble().takeIf { it.isFinite() && it in 0.0..30.0 } ?: 3.0,
         artworkSource = prefs.getString("artworkSource", "MUSIC_SITES") ?: "MUSIC_SITES",
+        youtubeArtworkFallback = prefs.getBoolean("youtubeArtworkFallback", true),
+        artworkMatchPercent = prefs.getInt("artworkMatchPercent", 94).coerceIn(90, 100),
         enabled = prefs.getBoolean("enabled", true), permanent = prefs.getBoolean("permanent", true),
         autoLyrics = prefs.getBoolean("autoLyrics", true), embedLyrics = prefs.getBoolean("embedLyrics", true),
         wifiOnly = prefs.getBoolean("wifiOnly", true), writeTags = prefs.getBoolean("writeTags", true), metadata = prefs.getBoolean("metadata", true),
@@ -51,6 +55,8 @@ class CatalogPreferences(context: Context) {
             putBoolean("replaceTags", value.replaceTags); putBoolean("strictDuration", value.strictDuration); putString("artworkSource", value.artworkSource)
             putStringSet("forceFields", value.forceFields.map { it.name }.toSet())
             putFloat("durationTolerancePercent", value.durationTolerancePercent.toFloat())
+            putBoolean("youtubeArtworkFallback", value.youtubeArtworkFallback)
+            putInt("artworkMatchPercent", value.artworkMatchPercent.coerceIn(90, 100))
             putBoolean("enabled", value.enabled); putBoolean("permanent", value.permanent)
             putBoolean("autoLyrics", value.autoLyrics); putBoolean("embedLyrics", value.embedLyrics)
             putBoolean("writeTags", value.writeTags); putBoolean("wifiOnly", value.wifiOnly); putBoolean("metadata", value.metadata)

@@ -126,7 +126,6 @@ fun PersonalCollectionsContent(songs: List<Song>, favorites: List<String>, curre
             Text(stringResource(R.string.personal_collections_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             IconButton(enabled = !proposalBusy && !ratingBusy, onClick = { refresh++ }) { Icon(MaterialSymbolIcon("refresh"), stringResource(R.string.personal_refresh_mix), Modifier.size(24.dp)) }
             IconButton(onClick = { drawer = true; scope.launch(operationError) { shelf = withContext(Dispatchers.IO) { RecommendationShelf.recent(context) } } }) { Icon(MaterialSymbolIcon("shelves"), stringResource(R.string.personal_mix_shelf), Modifier.size(24.dp)) }
-            IconButton(onClick = onMoveSection) { Icon(MaterialSymbolIcon("swap_vert"), stringResource(R.string.personal_move_section), Modifier.size(24.dp)) }
         }
         Text(stringResource(R.string.personal_collections_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Card(onClick = { snapshot?.let { RecommendationShelf.interacted(context,it.id) }; sheetSnapshot = snapshot; selected = proposalMode; genre = snapshot?.genre }, shape = RoundedCornerShape(24.dp),

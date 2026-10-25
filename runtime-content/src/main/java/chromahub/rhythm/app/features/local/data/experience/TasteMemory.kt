@@ -20,7 +20,7 @@ import kotlin.math.floor
 @Keep data class TasteEvent(val id: String, val at: Long, val action: String, val state: TasteState)
 
 /** Permanent intentions and explicit exposures. A review never removes the underlying like. */
-class TasteMemory private constructor(private val context: Context) : SQLiteOpenHelper(context, "taste-memory.db", null, 1) {
+class TasteMemory private constructor(private val context: Context) : SQLiteOpenHelper(context, "taste-memory.db", null, 1), java.io.Closeable {
     private val gson = Gson()
     private val prefs = context.getSharedPreferences("taste_memory", Context.MODE_PRIVATE)
     private val revision = MutableStateFlow(0L)

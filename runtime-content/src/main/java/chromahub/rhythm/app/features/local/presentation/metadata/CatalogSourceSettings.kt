@@ -21,6 +21,7 @@ fun CatalogSourceSettings() {
     val settings = remember { AppSettings.getInstance(context) }
     val online by settings.integrationsEnabled.collectAsState()
     val lyrics by settings.musicCrawlerLyricsApiEnabled.collectAsState()
+    var artworkThreshold by remember(options.artworkMatchPercent) { mutableFloatStateOf(options.artworkMatchPercent.toFloat()) }
     var selectArtwork by remember { mutableStateOf(false) }
     val sources = listOf("MUSIC_SITES" to stringResource(R.string.catalog_site_priority), "BUGS" to "Bugs · 벅스",
         "MELON" to "Melon · 멜론", "GENIE" to "Genie · 지니", "LEGACY" to stringResource(R.string.catalog_legacy_artwork),
@@ -47,6 +48,15 @@ fun CatalogSourceSettings() {
             OutlinedButton(onClick = { selectArtwork = true }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.catalog_artwork_source) + ": " + (sources.firstOrNull { it.first == options.artworkSource }?.second ?: sources.first().second))
             }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(stringResource(R.string.youtube_artwork_fallback), Modifier.weight(1f))
+                Switch(options.youtubeArtworkFallback, enabled = online,
+                    onCheckedChange = { preferences.update(options.copy(youtubeArtworkFallback = it)) })
+            }
+            Text(stringResource(R.string.youtube_artwork_hint), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.youtube_artwork_threshold, artworkThreshold.toInt()), style = MaterialTheme.typography.labelLarge)
+            Slider(artworkThreshold, { artworkThreshold = it }, valueRange = 90f..100f, steps = 9, enabled = online,
+                onValueChangeFinished = { preferences.update(options.copy(artworkMatchPercent = artworkThreshold.toInt())) })
             Text(stringResource(R.string.catalog_site_priority), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         }
     }

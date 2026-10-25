@@ -69,6 +69,7 @@ class LibrarySearchNavigationTest {
         // Apply the requested language after that delegate exists, as the settings UI does.
         activity.scenario.onActivity { LanguageHelper.setLanguage(it, "ko") }
         awaitNode("보관함", description = true)
+        capture("home-before-library-navigation.png")
         click("보관함", description = true)
         awaitNode("라이브러리")
         val songs =
@@ -182,20 +183,27 @@ class LibrarySearchNavigationTest {
         awaitNode("서른 즈음에")
         assertNull(locate("이등병의 편지"))
         capture("library-search-genre-songs.png")
-        androidx.test.espresso.Espresso.pressBack()
-        compose.waitForIdle()
-        androidx.test.espresso.Espresso.pressBack()
+        pressNavigationBack()
+        awaitSongsPageClosed()
+        awaitSelectedGenre("FOLK ROCK")
+        pressNavigationBack()
         compose.waitForIdle()
         awaitSelectedGenre("FOLK")
-        compose.onNodeWithTag("genre-result:POP").performScrollTo().assertIsDisplayed()
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("genre-result:POP"))
+        compose.onNodeWithTag("genre-result:POP").assertIsDisplayed()
         capture("library-search-related-genres.png")
         compose.onNodeWithTag("genre-open-songs").performScrollTo().performClick()
         awaitNode("이등병의 편지")
         awaitNode("서른 즈음에")
-        androidx.test.espresso.Espresso.pressBack()
-        compose.waitForIdle()
+        pressNavigationBack()
+        awaitSongsPageClosed()
+        awaitSelectedGenre("FOLK")
         click(label(R.string.genre_search_all))
+        compose.onNodeWithText(label(R.string.genre_search_all)).assertIsSelected()
         // Switching tabs restores the original general search, rather than reusing a genre query.
+        // The retained song title exists in the outgoing genre page too, so its presence alone
+        // cannot establish that the debounced general-search result has replaced that page.
+        compose.waitUntil(10_000) { locate("서른 즈음에") == null }
         awaitNode("이등병의 편지")
         assertNull(locate("서른 즈음에"))
         enter("존재하지않는노래")
@@ -233,6 +241,28 @@ class LibrarySearchNavigationTest {
         node.assertIsDisplayed()
         val bounds = node.getUnclippedBoundsInRoot()
         assertTrue("Selected genre chip must not cover the screen", bounds.bottom - bounds.top <= 56.dp)
+    }
+
+    private fun awaitSongsPageClosed() {
+        val songsTitle = label(R.string.settings_tab_songs)
+        runCatching {
+            compose.waitUntil(10_000) {
+                compose.onAllNodesWithText(songsTitle).fetchSemanticsNodes().isEmpty()
+            }
+        }.onFailure {
+            chromahub.rhythm.app.testing.snapshotTestUi(compose.activity, "library-search-back-failure")
+        }.getOrThrow()
+    }
+
+    private fun pressNavigationBack() {
+        // API 26's IME can reconnect to the retained search field when the child page closes.
+        // Establish the same keyboard-free precondition for every navigation Back event.
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
+        compose.waitUntil(10_000) {
+            androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) != true
+        }
+        androidx.test.espresso.Espresso.pressBack()
     }
 
     private fun label(resource: Int): String {

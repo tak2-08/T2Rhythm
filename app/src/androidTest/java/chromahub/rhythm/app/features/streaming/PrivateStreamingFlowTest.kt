@@ -14,7 +14,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import chromahub.rhythm.app.R
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -30,6 +30,8 @@ import org.junit.*
 import org.junit.Assert.*
 
 class PrivateStreamingFlowTest {
+    // Queue composition work: real service StateFlow updates arrive from IO threads, where
+    // the legacy unconfined test dispatcher can re-enter an active layout or disposal pass.
     @get:Rule val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
     private val base get() = InstrumentationRegistry.getInstrumentation().targetContext
     private val manager get() = PrivateStreaming.get(base)

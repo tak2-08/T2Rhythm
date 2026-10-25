@@ -508,16 +508,26 @@ class RhythmPlayerEngine(
                     .setAudioProcessorChain(processorChain)
                     .build()
 
-                return if (replayGainProcessor != null) {
-                    object : ForwardingAudioSink(baseSink) {
+                return object : ForwardingAudioSink(baseSink) {
+                        private var referenceFormat: androidx.media3.common.Format? = null
                         override fun configure(audioSinkConfig: AudioSink.AudioSinkConfig) {
-                            replayGainProcessor.setRootFormat(audioSinkConfig.format)
+                            referenceFormat = audioSinkConfig.format
+                            chromahub.rhythm.app.features.local.data.experience.PlaybackAudioReference.clear()
+                            replayGainProcessor?.setRootFormat(audioSinkConfig.format)
                             super.configure(audioSinkConfig)
                         }
+                        override fun handleBuffer(buffer: java.nio.ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
+                            val start = buffer.position()
+                            val accepted = super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
+                            val reference = chromahub.rhythm.app.features.local.data.experience.PlaybackAudioReference
+                            val format = referenceFormat
+                            if (reference.collecting && format != null && buffer.position() > start) {
+                                val consumed = buffer.duplicate().apply { limit(buffer.position()); position(start) }
+                                reference.append(consumed, format.sampleRate, format.channelCount, format.pcmEncoding)
+                            }
+                            return accepted
+                        }
                     }
-                } else {
-                    baseSink
-                }
             }
         }.apply {
             val extensionMode = if (appSettings.decoderExtensionsEnabled.value) {

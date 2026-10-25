@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="youtube_artwork_fallback">Use matching YouTube thumbnails as a fallback</string>
+    <string name="youtube_artwork_hint">When music sites have no suitable artwork, compare the video title, artist and duration. Live, cover and remix editions are kept separate.</string>
+    <string name="youtube_artwork_threshold">Minimum title and artist similarity: %1$d%%</string>
+    <string name="youtube_artwork_match">YouTube thumbnail · metadata match %1$d%%</string>
+    <string name="ambient_estimated_level">Estimated surrounding sound: %1$.1f dBFS · microphone: %2$.1f dBFS</string>
+    <string name="ambient_reference_unavailable">Playback could not be separated reliably; showing the microphone reading.</string>
+    <string name="ambient_compensation_hint">Playback samples are compared with the microphone to estimate and remove playback leakage. This is a relative estimate, not a calibrated sound pressure measurement. Audio stays in memory.</string>
+</resources>

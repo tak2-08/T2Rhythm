@@ -33,7 +33,8 @@ import java.io.File
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CatalogLookupDialog(initialQuery: String, lyricsOnly: Boolean = false, onDismiss: () -> Unit,
-    onApply: (CatalogDocument, Uri?) -> Unit, initialDocument: CatalogDocument? = null) {
+    onApply: (CatalogDocument, Uri?) -> Unit, initialDocument: CatalogDocument? = null,
+    lookupSong: chromahub.rhythm.app.shared.data.model.Song? = null) {
     val context = LocalContext.current; val scope = rememberCoroutineScope(); val keyboard = LocalSoftwareKeyboardController.current
     val repository = remember { CatalogImportRepository(context.applicationContext) }
     var query by remember { mutableStateOf(initialQuery) }; var kind by remember { mutableStateOf(EntityKind.TRACK) }
@@ -43,6 +44,7 @@ fun CatalogLookupDialog(initialQuery: String, lyricsOnly: Boolean = false, onDis
     var busy by remember { mutableStateOf(false) }; var message by remember { mutableStateOf<String?>(null) }
     var job by remember { mutableStateOf<Job?>(null) }; var generation by remember { mutableIntStateOf(0) }
     var previewImage by remember { mutableStateOf<String?>(null) }
+    var youtube by remember { mutableStateOf(emptyList<chromahub.rhythm.app.features.local.data.metadata.YouTubeArtworkMatch>()) }
     fun preview(result: CatalogDocument?) {
         document = result?.copy(values = result.values.map { value ->
             if (value.field.name.endsWith("GENRES")) value.copy(value = chromahub.rhythm.app.util.GenreUtils.splitGenres(value.value).joinToString(", ")) else value
@@ -83,12 +85,12 @@ fun CatalogLookupDialog(initialQuery: String, lyricsOnly: Boolean = false, onDis
                 if (document == null) {
                     if (!lyricsOnly) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf(EntityKind.TRACK, EntityKind.ALBUM, EntityKind.ARTIST).forEach { option ->
-                            FilterChip(kind == option, enabled = !busy, onClick = { kind = option; hits = emptyList(); message = null }, label = { Text(option.label(context)) })
+                            FilterChip(kind == option, enabled = !busy, onClick = { kind = option; hits = emptyList(); youtube = emptyList(); message = null }, label = { Text(option.label(context)) })
                         }
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf(null, Provider.MELON, Provider.BUGS_MOBILE, Provider.GENIE).forEach { option ->
-                            FilterChip(provider == option, enabled = !busy, onClick = { provider = option; hits = emptyList(); message = null },
+                            FilterChip(provider == option, enabled = !busy, onClick = { provider = option; hits = emptyList(); youtube = emptyList(); message = null },
                                 label = { Text(option?.displayName() ?: stringResource(R.string.catalog_all_sources)) })
                         }
                     }
@@ -97,7 +99,8 @@ fun CatalogLookupDialog(initialQuery: String, lyricsOnly: Boolean = false, onDis
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(enabled = !busy && query.isNotBlank(), onClick = { keyboard?.hide(); run {
                             hits = repository.search(provider, kind, query)
-                            if (hits.isEmpty()) message = context.getString(R.string.catalog_no_results)
+                            youtube = if (!lyricsOnly && kind == EntityKind.TRACK) repository.youtubeFallback(lookupSong, hits) else emptyList()
+                            if (hits.isEmpty() && youtube.isEmpty()) message = context.getString(R.string.catalog_no_results)
                         } }) { Text(stringResource(R.string.catalog_search)) }
                         OutlinedButton(enabled = !busy, onClick = { studio.launch(Intent(context, SelectorStudioActivity::class.java)
                             .putExtra(SelectorStudioActivity.EXTRA_KIND, kind.name)) }) { Text(stringResource(R.string.catalog_custom_site)) }
@@ -114,7 +117,14 @@ fun CatalogLookupDialog(initialQuery: String, lyricsOnly: Boolean = false, onDis
                             Text(listOfNotNull(hit.artists, hit.provider.displayName()).joinToString(" · "))
                         }, leadingContent = { CatalogArtworkThumbnail(hit.thumbnailUrl, Modifier.size(56.dp), hit.title) },
                             modifier = Modifier.clickable(enabled = !busy) { run { preview(repository.load(hit)) } })
-                    } else items(current.values.filter { it.hasValue() }, key = { it.field }) { value ->
+                    }
+                    if (current == null) items(youtube, key = { "youtube:${it.id}" }) { match ->
+                        ListItem(headlineContent = { Text(match.title) }, supportingContent = {
+                            Text(stringResource(R.string.youtube_artwork_match, (match.score * 100).toInt()))
+                        }, leadingContent = { CatalogArtworkThumbnail(match.thumbnail, Modifier.size(56.dp), match.title) },
+                            modifier = Modifier.clickable(enabled = !busy) { preview(match.document()) })
+                    }
+                    if (current != null) items(current.values.filter { it.hasValue() }, key = { it.field }) { value ->
                         CatalogFieldRow(value, value.field in selected, CatalogSelection.selectable(value.field, lyricsOnly), !busy,
                             onChecked = { checked -> selected = if (checked) selected + value.field else selected - value.field },
                             onPreview = { previewImage = value.value })

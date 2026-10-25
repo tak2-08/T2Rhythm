@@ -101,6 +101,7 @@ import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.core.net.toUri
 import chromahub.rhythm.app.util.windowScreenWidthDp
 import chromahub.rhythm.app.util.windowScreenHeightDp
@@ -253,7 +254,7 @@ fun UniversalSearchScreen(
 
     val statusBarsTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navigationBarsBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val searchBarHeightPadding = 144.dp + (if (genreTab && selectedGenre != null) 48.dp else 0.dp) + (if (showFilters) 48.dp else 0.dp)
+    val searchBarHeightPadding = 156.dp + (if (genreTab && selectedGenre != null) 48.dp else 0.dp) + (if (showFilters) 48.dp else 0.dp)
     val totalBottomPadding = searchBarHeightPadding + navigationBarsBottom + 16.dp
 
     Box(
@@ -1083,7 +1084,7 @@ fun UniversalSearchScreen(
                 .animateContentSize(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium))
                 .align(Alignment.BottomCenter)
         ) {
-            PrimaryTabRow(selectedTabIndex = if (genreTab) 1 else 0) {
+            PrimaryTabRow(selectedTabIndex = if (genreTab) 1 else 0, modifier = Modifier.testTag("universal-search-tabs")) {
                 Tab(selected = !genreTab, onClick = { genreTab = false }, text = { Text(stringResource(R.string.genre_search_all)) })
                 Tab(selected = genreTab, onClick = { genreTab = true; showFilters = false }, text = { Text(stringResource(R.string.genre_search_tab)) })
             }
@@ -1091,8 +1092,9 @@ fun UniversalSearchScreen(
                 InputChip(selected = true, onClick = { genreTrail = emptyList() }, label = { Text(genre, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     trailingIcon = { Icon(MaterialSymbolIcon("close"), stringResource(R.string.ui_clear), Modifier.size(18.dp)) })
             }
+            Spacer(Modifier.height(12.dp))
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("universal-search-input-row"),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {

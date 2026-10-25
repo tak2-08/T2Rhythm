@@ -129,17 +129,23 @@ class LibraryPagesTest {
                 { menu = false; editor = true }, { menu = false })
             if (editor) EntityDescriptionEditor(EntityKind.ARTIST, key, "직접 고치는 아티스트 페이지", description = "기존 소개글", onDismiss = { editor = false })
         } } }
-        compose.onNodeWithTag("open-page-menu").performClick()
-        compose.onNodeWithTag("entity-edit-description").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().singleOrNull()?.config?.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) == false }
+        fun openDescriptionEditor() {
+            compose.onNodeWithTag("open-page-menu").assertIsDisplayed().performClick()
+            compose.mainClock.advanceTimeBy(1600)
+            compose.waitForIdle()
+            compose.onNodeWithTag("entity-edit-description").assertIsDisplayed().assertIsEnabled().performClick()
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().singleOrNull()?.config?.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) == false }
+        }
+        openDescriptionEditor()
         compose.onNodeWithTag("page-description").performTextReplacement("내가 보관하고 싶은 아티스트 소개")
         Espresso.closeSoftKeyboard()
         capture("page-description-editor.png")
         compose.onNodeWithText(base.getString(R.string.page_save)).performClick()
         compose.waitUntil(10_000) { EntityPageStore(base).read(EntityKind.ARTIST, key)?.description == "내가 보관하고 싶은 아티스트 소개" }
-        compose.onNodeWithTag("open-page-menu").performClick()
-        compose.onNodeWithTag("entity-edit-description").performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().singleOrNull()?.config?.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled) == false }
+        // The disk/cache write completes before the UI coroutine dismisses its dialog.
+        // Reopening must wait for that window to close, rather than tapping behind it.
+        compose.waitUntil(10_000) { compose.onAllNodesWithTag("page-description").fetchSemanticsNodes().isEmpty() }
+        openDescriptionEditor()
         compose.onNodeWithTag("page-description").assertTextContains("내가 보관하고 싶은 아티스트 소개")
     }
     @Test fun expressivePlayerShowsUppercaseGenresAndTheKnownReleaseYear() {
@@ -177,7 +183,9 @@ class LibraryPagesTest {
     }
     @Test fun folderAlbumSettingIsVisibleAndPersistsTheUsersChoice() {
         compose.setContent { CompositionLocalProvider(LocalContext provides compose.activity) { MaterialTheme { LibrarySettingsScreen {} } } }
-        compose.onNodeWithText(base.getString(R.string.folder_album_title)).performScrollTo().assertIsDisplayed()
+        // Additional catalog controls can place this lazy item beyond the composed viewport.
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(base.getString(R.string.folder_album_title)))
+        compose.onNodeWithText(base.getString(R.string.folder_album_title)).assertIsDisplayed()
         compose.onNode(isToggleable() and hasAnyAncestor(hasText(base.getString(R.string.folder_album_title), substring = true))).performClick()
         assertTrue(AppSettings.getInstance(base).useFolderNameAsAlbum.value)
         assertTrue(base.getSharedPreferences("rhythm_preferences", 0).getBoolean("use_folder_name_as_album", false))

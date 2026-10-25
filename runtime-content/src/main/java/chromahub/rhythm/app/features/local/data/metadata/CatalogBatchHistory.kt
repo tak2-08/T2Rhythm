@@ -12,7 +12,7 @@ import org.json.JSONArray
 
 /** Completion is tied to the requested fields and input, not just the last queue position. */
 class CatalogBatchHistory(private val context: Context) :
-    SQLiteOpenHelper(context, "catalog_batch_history.db", null, 1) {
+    SQLiteOpenHelper(context, "catalog_batch_history.db", null, 1), java.io.Closeable {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             "CREATE TABLE completed (song_key TEXT PRIMARY KEY, policy TEXT NOT NULL, before_input TEXT NOT NULL, after_input TEXT NOT NULL, checked_at INTEGER NOT NULL)"

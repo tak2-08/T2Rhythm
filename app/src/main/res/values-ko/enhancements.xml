@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="youtube_artwork_fallback">일치하는 유튜브 썸네일로 대체</string>
+    <string name="youtube_artwork_hint">음원 사이트에 조건에 맞는 아트가 없으면 영상의 제목·아티스트·길이를 대조합니다. 라이브·커버·리믹스는 원곡과 구분합니다.</string>
+    <string name="youtube_artwork_threshold">제목·아티스트 최소 일치도: %1$d%%</string>
+    <string name="youtube_artwork_match">유튜브 썸네일 · 정보 일치도 %1$d%%</string>
+    <string name="ambient_estimated_level">주변 소리 추정: %1$.1f dBFS · 마이크 측정: %2$.1f dBFS</string>
+    <string name="ambient_reference_unavailable">재생음을 안정적으로 분리하지 못해 마이크 측정값을 표시합니다.</string>
+    <string name="ambient_compensation_hint">실제 재생 샘플과 마이크 신호를 비교해 재생음의 유입분을 추정하여 제거합니다. 절대 소음도가 아닌 상대 추정값이며, 오디오 샘플은 메모리에만 유지합니다.</string>
+</resources>

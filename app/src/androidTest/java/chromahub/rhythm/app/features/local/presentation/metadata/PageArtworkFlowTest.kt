@@ -50,7 +50,7 @@ class PageArtworkFlowTest {
         }
     }
     @Before @Suppress("DEPRECATION") fun setup() {
-        InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(base.packageName,
+        chromahub.rhythm.app.testing.grantTestPermission(
             if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE)
         compose.runOnUiThread {
             Locale.setDefault(Locale.KOREAN)
@@ -245,9 +245,18 @@ class PageArtworkFlowTest {
             chromahub.rhythm.app.shared.presentation.components.bottomsheets.SongInfoBottomSheet(s,{},AppSettings.getInstance(base),
                 onEditSong={_,_,_,_,_,_,_,_,_,_,_,done->done(true)},startInEditMode=true)
         } }
-        compose.onNodeWithText(base.getString(R.string.songinfobottomsheet_fetch_online_art)).performScrollTo().assertIsEnabled()
+        compose.mainClock.advanceTimeBy(1600); compose.waitForIdle()
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
+        compose.waitUntil(10_000) {
+            androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) != true
+        }
+        val artworkAction = compose.onNodeWithText(base.getString(R.string.songinfobottomsheet_fetch_online_art))
+        artworkAction.performScrollTo().assertIsDisplayed().assertIsEnabled()
         capture("song-editor-online-artwork.png")
-        compose.onNodeWithText(base.getString(R.string.songinfobottomsheet_fetch_online_art)).performClick()
+        artworkAction.assertIsDisplayed().performClick()
+        runCatching { compose.waitUntil(10_000) { runCatching { compose.onNodeWithTag("artwork-query").assertIsDisplayed() }.isSuccess } }
+            .onFailure { chromahub.rhythm.app.testing.snapshotTestUi(compose.activity, "song-editor-artwork-failure") }.getOrThrow()
         compose.onNodeWithTag("artwork-query").assertIsDisplayed()
         listOf("Melon","Bugs","Genie").forEach { compose.onNodeWithText(it).assertIsDisplayed() }
         compose.onNodeWithText(base.getString(R.string.catalog_close)).performClick()
