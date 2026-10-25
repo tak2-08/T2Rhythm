@@ -11,7 +11,6 @@ import android.os.Build
 import android.provider.MediaStore
 import android.util.AtomicFile
 import androidx.annotation.Keep
-import chromahub.rhythm.app.features.local.data.database.RhythmDatabase
 import chromahub.rhythm.app.features.local.di.LocalMusicModule
 import chromahub.rhythm.app.shared.data.model.Song
 import chromahub.rhythm.app.util.MediaUtils
@@ -137,7 +136,7 @@ class FileNameService(private val context: Context) {
                         if (current.path != plan.newPath) SongFileIdentity.rollback(context, plan.oldPath, plan.newPath, key)
                         SongFileIdentity.commit(context, plan.oldPath, current.path, key, plan.song.uri.toString())
                         val after = plan.song.copy(path = current.path, dateModified = current.modified)
-                        RhythmDatabase.getInstance(context).songDao().updateFileLocation(plan.song.id, plan.song.uri.toString(), current.path, current.modified)
+                        repository.persistRenamedSongLocation(after)
                         repository.clearInMemoryCaches()
                         catalog.notifyChanged()
                         journal(plan.song.uri.toString()).delete()
@@ -172,7 +171,8 @@ class FileNameService(private val context: Context) {
                     if (current.path == entry.newPath && File(current.path).isFile && digest(Uri.parse(entry.mutationUri)) == entry.digest) {
                         val song = CatalogSongCodec.decode(entry.song)
                         SongFileIdentity.commit(context, entry.oldPath, entry.newPath, entry.key, song.uri.toString())
-                        RhythmDatabase.getInstance(context).songDao().updateFileLocation(song.id, song.uri.toString(), current.path, current.modified)
+                        LocalMusicModule.provideMusicRepository(context).persistRenamedSongLocation(
+                            song.copy(path = current.path, dateModified = current.modified))
                         file.delete()
                     } else if (current.path == entry.oldPath && File(entry.oldPath).isFile) {
                         SongFileIdentity.rollback(context, entry.oldPath, entry.newPath, entry.key); file.delete()

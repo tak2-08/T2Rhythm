@@ -28,8 +28,8 @@ android {
         targetSdk = 37
         val overrideVersionCode = providers.gradleProperty("versionCodeOverride").orNull?.toInt()
         val overrideVersionName = providers.gradleProperty("versionNameOverride").orNull
-        versionCode = overrideVersionCode ?: 554991329
-        versionName = overrideVersionName ?: "5.5.499.1329"
+        versionCode = overrideVersionCode ?: 554991330
+        versionName = overrideVersionName ?: "5.5.499.1330"
         manifestPlaceholders["runtimeTestOnly"] = runtimeTestOnly.get().toString()
         buildConfigField("long", "RUNTIME_BASE_VERSION", "1L")
         testInstrumentationRunner = "androidx.test.runner.NativeModuleJUnitRunner"

@@ -43,6 +43,19 @@ object SongFileIdentity {
         }
         alias.key
     }
+
+    /** A delayed scan must follow completed, URI-bound renames before it saves an old snapshot. */
+    fun currentLocation(context: Context, song: Song): Song = synchronized(lock) {
+        var path = song.path?.takeIf(String::isNotBlank) ?: return@synchronized song
+        repeat(64) {
+            val alias = read(context, path) ?: return@synchronized if (path == song.path) song else song.copy(path = path)
+            if (alias.pending || alias.uri != song.uri.toString()) return@synchronized song
+            if (alias.activePath == path) return@synchronized if (path == song.path) song else song.copy(path = path)
+            path = alias.activePath
+        }
+        // Corrupt/cyclic or unexpectedly long chains must not invent a location.
+        song
+    }
     fun stage(context: Context, oldPath: String, newPath: String, key: String, uri: String? = null) = synchronized(lock) {
         write(context, Alias(key, oldPath, newPath, true, uri)); write(context, Alias(key, newPath, newPath, true, uri))
     }

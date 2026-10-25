@@ -108,6 +108,7 @@ import chromahub.rhythm.app.features.local.data.database.RhythmDatabase
 import chromahub.rhythm.app.features.local.data.database.entity.ArtistEntity
 import chromahub.rhythm.app.features.local.data.database.entity.SongEntity
 import chromahub.rhythm.app.features.local.data.database.entity.toEntity
+import chromahub.rhythm.app.features.local.data.metadata.SongFileIdentity
 import chromahub.rhythm.app.features.local.data.database.entity.SongArtistEntity
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -282,6 +283,13 @@ class MusicRepository(context: Context) {
     }
 
     private val songWriteMutex = Mutex()
+
+    /** Serialize the final rename location with scans that may already hold an older snapshot. */
+    suspend fun persistRenamedSongLocation(song: Song) = withContext(Dispatchers.IO) {
+        songWriteMutex.withLock {
+            songDao.updateFileLocation(song.id, song.uri.toString(), requireNotNull(song.path), song.dateModified)
+        }
+    }
 
     private suspend fun saveSongsToRoom(
         incomingSongs: List<Song>,
@@ -2677,7 +2685,7 @@ class MusicRepository(context: Context) {
 
     fun storedSongs(songs: List<Song>): List<Song> {
         val names = chromahub.rhythm.app.core.domain.scan.AlbumNameResolver(context)
-        return songs.map { catalog.apply(names.apply(it)) }
+        return songs.map { catalog.apply(names.apply(SongFileIdentity.currentLocation(context, it))) }
     }
     fun peekLocalLyrics(song: Song): LyricsData? = autoLyrics.read(song)?.takeUnless { it.isErrorMessage() }
         ?: findLocalLyrics(song.artist, song.title, song.id, song.uri)?.takeIf { it.hasLyrics() && !it.isErrorMessage() }

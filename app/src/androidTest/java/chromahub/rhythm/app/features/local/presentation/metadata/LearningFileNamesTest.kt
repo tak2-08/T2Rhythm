@@ -152,6 +152,12 @@ class LearningFileNamesTest {
         val after = outcome.after!!
         assertEquals(song.uri, after.uri); assertFalse(source.exists()); assertArrayEquals(original, context.contentResolver.openInputStream(after.uri)!!.use { it.readBytes() })
         assertEquals(EnrichmentStore.signature(song), EnrichmentStore.signature(after))
+        // Reproduce a background scanner publishing its pre-rename snapshot after the rename.
+        val repository = LocalMusicModule.provideMusicRepository(context)
+        repository.persistEditedSongs(listOf(song))
+        assertEquals(after.path, repository.storedSongs(listOf(song)).single().path)
+        assertEquals(song.path, SongFileIdentity.currentLocation(context,
+            song.copy(uri = Uri.parse("content://media/external/audio/media/999999999"))).path)
         assertEquals(after.path, RhythmDatabase.getInstance(context).songDao().getSongById(song.id)!!.path)
         assertEquals("JAZZ", GenreCorrections(context).apply(listOf(after)).single().genre)
         LocalMusicModule.provideMusicRepository(context).clearSongCacheData()
