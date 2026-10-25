@@ -1,5 +1,5 @@
 {
-  "source_revision": "a5b70276ce4c5d053d70a5a15e7354df62df815f",
+  "source_revision": "48dbd36d9d563c40596560991b8a28bf3a72d6c4",
   "assets": [
     {
       "name": "next.t2module",
@@ -11,8 +11,8 @@
     },
     {
       "name": "instrumentation-unsigned.zip",
-      "size": 3326700,
-      "sha256": "8c0d20f6f9e599e861d6e393e6cd1d5fc7e6a31bab72c1c3df6b61df99f56706",
+      "size": 3326968,
+      "sha256": "eb3a4468d55383af72e54ace503a523893f97c98eb9e515d0aabc032e2c0f23f",
       "parts": [
         "asset01-000.part"
       ]
@@ -30,5 +30,5 @@
     }
   ],
   "module_source_revision": "052ef184d360b0728eb50ab5e10f01aa72ad74bb",
-  "instrumentation_source_revision": "a5b70276ce4c5d053d70a5a15e7354df62df815f"
+  "instrumentation_source_revision": "48dbd36d9d563c40596560991b8a28bf3a72d6c4"
 }
