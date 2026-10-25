@@ -5713,7 +5713,11 @@ class MusicRepository(context: Context) {
         onBatchUpdated: ((List<Song>) -> Unit)? = null
     ): List<Song> = withContext(Dispatchers.IO) {
         if (songs.isEmpty()) return@withContext emptyList()
-        val updatedSongs = songs.map { song ->
+        val updatedSongs = songs.mapIndexed { index, song ->
+            if (index % 64 == 0) {
+                chromahub.rhythm.app.util.PlaybackWorkload.awaitIdle()
+                yield()
+            }
             val onDemandUri = RhythmAlbumArtProvider.buildSongUri(
                 id = song.id,
                 path = song.path,
@@ -6542,6 +6546,7 @@ class MusicRepository(context: Context) {
                 val batchStartTime = System.currentTimeMillis()
 
                 batch.forEach { song ->
+                    chromahub.rhythm.app.util.PlaybackWorkload.awaitIdle()
                     try {
                         val songId = song.id.toLongOrNull()
                         if (songId == null) {
@@ -6626,6 +6631,7 @@ class MusicRepository(context: Context) {
             }
 
             val beforeById = songs.associateBy { it.id }
+            chromahub.rhythm.app.util.PlaybackWorkload.awaitIdle()
             roomDb.withTransaction {
                 updatedSongs.forEach { result ->
                     beforeById[result.id]?.let { before ->
@@ -6678,6 +6684,7 @@ class MusicRepository(context: Context) {
 
             val batchResults = batch.map { song ->
                 async(metadataReadDispatcher) {
+                    chromahub.rhythm.app.util.PlaybackWorkload.awaitIdle()
                     try {
                         val formatInfo = AudioFormatDetector.detectFormat(context, song.uri, song)
                         song.copy(
@@ -6699,6 +6706,7 @@ class MusicRepository(context: Context) {
 
             // Update only technical columns: full-entity upserts could revert an edit made
             // while the probe was running, or resurrect a song deleted in the meantime.
+            chromahub.rhythm.app.util.PlaybackWorkload.awaitIdle()
             roomDb.withTransaction {
                 batchResults.forEach { info ->
                     roomDb.songDao().updateAudioMetadata(info.id, info.uri.toString(), info.bitrate, info.sampleRate, info.channels, info.codec)
