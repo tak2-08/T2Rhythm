@@ -6707,11 +6707,8 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
     }
     
     // Default section order for home screen
-    private val defaultHomeSectionOrder = listOf(
-        "RECOMMENDED", "RECENTLY_PLAYED", "DISCOVER", "RECENTLY_ADDED",
-        "ARTISTS", "NEW_RELEASES", "STATS", "RHYTHM_GUARD", "MOOD"
-    )
-    private val _homeSectionOrder = MutableStateFlow(
+    private val defaultHomeSectionOrder = chromahub.rhythm.app.util.HomeSectionOrder.defaults
+    private val _homeSectionOrder = MutableStateFlow(chromahub.rhythm.app.util.HomeSectionOrder.normalize(
         prefs.getString(KEY_HOME_SECTION_ORDER, null)
             ?.split(",")
             ?.map(String::trim)
@@ -6719,11 +6716,12 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
             ?.takeIf { it.isNotEmpty() }
             ?.let { saved -> if (!prefs.getBoolean("t2_home_order_selected", false) && saved == listOf("DISCOVER", "RECENTLY_PLAYED", "ARTISTS", "RHYTHM_GUARD", "NEW_RELEASES", "RECENTLY_ADDED", "RECOMMENDED", "STATS", "MOOD")) defaultHomeSectionOrder else saved }
             ?: defaultHomeSectionOrder
-    )
+    ))
     val homeSectionOrder: StateFlow<List<String>> = _homeSectionOrder.asStateFlow()
     fun setHomeSectionOrder(value: List<String>) {
-        _homeSectionOrder.value = value
-        prefs.edit { putString(KEY_HOME_SECTION_ORDER, value.joinToString(",")); putBoolean("t2_home_order_selected", true) }
+        val normalized = chromahub.rhythm.app.util.HomeSectionOrder.normalize(value)
+        _homeSectionOrder.value = normalized
+        prefs.edit { putString(KEY_HOME_SECTION_ORDER, normalized.joinToString(",")); putBoolean("t2_home_order_selected", true) }
     }
 
     private val defaultStreamingHomeSectionOrder = listOf(

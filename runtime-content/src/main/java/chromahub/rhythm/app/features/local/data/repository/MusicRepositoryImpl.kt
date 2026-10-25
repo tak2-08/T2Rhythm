@@ -194,7 +194,12 @@ class MusicRepository(context: Context) {
     private val cachedSongState = MutableStateFlow<List<Song>?>(null)
     private var cachedSongs: List<Song>?
         get() = cachedSongState.value
-        set(value) { cachedSongState.value = value }
+        set(value) {
+            cachedSongState.value = value
+            value?.let { songs -> repositoryScope.launch {
+                runCatching { chromahub.rhythm.app.util.LibraryGenreIndex.get(context, songs) }
+            } }
+        }
     private val metadataReadDispatcher = Dispatchers.IO.limitedParallelism(2)
     private var cacheTimestamp: Long = 0
     private val CACHE_VALIDITY_MS = 60_000 // 1 minute

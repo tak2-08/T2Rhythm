@@ -1,8 +1,9 @@
-Changes in this version
+What changed in this version
 
-• T2Rhythm now includes an offline native music package inside the base app, keeping the current player, library and design.
-• Compatible feature updates download inside the app. Review the release notes, download, then confirm application separately.
-• Approved code updates start at the next safe, fresh app launch. Current playback continues on its existing version.
-• Signed package verification and recovery protect updates. The included offline version remains available for recovery.
-• Existing playlists, settings, local music, streaming and genre discovery remain available. Android 8 and later are supported.
-• Initial installation and rare base upgrades still use Android's installation confirmation. Feature updates do not install an APK.
+• Removed the duplicate reorder shortcut from personalized home music.
+• Added equal breathing room between the search input and the All / Genre search tabs.
+• Cache the genre index alongside the library, include explicit genre corrections and over 100 browsable genres, and show zero tracks honestly for unrepresented genres.
+• Restore missing artist entries from older home layouts and use the same visibility preference in the home editor.
+• When music sites have no matching artwork, automatic enrichment and manual imports can use matching YouTube thumbnails. Title and artist similarity defaults to 94%, adjustable from 90–100%, with duration and edition checks.
+• Estimate playback leakage from decoded audio and remove it from surrounding-sound measurements. Unreliable separation retains the original reading. Audio samples stay in memory.
+• Compatible feature packages apply after separate confirmation at the next safe fresh app launch.

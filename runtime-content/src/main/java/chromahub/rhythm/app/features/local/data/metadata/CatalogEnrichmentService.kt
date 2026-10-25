@@ -123,7 +123,9 @@ class CatalogEnrichmentService private constructor(private val context: Context)
                         durationMs: Long = 0, album: String? = null, selectedProviders: Set<Provider>? = null,
                         replace: Boolean = false): StoredCatalog? = withContext(Dispatchers.IO) {
         val selection = selectedProviders ?: preferences.options.value.providers
-        val policy = "query-aliases-v2:" + selection.sortedByDescending { it.priority }.joinToString { it.name } + if (kind == EntityKind.TRACK) ":${durationMs}:${preferences.options.value.strictDuration}:${preferences.options.value.durationTolerancePercent}" else ""
+        val options = preferences.options.value
+        val artworkOnly = kind == EntityKind.TRACK && wanted == setOf(CatalogField.TRACK_IMAGE)
+        val policy = "query-aliases-v3:${options.artworkMatchPercent}:${options.youtubeArtworkFallback}:" + selection.sortedByDescending { it.priority }.joinToString { it.name } + if (kind == EntityKind.TRACK) ":${durationMs}:${options.strictDuration}:${options.durationTolerancePercent}" else ""
         val recordKey = if (selectedProviders == null) key else "source:${selection.sortedByDescending { it.priority }.joinToString { it.name }}:$key"
         entityLocks.computeIfAbsent(cacheKey(kind, recordKey)) { Mutex() }.withLock {
             var record = read(kind, recordKey)
@@ -134,12 +136,14 @@ class CatalogEnrichmentService private constructor(private val context: Context)
                 }) return@withLock record.takeIf { lengthVerified }
             val values = record?.document?.values.orEmpty().associateBy { it.field }.toMutableMap()
             if (!lengthVerified) values.clear() else if (replace) wanted.forEach(values::remove)
+            if (artworkOnly && record?.matchingPolicy != policy) values.remove(CatalogField.TRACK_IMAGE)
             val documents = coroutineScope {
                 selection.intersect(preferences.options.value.providers).map { provider -> async {
                 try {
                 val hits = search.searchVariants(provider, kind, name, artist?.takeUnless(CatalogIdentity::missing), 12)
                 val candidates = if (kind == EntityKind.TRACK) hits.filter {
-                    CatalogIdentity.titleMatches(name, it.title) && (it.artists == null || artist != null && CatalogIdentity.artistMatches(artist, it.artists.orEmpty()))
+                    (if (artworkOnly) ArtworkMatchPolicy.score(name, artist.orEmpty(), it.title, it.artists?.takeIf(String::isNotBlank) ?: artist.orEmpty()) * 100 + 1e-8 >= options.artworkMatchPercent
+                    else CatalogIdentity.titleMatches(name, it.title) && (it.artists == null || artist != null && CatalogIdentity.artistMatches(artist, it.artists.orEmpty())))
                 }.distinctBy { it.providerId }.take(3) else listOfNotNull(CatalogIdentity.select(hits, name, artist))
                 val source = providers.getValue(provider)
                 val documents = candidates.mapNotNull { hit -> when (kind) {
@@ -147,8 +151,9 @@ class CatalogEnrichmentService private constructor(private val context: Context)
                     EntityKind.ALBUM -> source.album(hit.providerId)?.let(CatalogDocument::from)
                     EntityKind.ARTIST -> source.artist(hit.providerId)?.let(CatalogDocument::from)
                 } }.filter { doc -> when (kind) {
-                    EntityKind.TRACK -> CatalogIdentity.titleMatches(name, doc[CatalogField.TRACK_TITLE].orEmpty()) &&
-                        !artist.isNullOrBlank() && CatalogIdentity.artistMatches(artist, doc[CatalogField.TRACK_ARTISTS].orEmpty()) &&
+                    EntityKind.TRACK -> (if (artworkOnly) ArtworkMatchPolicy.score(name, artist.orEmpty(), doc[CatalogField.TRACK_TITLE].orEmpty(), doc[CatalogField.TRACK_ARTISTS].orEmpty()) * 100 + 1e-8 >= options.artworkMatchPercent
+                        else CatalogIdentity.titleMatches(name, doc[CatalogField.TRACK_TITLE].orEmpty()) &&
+                        !artist.isNullOrBlank() && CatalogIdentity.artistMatches(artist, doc[CatalogField.TRACK_ARTISTS].orEmpty())) &&
                         (!preferences.options.value.strictDuration || CatalogIdentity.durationMatches(durationMs, doc[CatalogField.TRACK_DURATION_MS]?.toLongOrNull(), preferences.options.value.durationTolerancePercent))
                     EntityKind.ALBUM -> CatalogIdentity.titleMatches(name, doc[CatalogField.ALBUM_TITLE].orEmpty()) &&
                         !artist.isNullOrBlank() && CatalogIdentity.artistMatches(artist, doc[CatalogField.ALBUM_ARTISTS].orEmpty())
@@ -163,6 +168,7 @@ class CatalogEnrichmentService private constructor(private val context: Context)
                 } }.awaitAll().filterNotNull()
             }
             val incoming = documents.flatMap { (provider, doc) -> doc?.values.orEmpty().map { provider to it } }
+                .filter { !artworkOnly || it.second.field in setOf(CatalogField.TRACK_IMAGE, CatalogField.TRACK_DURATION_MS) }
                 .groupBy { it.second.field }.mapNotNull { (field, rows) ->
                     rows.filter { it.second.hasValue() }.maxByOrNull { (provider, _) ->
                         if (field.image && provider == Provider.MELON) 1000 else provider.priority
@@ -170,6 +176,11 @@ class CatalogEnrichmentService private constructor(private val context: Context)
                 }
             incoming.forEach { value ->
                 if (values[value.field]?.hasValue() != true || value.field.image && value.field in wanted) values[value.field] = value
+            }
+            if (kind == EntityKind.TRACK && CatalogField.TRACK_IMAGE in wanted &&
+                values[CatalogField.TRACK_IMAGE]?.hasValue() != true && options.artwork && options.providers.isNotEmpty() &&
+                options.artworkSource !in setOf("LOCAL_ONLY", "DISABLED", "LEGACY")) {
+                YouTubeArtwork.search(name, artist.orEmpty(), durationMs, options).firstOrNull()?.document(includeDuration = true)?.values?.forEach { values[it.field] = it }
             }
             val artChanged = values.values.any { it.field.image && it.value != record?.document?.get(it.field) }
             val next = System.currentTimeMillis() + 7 * 24 * 3600_000L

@@ -37,6 +37,7 @@ for path in (path for directory in source_directories for path in directory.rglo
         sources[path.stem] = (namespace + '.' + path.stem, count, names)
 
 groups = {
+ 'enhancements': ['UserEnhancementsTest', 'GenreSearchStateTest', 'LibrarySearchNavigationTest', 'PlaybackContinuityTest', 'PageArtworkFlowTest', 'ArtworkRefreshTest', 'LyricsEntryAndUpdatesTest'],
  'native_boot': ['NativeRuntimeBootTest'],
  'file_names': ['LearningFileNamesTest'],
  'runtime': ['NativeModuleLoadingTest'],

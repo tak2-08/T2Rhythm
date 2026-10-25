@@ -32,6 +32,7 @@ import chromahub.rhythm.app.shared.presentation.components.common.DragDropLazyCo
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.testTag
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -236,13 +237,12 @@ fun HomeSectionOrderBottomSheet(
                             )
                             
                             // Section name
-                            Text(
-                                text = sectionName,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f)
-                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(sectionName, style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                                if (sectionId == "ARTISTS") Text(context.getString(R.string.home_top_artists_subtitle),
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                         
                         // Visibility toggle and drag handle
@@ -265,7 +265,7 @@ fun HomeSectionOrderBottomSheet(
                                         this[sectionId] = !isVisible
                                     }
                                 },
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(40.dp).testTag("home-visibility:$sectionId")
                             ) {
                                 Icon(
                                     imageVector = if (isVisible) RhythmIcons.Visibility else RhythmIcons.VisibilityOff,

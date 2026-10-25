@@ -20,7 +20,7 @@ on:
       preservation_batch:
         description: Preservation groups to run (streaming repeats the affected flows after an invitation fix)
         type: choice
-        options: [full, streaming, remaining, navigation, compat, genres, android15, fixes, runtime, native_app, native_update, native_full, native_diagnostics, native_release, native_upgrade]
+        options: [full, streaming, remaining, navigation, compat, genres, android15, fixes, runtime, native_app, native_update, native_full, native_diagnostics, native_release, native_upgrade, native_enhancements]
         default: full
       baseline_ref:
         description: Baseline source for visual comparison
@@ -88,7 +88,7 @@ jobs:
           retention-days: 14
 
   preservation-android:
-    if: ${{ inputs.preservation && inputs.preservation_batch != 'native_app' && inputs.preservation_batch != 'native_update' && inputs.preservation_batch != 'native_full' && inputs.preservation_batch != 'native_diagnostics' && inputs.preservation_batch != 'native_release' && inputs.preservation_batch != 'native_upgrade' }}
+    if: ${{ inputs.preservation && inputs.preservation_batch != 'native_app' && inputs.preservation_batch != 'native_update' && inputs.preservation_batch != 'native_full' && inputs.preservation_batch != 'native_diagnostics' && inputs.preservation_batch != 'native_release' && inputs.preservation_batch != 'native_upgrade' && inputs.preservation_batch != 'native_enhancements' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -177,7 +177,7 @@ jobs:
           retention-days: 14
 
   preservation-checks:
-    if: ${{ inputs.preservation && inputs.preservation_batch != 'native_app' && inputs.preservation_batch != 'native_update' && inputs.preservation_batch != 'native_full' && inputs.preservation_batch != 'native_diagnostics' && inputs.preservation_batch != 'native_release' && inputs.preservation_batch != 'native_upgrade' && inputs.preservation_batch != 'navigation' && inputs.preservation_batch != 'compat' && inputs.preservation_batch != 'android15' }}
+    if: ${{ inputs.preservation && inputs.preservation_batch != 'native_app' && inputs.preservation_batch != 'native_update' && inputs.preservation_batch != 'native_full' && inputs.preservation_batch != 'native_diagnostics' && inputs.preservation_batch != 'native_release' && inputs.preservation_batch != 'native_upgrade' && inputs.preservation_batch != 'native_enhancements' && inputs.preservation_batch != 'navigation' && inputs.preservation_batch != 'compat' && inputs.preservation_batch != 'android15' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -213,7 +213,7 @@ jobs:
           retention-days: 14
 
   native-app-build:
-    if: ${{ inputs.preservation && (inputs.preservation_batch == 'native_app' || inputs.preservation_batch == 'native_update' || inputs.preservation_batch == 'native_full' || inputs.preservation_batch == 'native_diagnostics' || inputs.preservation_batch == 'native_release' || inputs.preservation_batch == 'native_upgrade') }}
+    if: ${{ inputs.preservation && (inputs.preservation_batch == 'native_app' || inputs.preservation_batch == 'native_update' || inputs.preservation_batch == 'native_full' || inputs.preservation_batch == 'native_diagnostics' || inputs.preservation_batch == 'native_release' || inputs.preservation_batch == 'native_upgrade' || inputs.preservation_batch == 'native_enhancements') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -351,14 +351,14 @@ jobs:
           retention-days: 14
 
   native-app-android:
-    if: ${{ inputs.preservation && (inputs.preservation_batch == 'native_app' || inputs.preservation_batch == 'native_update' || inputs.preservation_batch == 'native_full' || inputs.preservation_batch == 'native_diagnostics' || inputs.preservation_batch == 'native_release' || inputs.preservation_batch == 'native_upgrade') }}
+    if: ${{ inputs.preservation && (inputs.preservation_batch == 'native_app' || inputs.preservation_batch == 'native_update' || inputs.preservation_batch == 'native_full' || inputs.preservation_batch == 'native_diagnostics' || inputs.preservation_batch == 'native_release' || inputs.preservation_batch == 'native_upgrade' || inputs.preservation_batch == 'native_enhancements') }}
     needs: native-app-build
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(inputs.preservation_batch == 'native_upgrade' && '[{"api":"29","group":"upgrade_visual"}]' || inputs.preservation_batch == 'native_release' && '[{"api":"26","group":"release_boot"},{"api":"35","group":"release_boot"},{"api":"37.0","group":"release_boot"}]' || inputs.preservation_batch == 'native_diagnostics' && '[{"api":"29","group":"file_names"},{"api":"29","group":"baseline_file_names"}]' || inputs.preservation_batch == 'native_full' && '[{"api":"29","group":"metadata"},{"api":"29","group":"persistence"},{"api":"29","group":"navigation"},{"api":"29","group":"streaming"},{"api":"29","group":"fixes"},{"api":"29","group":"upgrade_visual"},{"api":"35","group":"compat_remaining"},{"api":"35","group":"artwork"},{"api":"35","group":"newflows"},{"api":"35","group":"baseline_newflows"},{"api":"37.0","group":"streaming"},{"api":"37.0","group":"newflows"},{"api":"37.0","group":"fixes"}]' || '[{"api":"26","group":"native_boot"},{"api":"29","group":"native_boot"},{"api":"30","group":"native_boot"},{"api":"35","group":"native_boot"},{"api":"37.0","group":"native_boot"}]') }}
+        include: ${{ fromJSON(inputs.preservation_batch == 'native_enhancements' && '[{"api":"26","group":"enhancements"},{"api":"35","group":"enhancements"},{"api":"37.0","group":"enhancements"}]' || inputs.preservation_batch == 'native_upgrade' && '[{"api":"29","group":"upgrade_visual"}]' || inputs.preservation_batch == 'native_release' && '[{"api":"26","group":"release_boot"},{"api":"35","group":"release_boot"},{"api":"37.0","group":"release_boot"}]' || inputs.preservation_batch == 'native_diagnostics' && '[{"api":"29","group":"file_names"},{"api":"29","group":"baseline_file_names"}]' || inputs.preservation_batch == 'native_full' && '[{"api":"29","group":"metadata"},{"api":"29","group":"persistence"},{"api":"29","group":"navigation"},{"api":"29","group":"streaming"},{"api":"29","group":"fixes"},{"api":"29","group":"upgrade_visual"},{"api":"35","group":"compat_remaining"},{"api":"35","group":"artwork"},{"api":"35","group":"newflows"},{"api":"35","group":"baseline_newflows"},{"api":"37.0","group":"streaming"},{"api":"37.0","group":"newflows"},{"api":"37.0","group":"fixes"}]' || '[{"api":"26","group":"native_boot"},{"api":"29","group":"native_boot"},{"api":"30","group":"native_boot"},{"api":"35","group":"native_boot"},{"api":"37.0","group":"native_boot"}]') }}
     env:
       PRESERVATION_MODEL: /tmp/t2-preservation-vosk.zip
     steps:

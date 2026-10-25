@@ -81,6 +81,14 @@ fun ListeningContextPanel() {
             })
         }
         Text(stringResource(R.string.personal_noise_hint), style = MaterialTheme.typography.bodySmall)
+        if (soundEnabled) {
+            Text(stringResource(R.string.ambient_compensation_hint), style = MaterialTheme.typography.bodySmall)
+            situation.ambientSound?.let { measured ->
+                Text(stringResource(R.string.ambient_estimated_level, measured.rmsDbfs, measured.rawRmsDbfs), style = MaterialTheme.typography.labelMedium)
+                if (measured.compensationConfidence <= 0 && measured.musicPlaying)
+                    Text(stringResource(R.string.ambient_reference_unavailable), style = MaterialTheme.typography.bodySmall)
+            }
+        }
         if (soundDenied) Text(stringResource(R.string.personal_noise_denied), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
         OutlinedTextField(place, { place = it.take(80) }, label = { Text(stringResource(R.string.context_place)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         TextButton(onClick = { collector.configure(place = place); situation = collector.snapshot() }, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.context_place_save)) }

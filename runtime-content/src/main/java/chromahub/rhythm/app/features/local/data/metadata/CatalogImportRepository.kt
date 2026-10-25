@@ -18,7 +18,7 @@ import java.net.URI
 import java.util.UUID
 
 /** Shared HTTP client keeps provider requests throttled across searches and details. */
-class CatalogImportRepository(context: Context) {
+class CatalogImportRepository(private val context: Context) {
     private val http = CatalogEnrichmentService.get(context).http
     private val search = CatalogSearch(http)
     private val metadata = MusicMetadataRepository(listOf(
@@ -27,6 +27,23 @@ class CatalogImportRepository(context: Context) {
 
     suspend fun search(provider: Provider?, kind: EntityKind, query: String) =
         if (provider == null) search.searchAll(kind, query, 10) else search.searchVariants(provider, kind, query)
+
+    internal suspend fun youtubeFallback(song: chromahub.rhythm.app.shared.data.model.Song?, hits: List<SearchHit>): List<YouTubeArtworkMatch> {
+        if (song == null) return emptyList()
+        val service = CatalogEnrichmentService.get(context)
+        val options = service.preferences.options.value
+        if (!service.enabled() || !options.artwork || !options.youtubeArtworkFallback) return emptyList()
+        val possible = hits.filter { it.kind == EntityKind.TRACK &&
+            ArtworkMatchPolicy.score(song.title, song.artist, it.title, it.artists?.takeIf(String::isNotBlank) ?: song.artist) * 100 + 1e-8 >= options.artworkMatchPercent }.take(4)
+        for (hit in possible) {
+            val doc = try { load(hit) } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+                catch (_: Exception) { null }
+            if (doc?.has(CatalogField.TRACK_IMAGE) == true && ArtworkMatchPolicy.accepts(song.title, song.artist,
+                    doc[CatalogField.TRACK_TITLE].orEmpty(), doc[CatalogField.TRACK_ARTISTS].orEmpty(), options.artworkMatchPercent,
+                    song.duration, doc[CatalogField.TRACK_DURATION_MS]?.toLongOrNull(), options.durationTolerancePercent)) return emptyList()
+        }
+        return YouTubeArtwork.search(song.title, song.artist, song.duration, options)
+    }
 
     suspend fun load(hit: SearchHit): CatalogDocument? = withContext(Dispatchers.IO) {
         val ids = if (hit.provider in setOf(Provider.BUGS_MOBILE, Provider.BUGS_PC)) {

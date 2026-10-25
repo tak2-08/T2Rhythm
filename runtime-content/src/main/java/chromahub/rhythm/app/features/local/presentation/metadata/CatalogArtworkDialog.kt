@@ -80,7 +80,7 @@ fun CatalogImagePreview(url: String, onDismiss: () -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CatalogArtworkDialog(initialQuery: String, initialKind: EntityKind, onDismiss: () -> Unit, onSelect: (Uri) -> Unit,
-    allowAlbums: Boolean = false) {
+    allowAlbums: Boolean = false, lookupSong: chromahub.rhythm.app.shared.data.model.Song? = null) {
     val context = LocalContext.current; val scope = rememberCoroutineScope(); val keyboard = LocalSoftwareKeyboardController.current
     val repository = remember { CatalogImportRepository(context.applicationContext) }
     var query by remember { mutableStateOf(initialQuery) }; var kind by remember { mutableStateOf(initialKind) }
@@ -89,6 +89,8 @@ fun CatalogArtworkDialog(initialQuery: String, initialKind: EntityKind, onDismis
     var busy by remember { mutableStateOf(false) }; var message by remember { mutableStateOf<String?>(null) }
     var job by remember { mutableStateOf<Job?>(null) }; var generation by remember { mutableIntStateOf(0) }
     var zoom by remember { mutableStateOf(false) }
+    var youtube by remember { mutableStateOf(emptyList<chromahub.rhythm.app.features.local.data.metadata.YouTubeArtworkMatch>()) }
+    var youtubeChoice by remember { mutableStateOf<chromahub.rhythm.app.features.local.data.metadata.YouTubeArtworkMatch?>(null) }
     fun run(action: suspend () -> Unit) {
         job?.cancel(); val current = ++generation; busy = true; message = null
         job = scope.launch {
@@ -98,8 +100,10 @@ fun CatalogArtworkDialog(initialQuery: String, initialKind: EntityKind, onDismis
         }
     }
     fun search() { if (query.isNotBlank()) {
-        keyboard?.hide(); run { chosen = null; image = null
-            hits = repository.search(provider, kind, query.trim()); if (hits.isEmpty()) message = context.getString(R.string.catalog_no_results)
+        keyboard?.hide(); run { chosen = null; youtubeChoice = null; image = null
+            hits = repository.search(provider, kind, query.trim())
+            youtube = if (kind == EntityKind.TRACK) repository.youtubeFallback(lookupSong, hits) else emptyList()
+            if (hits.isEmpty() && youtube.isEmpty()) message = context.getString(R.string.catalog_no_results)
         }
     } }
     LaunchedEffect(Unit) { search() }
@@ -111,7 +115,7 @@ fun CatalogArtworkDialog(initialQuery: String, initialKind: EntityKind, onDismis
                 Text(stringResource(R.string.entity_artwork_search), style = MaterialTheme.typography.titleLarge)
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 message?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                if (chosen == null) LazyVerticalGrid(GridCells.Adaptive(130.dp), Modifier.weight(1f, fill = false),
+                if (chosen == null && youtubeChoice == null) LazyVerticalGrid(GridCells.Adaptive(130.dp), Modifier.weight(1f, fill = false),
                     horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item(span = { GridItemSpan(maxLineSpan) }, key = "controls") {
                       Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -144,10 +148,20 @@ fun CatalogArtworkDialog(initialQuery: String, initialKind: EntityKind, onDismis
                             Text(hit.provider.displayName(), style = MaterialTheme.typography.labelSmall)
                         }
                     }
+                    items(youtube, key = { "youtube:${it.id}" }) { match ->
+                        Column(Modifier.clip(RoundedCornerShape(14.dp)).clickable(enabled = !busy) {
+                            youtubeChoice = match; image = match.thumbnail
+                        }.padding(4.dp)) {
+                            CatalogArtworkThumbnail(match.thumbnail, Modifier.fillMaxWidth().aspectRatio(1f), match.title)
+                            Text(match.title, maxLines = 2, style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.youtube_artwork_match, (match.score * 100).toInt()), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
                 } else Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TextButton(enabled = !busy, onClick = { chosen = null; image = null; message = null }) { Text(stringResource(R.string.catalog_results)) }
-                    Text(chosen!!.title, style = MaterialTheme.typography.titleMedium)
-                    Text(listOfNotNull(chosen!!.artists, chosen!!.provider.displayName()).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+                    TextButton(enabled = !busy, onClick = { chosen = null; youtubeChoice = null; image = null; message = null }) { Text(stringResource(R.string.catalog_results)) }
+                    Text(chosen?.title ?: youtubeChoice!!.title, style = MaterialTheme.typography.titleMedium)
+                    Text(chosen?.let { listOfNotNull(it.artists, it.provider.displayName()).joinToString(" · ") }
+                        ?: stringResource(R.string.youtube_artwork_match, (youtubeChoice!!.score * 100).toInt()), style = MaterialTheme.typography.bodySmall)
                     image?.let { url ->
                         CatalogArtworkThumbnail(url, Modifier.fillMaxWidth().aspectRatio(1f).heightIn(max = 300.dp)
                             .clickable { zoom = true }, stringResource(R.string.entity_image_preview))
@@ -156,7 +170,7 @@ fun CatalogArtworkDialog(initialQuery: String, initialKind: EntityKind, onDismis
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = { ++generation; job?.cancel(); onDismiss() }) { Text(stringResource(R.string.catalog_close)) }
-                    if (chosen != null) Button(enabled = image != null && !busy, modifier = Modifier.testTag("artwork-apply"), onClick = {
+                    if (chosen != null || youtubeChoice != null) Button(enabled = image != null && !busy, modifier = Modifier.testTag("artwork-apply"), onClick = {
                         val url = image ?: return@Button
                         run { val uri = repository.artwork(context, url); onSelect(uri) }
                     }) { Text(stringResource(R.string.entity_artwork_use)) }

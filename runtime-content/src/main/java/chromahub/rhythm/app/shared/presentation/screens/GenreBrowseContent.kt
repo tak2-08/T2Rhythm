@@ -21,10 +21,11 @@ import kotlinx.coroutines.withContext
 
 @Composable
 internal fun rememberGenreBrowse(songs: List<Song>): GenreBrowseIndex<Song>? {
-    val completed by produceState<Pair<List<Song>, GenreBrowseIndex<Song>>?>(null, songs) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val revision by chromahub.rhythm.app.features.local.data.discovery.GenreCorrections.revision.collectAsState()
+    val completed by produceState<Pair<List<Song>, GenreBrowseIndex<Song>>?>(null, songs, revision) {
         value = withContext(Dispatchers.Default) {
-            val active = currentCoroutineContext()
-            songs to GenreBrowseIndex.build(songs, { it.genre }) { active.ensureActive() }
+            songs to chromahub.rhythm.app.util.LibraryGenreIndex.get(context, songs)
         }
     }
     return completed?.takeIf { it.first == songs }?.second

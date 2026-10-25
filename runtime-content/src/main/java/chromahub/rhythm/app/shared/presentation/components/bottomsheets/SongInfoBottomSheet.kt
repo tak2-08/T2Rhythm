@@ -1545,6 +1545,7 @@ private fun EditSongSheet(
     if (showCatalogLookup) {
         CatalogLookupDialog(
             initialQuery = listOf(title, artist).filter(String::isNotBlank).joinToString(" "),
+            lookupSong = song.copy(title = title, artist = artist),
             onDismiss = { showCatalogLookup = false },
             onApply = { imported, artwork ->
                 imported[CatalogField.TRACK_TITLE]?.let { title = it }
@@ -1565,6 +1566,7 @@ private fun EditSongSheet(
     }
     if (showOnlineArtwork) chromahub.rhythm.app.features.local.presentation.metadata.CatalogArtworkDialog(
         initialQuery = "$title $artist".trim(), initialKind = kr.co.metadata.crawler.EntityKind.TRACK, allowAlbums = true,
+        lookupSong = song.copy(title = title, artist = artist),
         onDismiss = { showOnlineArtwork = false }, onSelect = { uri -> selectedImageUri = uri; removeArtwork = false; showOnlineArtwork = false })
     val catalogImportButton: @Composable () -> Unit = {
         if (importedLyrics != null) {

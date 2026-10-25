@@ -36,6 +36,9 @@ internal class GenreBrowseIndex<T> private constructor(
             listOf("classical", "클래식"), listOf("electronic", "일렉트로닉"),
             listOf("indie", "인디"), listOf("hard", "하드"), listOf("soul", "소울"),
             listOf("country", "컨트리"), listOf("reggae", "레게"), listOf("ballad", "발라드"),
+            listOf("r&b", "rnb", "알앤비", "알엔비"), listOf("k-pop", "kpop", "케이팝"),
+            listOf("dance", "댄스"), listOf("ambient", "앰비언트"), listOf("soundtrack", "ost", "사운드트랙"),
+            listOf("new age", "newage", "뉴에이지"), listOf("house", "하우스"), listOf("techno", "테크노"),
         )
         private fun canonical(label: String): String {
             var value = label.lowercase(Locale.ROOT)
@@ -47,8 +50,9 @@ internal class GenreBrowseIndex<T> private constructor(
             return aliases.map { it.first().filter(Char::isLetterOrDigit) }.filter { name.contains(it) }.toSet()
         }
 
-        fun <T> build(songs: List<T>, genreOf: (T) -> String?, checkActive: () -> Unit = {}): GenreBrowseIndex<T> {
+        fun <T> build(songs: List<T>, genreOf: (T) -> String?, checkActive: () -> Unit = {}, knownGenres: List<String> = emptyList()): GenreBrowseIndex<T> {
             val grouped = sortedMapOf<String, MutableList<T>>()
+            knownGenres.flatMap(GenreUtils::splitGenres).forEach { grouped.getOrPut(it) { mutableListOf() } }
             val neighbors = mutableMapOf<String, MutableSet<String>>()
             songs.forEachIndexed { i, song ->
                 if (i % 128 == 0) checkActive()

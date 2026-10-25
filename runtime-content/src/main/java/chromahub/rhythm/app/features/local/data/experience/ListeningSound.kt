@@ -23,6 +23,9 @@ data class AmbientSound(
     val samples: Int,
     val source: Int,
     val musicPlaying: Boolean,
+    val rawRmsDbfs: Double = rmsDbfs,
+    val playbackContributionDbfs: Double? = null,
+    val compensationConfidence: Double = 0.0,
 )
 
 /** Foreground-only opt-in sampling; PCM stays in memory and is never journalled or uploaded. */
@@ -66,6 +69,7 @@ class ListeningSound private constructor(private val context: Context) {
     private fun restart() {
         job?.cancel()
         runCatching { recorder?.stop() }
+        PlaybackAudioReference.enable(visible && playback && enabled && permitted())
         if (!visible || !playback || !enabled || !permitted()) return
         job =
             scope.launch {
@@ -116,14 +120,19 @@ class ListeningSound private constructor(private val context: Context) {
                                     count += read
                                 }
                                 if (count > 0 && isActive && visible && enabled && permitted()) {
-                                    latest =
-                                        summarize(
+                                    val measured = summarize(
                                             pcm,
                                             count,
                                             System.currentTimeMillis(),
                                             source,
                                             audio.isMusicActive,
                                         )
+                                    val estimate = if (audio.isMusicActive) PlaybackNoiseEstimator.estimate(pcm.copyOf(count), PlaybackAudioReference.snapshot()) else null
+                                    latest = if (estimate == null) measured else measured.copy(
+                                        rmsDbfs = 10 * log10(estimate.residualPower.coerceAtLeast(1e-12)),
+                                        peakDbfs = 20 * log10(estimate.residualPeak.coerceAtLeast(1e-6)),
+                                        playbackContributionDbfs = 10 * log10(estimate.playbackPower.coerceAtLeast(1e-12)),
+                                        compensationConfidence = estimate.confidence)
                                     ListeningLedger.get(context).invalidate()
                                 }
                             } finally {
