@@ -16,10 +16,12 @@ internal data class YouTubeArtworkMatch(val id: String, val title: String, val a
 
 internal object YouTubeArtwork {
     suspend fun search(title: String, artist: String, durationMs: Long, options: CatalogOptions,
-        fetch: suspend (String) -> List<chromahub.rhythm.app.features.local.data.discovery.AudioSourceCandidate> = { AudioSources.search("YOUTUBE", it) }): List<YouTubeArtworkMatch> {
+        fetch: (suspend (String) -> List<chromahub.rhythm.app.features.local.data.discovery.AudioSourceCandidate>)? = null): List<YouTubeArtworkMatch> {
         if (!options.youtubeArtworkFallback || CatalogIdentity.missing(title) || CatalogIdentity.missing(artist)) return emptyList()
         return try {
-            fetch("$artist $title".take(500)).mapNotNull { hit ->
+            val query = "$artist $title".take(500)
+            val hits = if (fetch == null) AudioSources.search("YOUTUBE", query) else fetch(query)
+            hits.mapNotNull { hit ->
                 val id = MusicVideoLinks.youtubeId(hit.url) ?: return@mapNotNull null
                 if (!ArtworkMatchPolicy.accepts(title, artist, hit.title, hit.artist, options.artworkMatchPercent,
                     if (options.strictDuration) durationMs else 0, hit.durationSeconds * 1000, options.durationTolerancePercent, youtube = true)) return@mapNotNull null
