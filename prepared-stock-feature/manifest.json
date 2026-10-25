@@ -1,5 +1,5 @@
 {
-  "source_revision": "9409aa70c753841217871648a0de7306b7a28a0a",
+  "source_revision": "001b1f6236d8ba0911d7b5b80460169fbd3da1ec",
   "assets": [
     {
       "name": "next.t2module",
@@ -11,14 +11,24 @@
     },
     {
       "name": "instrumentation-unsigned.zip",
-      "size": 3322855,
-      "sha256": "914b24f388e24967c4f7ba75cd7a9b0039ee1689e66f16afa3fd6768c4164b90",
+      "size": 3323720,
+      "sha256": "be50ac87ab9c7c43c0b6261a09dc3c0f4edc2c1a12ce8a421d96ca6a3506efca",
       "parts": [
         "asset01-000.part"
+      ]
+    },
+    {
+      "name": "current-base-original.apk",
+      "size": 131304216,
+      "sha256": "4a9aa3baa9ca6460bbabea0e6a6c04f1d459c33d13348d5dbaf3e6d5a6804aec",
+      "parts": [
+        "asset02-000.part",
+        "asset02-001.part",
+        "asset02-002.part",
+        "asset02-003.part"
       ]
     }
   ],
   "module_source_revision": "052ef184d360b0728eb50ab5e10f01aa72ad74bb",
-  "instrumentation_source_revision": "0d862b85388a6a8678905bec46c5517d86b3c127",
-  "instrumentation_workflow_run": 40160859817
+  "instrumentation_source_revision": "001b1f6236d8ba0911d7b5b80460169fbd3da1ec"
 }
