@@ -12,6 +12,7 @@ class RecommendationRefreshWorker(context: Context, params: WorkerParameters) :
     CoroutineWorker(context, params) {
     override suspend fun doWork(): Result =
         withContext(Dispatchers.IO) {
+            if (chromahub.rhythm.app.util.PlaybackWorkload.active) return@withContext Result.retry()
             val before =
                 RecommendationShelf.current(applicationContext)
                     ?: return@withContext Result.success()
@@ -31,6 +32,7 @@ class RecommendationRefreshWorker(context: Context, params: WorkerParameters) :
                     .getOrNull()
                     .orEmpty()
             val seed = System.currentTimeMillis() xor System.nanoTime()
+            if (chromahub.rhythm.app.util.PlaybackWorkload.active) return@withContext Result.retry()
             val picks =
                 PersonalCollections.generate(
                     applicationContext,

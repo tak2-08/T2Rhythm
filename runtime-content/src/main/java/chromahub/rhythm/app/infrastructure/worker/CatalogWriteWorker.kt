@@ -9,11 +9,18 @@ import java.util.concurrent.TimeUnit
 /** Pending file writes resume after MediaStore consent; active audio files are left alone. */
 class CatalogWriteWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
+        if (chromahub.rhythm.app.util.PlaybackWorkload.active) return Result.retry()
         val catalog = CatalogEnrichmentService.get(applicationContext)
         val lyrics = AutomaticLyricsStore.get(applicationContext)
         val tags = CatalogTagWrites(applicationContext)
-        lyrics.pending().forEach { lyrics.attemptEmbedding(it) }
-        tags.pending().forEach { tags.attempt(it) }
+        lyrics.pending().forEach {
+            if (chromahub.rhythm.app.util.PlaybackWorkload.active) return Result.retry()
+            lyrics.attemptEmbedding(it)
+        }
+        tags.pending().forEach {
+            if (chromahub.rhythm.app.util.PlaybackWorkload.active) return Result.retry()
+            tags.attempt(it)
+        }
         catalog.notifyChanged()
         return if ((lyrics.pending() + tags.pending()).any(catalog::audioBusy)) Result.retry() else Result.success()
     }

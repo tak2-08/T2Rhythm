@@ -43,7 +43,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import androidx.compose.ui.draw.clip
@@ -360,10 +360,10 @@ fun LibraryScreen(
 ) {
     val context = LocalContext.current
     val appSettings = remember { AppSettings.getInstance(context) }
-    val tabOrder by appSettings.libraryTabOrder.collectAsState()
-    val hiddenTabs by appSettings.hiddenLibraryTabs.collectAsState()
-    val showLibraryBottomBarAlways by appSettings.showLibraryBottomBarAlways.collectAsState()
-    val gestureLibrarySwipeTabs by appSettings.gestureLibrarySwipeTabs.collectAsState()
+    val tabOrder by appSettings.libraryTabOrder.collectAsStateWithLifecycle()
+    val hiddenTabs by appSettings.hiddenLibraryTabs.collectAsStateWithLifecycle()
+    val showLibraryBottomBarAlways by appSettings.showLibraryBottomBarAlways.collectAsStateWithLifecycle()
+    val gestureLibrarySwipeTabs by appSettings.gestureLibrarySwipeTabs.collectAsStateWithLifecycle()
 
     // Show Album Artists tab by default in Go mode, hidden in local mode
     val effectiveHiddenTabs = remember(hiddenTabs, isStreamingMode) {
@@ -440,7 +440,7 @@ fun LibraryScreen(
     var operationInProgress by remember { mutableStateOf("") }
     var operationResult by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
     
-    val pendingWriteRequest by musicViewModel.pendingWriteRequest.collectAsState()
+    val pendingWriteRequest by musicViewModel.pendingWriteRequest.collectAsStateWithLifecycle()
     
     var pendingMetadataEditCompleteCallback by remember { mutableStateOf<((Boolean) -> Unit)?>(null) }
 
@@ -500,9 +500,9 @@ fun LibraryScreen(
     val addToPlaylistSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden, enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded))
     
     val multiSelectionState = remember { chromahub.rhythm.app.features.local.presentation.viewmodel.MultiSelectionStateHolder() }
-    val selectedSongs by multiSelectionState.selectedSongs.collectAsState()
-    val isSelectionMode by multiSelectionState.isSelectionMode.collectAsState()
-    val selectedSongIds by multiSelectionState.selectedSongIds.collectAsState()
+    val selectedSongs by multiSelectionState.selectedSongs.collectAsStateWithLifecycle()
+    val isSelectionMode by multiSelectionState.isSelectionMode.collectAsStateWithLifecycle()
+    val selectedSongIds by multiSelectionState.selectedSongIds.collectAsStateWithLifecycle()
     var showMultiSelectionSheet by remember { mutableStateOf(false) }
     var showBatchEditSheet by remember { mutableStateOf(false) }
     
@@ -514,7 +514,7 @@ fun LibraryScreen(
         { song -> multiSelectionState.toggleSelection(song) }
     }
     
-    val localFavoriteSongs by musicViewModel.favoriteSongs.collectAsState()
+    val localFavoriteSongs by musicViewModel.favoriteSongs.collectAsStateWithLifecycle()
     val favoriteSongs = if (isStreamingMode) streamingFavoriteSongIds else localFavoriteSongs
     var selectedCategory by rememberSaveable { mutableStateOf("All") }
     // The Favorites filter chip was replaced by the dedicated Liked tab; reset stale saved state.
@@ -584,8 +584,8 @@ fun LibraryScreen(
         }
     }
 
-    val artistSeparatorEnabled by appSettings.artistSeparatorEnabled.collectAsState()
-    val artistSeparatorDelimiters by appSettings.artistSeparatorDelimiters.collectAsState()
+    val artistSeparatorEnabled by appSettings.artistSeparatorEnabled.collectAsStateWithLifecycle()
+    val artistSeparatorDelimiters by appSettings.artistSeparatorDelimiters.collectAsStateWithLifecycle()
     val albumArtists by rememberOffMain(emptyList<Artist>(), preparedSongs, artists, artistSeparatorEnabled, artistSeparatorDelimiters) {
         val delimitersStr = if (artistSeparatorEnabled) artistSeparatorDelimiters else ""
         val artistSongsMap = java.util.HashMap<String, MutableList<Song>>()
@@ -630,7 +630,7 @@ fun LibraryScreen(
     
     val topAppBarState = rememberTopAppBarState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(topAppBarState)
-    val globalCollapseBehavior by appSettings.headerCollapseBehavior.collectAsState()
+    val globalCollapseBehavior by appSettings.headerCollapseBehavior.collectAsStateWithLifecycle()
     val shouldStartCollapsed = globalCollapseBehavior == 1
     
     LaunchedEffect(shouldStartCollapsed) {
@@ -805,7 +805,7 @@ fun LibraryScreen(
 
     
     
-    val isLibraryRefreshing by musicViewModel.isLibraryRefreshing.collectAsState()
+    val isLibraryRefreshing by musicViewModel.isLibraryRefreshing.collectAsStateWithLifecycle()
     val pullToRefreshState = rememberPullToRefreshState()
     var isRefreshing by remember { mutableStateOf(false) }
 
@@ -822,9 +822,9 @@ fun LibraryScreen(
     val albumArtistsGridState = rememberLazyGridState()
     val explorerListState = rememberLazyListState()
 
-    val playlistViewType by appSettings.playlistViewType.collectAsState()
-    val albumViewType by appSettings.albumViewType.collectAsState()
-    val artistViewType by appSettings.artistViewType.collectAsState()
+    val playlistViewType by appSettings.playlistViewType.collectAsStateWithLifecycle()
+    val albumViewType by appSettings.albumViewType.collectAsStateWithLifecycle()
+    val artistViewType by appSettings.artistViewType.collectAsStateWithLifecycle()
 
 
 
@@ -1039,7 +1039,7 @@ fun LibraryScreen(
                     var showSortMenu by remember { mutableStateOf(false) }
                     var pendingSortOrder by remember { mutableStateOf<MusicViewModel.SortOrder?>(null) }
                     var showPlaylistSortMenu by remember { mutableStateOf(false) }
-                    val playlistSortOrderString by appSettings.playlistSortOrder.collectAsState()
+                    val playlistSortOrderString by appSettings.playlistSortOrder.collectAsStateWithLifecycle()
                     val playlistSortOrder = try {
                         LibraryPlaylistSortOrder.valueOf(playlistSortOrderString)
                     } catch (e: Exception) {
@@ -1469,11 +1469,11 @@ fun LibraryScreen(
                 )
             }
             
-            val isBackgroundProcessing by musicViewModel.isBackgroundProcessing.collectAsState()
-            val isMediaScanning by musicViewModel.isMediaScanning.collectAsState()
-            val isGenreDetectionRunning by musicViewModel.isGenreDetectionRunning.collectAsState()
-            val isFetchingArtwork by musicViewModel.isFetchingArtwork.collectAsState()
-            val isExtractingMetadata by musicViewModel.isExtractingMetadata.collectAsState()
+            val isBackgroundProcessing by musicViewModel.isBackgroundProcessing.collectAsStateWithLifecycle()
+            val isMediaScanning by musicViewModel.isMediaScanning.collectAsStateWithLifecycle()
+            val isGenreDetectionRunning by musicViewModel.isGenreDetectionRunning.collectAsStateWithLifecycle()
+            val isFetchingArtwork by musicViewModel.isFetchingArtwork.collectAsStateWithLifecycle()
+            val isExtractingMetadata by musicViewModel.isExtractingMetadata.collectAsStateWithLifecycle()
             
             AnimatedVisibility(
                 visible = isBackgroundProcessing,
@@ -1853,7 +1853,7 @@ fun LibraryScreen(
                                     onAddToQueue = onAddToQueue,
                                     onPlayNext = { song -> musicViewModel.playNext(song) },
                                     onToggleFavorite = { song -> musicViewModel.toggleFavorite(song) },
-                                    favoriteSongs = musicViewModel.favoriteSongs.collectAsState().value,
+                                    favoriteSongs = musicViewModel.favoriteSongs.collectAsStateWithLifecycle().value,
                                     onGoToArtist = onNavigateToArtist,
                                     onGoToAlbum = onAlbumBottomSheetClick,
                                     onShowSongInfo = { song ->
@@ -2335,9 +2335,9 @@ fun SingleCardSongsContent(
 ) {
     val context = LocalContext.current
     val appSettings = remember { AppSettings.getInstance(context) }
-    val groupByAlbumArtist by appSettings.groupByAlbumArtist.collectAsState()
+    val groupByAlbumArtist by appSettings.groupByAlbumArtist.collectAsStateWithLifecycle()
     
-    val selectedSongs = multiSelectionState?.selectedSongs?.collectAsState()?.value ?: emptyList()
+    val selectedSongs = multiSelectionState?.selectedSongs?.collectAsStateWithLifecycle()?.value ?: emptyList()
     var songForOverflow by remember { mutableStateOf<Song?>(null) }
     
     val isLoading = false
@@ -2660,21 +2660,21 @@ fun SingleCardPlaylistsContent(
     bottomPadding: androidx.compose.ui.unit.Dp = 0.dp
 ) {
     val context = LocalContext.current
-    val playlistViewType by appSettings.playlistViewType.collectAsState()
-    val playlistSortOrderString by appSettings.playlistSortOrder.collectAsState()
+    val playlistViewType by appSettings.playlistViewType.collectAsStateWithLifecycle()
+    val playlistSortOrderString by appSettings.playlistSortOrder.collectAsStateWithLifecycle()
     val playlistSortOrder = try {
         LibraryPlaylistSortOrder.valueOf(playlistSortOrderString)
     } catch (e: Exception) {
         LibraryPlaylistSortOrder.NAME_ASC
     }
     
-    val defaultPlaylistsEnabled by appSettings.defaultPlaylistsEnabled.collectAsState()
-    val showLikedInPlaylists by appSettings.showLikedInPlaylists.collectAsState()
-    val smartPlaylistRecentlyAdded by appSettings.smartPlaylistRecentlyAdded.collectAsState()
-    val smartPlaylistMostPlayed by appSettings.smartPlaylistMostPlayed.collectAsState()
-    val smartPlaylistOnRepeat by appSettings.smartPlaylistOnRepeat.collectAsState()
-    val smartPlaylistForgottenFavorites by appSettings.smartPlaylistForgottenFavorites.collectAsState()
-    val smartPlaylistRecentlyPlayed by appSettings.smartPlaylistRecentlyPlayed.collectAsState()
+    val defaultPlaylistsEnabled by appSettings.defaultPlaylistsEnabled.collectAsStateWithLifecycle()
+    val showLikedInPlaylists by appSettings.showLikedInPlaylists.collectAsStateWithLifecycle()
+    val smartPlaylistRecentlyAdded by appSettings.smartPlaylistRecentlyAdded.collectAsStateWithLifecycle()
+    val smartPlaylistMostPlayed by appSettings.smartPlaylistMostPlayed.collectAsStateWithLifecycle()
+    val smartPlaylistOnRepeat by appSettings.smartPlaylistOnRepeat.collectAsStateWithLifecycle()
+    val smartPlaylistForgottenFavorites by appSettings.smartPlaylistForgottenFavorites.collectAsStateWithLifecycle()
+    val smartPlaylistRecentlyPlayed by appSettings.smartPlaylistRecentlyPlayed.collectAsStateWithLifecycle()
     
     var isLoading by remember { mutableStateOf(playlists.isEmpty()) }
     var preparedPlaylists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
@@ -2872,7 +2872,7 @@ fun SingleCardAlbumsContent(
     sortOrder: MusicViewModel.SortOrder = MusicViewModel.SortOrder.TITLE_ASC
 ) {
     val context = LocalContext.current
-    val albumViewType by appSettings.albumViewType.collectAsState()
+    val albumViewType by appSettings.albumViewType.collectAsStateWithLifecycle()
     
     var isLoading by remember { mutableStateOf(true) }
     var preparedAlbums by remember { mutableStateOf(albums) }
@@ -3146,7 +3146,7 @@ fun AlbumsTab(
 ) {
     val context = LocalContext.current
     val appSettings = remember { AppSettings.getInstance(context) }
-    val albumViewType by appSettings.albumViewType.collectAsState()
+    val albumViewType by appSettings.albumViewType.collectAsStateWithLifecycle()
 
     if (albums.isEmpty()) {
         EmptyState(
@@ -4809,7 +4809,7 @@ fun SingleCardArtistsContent(
     val viewModel = viewModel<chromahub.rhythm.app.viewmodel.MusicViewModel>()
     val appSettings = remember { AppSettings.getInstance(context) }
     
-    val artistViewType by appSettings.artistViewType.collectAsState()
+    val artistViewType by appSettings.artistViewType.collectAsStateWithLifecycle()
     
     var selectedCategory by remember { mutableStateOf("All") }
     var currentSortOption by remember(initialSortOption) { mutableStateOf(initialSortOption) }
@@ -6873,7 +6873,7 @@ fun LibraryScanProgressBanner(
     musicViewModel: MusicViewModel,
     modifier: Modifier = Modifier
 ) {
-    val scanProgress by musicViewModel.scanProgress.collectAsState()
+    val scanProgress by musicViewModel.scanProgress.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
 
     Card(

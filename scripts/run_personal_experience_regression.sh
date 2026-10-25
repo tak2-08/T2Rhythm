@@ -18,6 +18,7 @@ adb shell dumpsys battery set ac 1
 
 # Separate invocations avoid silently running only the first comma-separated class on AGP 9.
 classes=(
+    chromahub.rhythm.app.features.ai.AiSafetyTest
     chromahub.rhythm.app.features.runtime.NativeModuleLoadingTest
     chromahub.rhythm.app.features.local.presentation.metadata.MetadataConsistencyTest
     chromahub.rhythm.app.features.local.presentation.metadata.ListeningRecapFlowTest
@@ -34,7 +35,7 @@ classes=(
     chromahub.rhythm.app.features.local.presentation.metadata.LyricsEntryAndUpdatesTest
     chromahub.rhythm.app.features.local.presentation.metadata.UsabilityBehaviorTest
 )
-expected_counts=(19 4 5 13 9 9 14 8 4 1 4 1 1 8 7)
+expected_counts=(2 19 4 5 13 9 9 14 8 4 1 4 1 1 8 7)
 if [[ "${FILE_NAME_COMPAT_ONLY:-0}" == 1 ]]; then
     classes=(chromahub.rhythm.app.features.local.presentation.metadata.MetadataConsistencyTest chromahub.rhythm.app.features.local.presentation.metadata.ListeningRecapFlowTest chromahub.rhythm.app.features.local.presentation.metadata.PageArtworkFlowTest chromahub.rhythm.app.features.local.presentation.metadata.LearningFileNamesTest)
     expected_counts=(4 5 13 9)

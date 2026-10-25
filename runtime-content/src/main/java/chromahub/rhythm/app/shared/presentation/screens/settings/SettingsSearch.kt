@@ -899,6 +899,15 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
             parentScreen = context.getString(R.string.settings_section_notifications_services)
         ))
         add(SearchableSettingItem(
+            id = "ai_connections",
+            title = "AI 연결",
+            description = "음악 추천·보관함 정리 · API 연결과 폴백",
+            keywords = listOf("ai", "llm", "gemini", "google", "groq", "cerebras", "hugging face", "chatgpt", "openai", "claude", "grok", "폴백", "순환"),
+            icon = MaterialSymbolIcon("auto_awesome"),
+            route = SettingsRoutes.AI_CONNECTIONS,
+            parentScreen = context.getString(R.string.settings_section_notifications_services)
+        ))
+        add(SearchableSettingItem(
             id = "api_management",
             title = context.getString(R.string.settings_api_management),
             description = context.getString(R.string.settings_api_management_desc),

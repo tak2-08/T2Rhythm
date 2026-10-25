@@ -26,13 +26,17 @@ internal class AnalysisBudget(
     private var sliceStarted = SystemClock.elapsedRealtime()
     private var checkedAt = -1000L
 
-    fun allowed(): Boolean = accepts(DeviceAnalysisLoad.conditions(context))
+    fun allowed(): Boolean = (userInitiated || !chromahub.rhythm.app.util.PlaybackWorkload.active) &&
+        accepts(DeviceAnalysisLoad.conditions(context))
 
     private fun accepts(conditions: AnalysisConditions) =
         if (userInitiated) conditions.allowsUserRequest() else conditions.allowsWork(
             chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).analysisMinimumBattery.value)
 
     private fun requireAllowed() {
+        if (!userInitiated && chromahub.rhythm.app.util.PlaybackWorkload.active) {
+            throw AnalysisDeferred()
+        }
         val conditions = DeviceAnalysisLoad.conditions(context)
         if (!accepts(conditions)) throw AnalysisDeferred(conditions)
     }

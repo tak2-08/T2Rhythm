@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import chromahub.rhythm.app.util.windowScreenWidthDp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -114,6 +115,7 @@ fun RhythmPlayerSheet(
     if (song == null) return
 
     val density = LocalDensity.current
+    val playerState = rememberSaveableStateHolder()
     val miniPlayerThemeId by appSettings.miniPlayerThemeId.collectAsState()
 
     BoxWithConstraints(
@@ -251,7 +253,10 @@ fun RhythmPlayerSheet(
                     )
                 }
                 
-                // Expanded Player Content
+                // Compose on opening intent/drag and keep it through the closing animation.
+                // Alpha=0 alone keeps every collector, artwork decoder and effect running.
+                if (isExpanded || dragOffset < 0f || expansionFraction > 0.001f) {
+                playerState.SaveableStateProvider("expanded-player") {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -329,6 +334,8 @@ fun RhythmPlayerSheet(
                         swipeToDismissEnabled = false,
                         expansionFraction = expansionFraction
                     )
+                }
+                }
                 }
             }
         }

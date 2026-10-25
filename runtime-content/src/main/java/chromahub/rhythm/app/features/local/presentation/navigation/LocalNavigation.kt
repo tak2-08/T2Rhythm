@@ -91,7 +91,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.CompositionLocalProvider
@@ -329,13 +329,13 @@ fun LocalNavigation(
     appSettings: chromahub.rhythm.app.shared.data.model.AppSettings,
 
 ) {
-    val miniPlayerThemeId by appSettings.miniPlayerThemeId.collectAsState()
-    val respectAlbumOnPlay by appSettings.respectAlbumOnPlay.collectAsState()
+    val miniPlayerThemeId by appSettings.miniPlayerThemeId.collectAsStateWithLifecycle()
+    val respectAlbumOnPlay by appSettings.respectAlbumOnPlay.collectAsStateWithLifecycle()
     // Update monitoring
     val updaterViewModel: AppUpdaterViewModel = rememberAppUpdaterViewModel()
-    val updateAvailable by updaterViewModel.updateAvailable.collectAsState()
-    val updatesEnabled by appSettings.updatesEnabled.collectAsState()
-    val latestVersion by updaterViewModel.latestVersion.collectAsState()
+    val updateAvailable by updaterViewModel.updateAvailable.collectAsStateWithLifecycle()
+    val updatesEnabled by appSettings.updatesEnabled.collectAsStateWithLifecycle()
+    val latestVersion by updaterViewModel.latestVersion.collectAsStateWithLifecycle()
     var showUpdateBottomSheet by remember { mutableStateOf(false) }
 
     // Track the version we've shown to avoid re-showing for the same version
@@ -356,34 +356,32 @@ fun LocalNavigation(
         }
     }
     // Collect state from ViewModel
-    val songs by viewModel.filteredSongs.collectAsState() // Use filtered songs to exclude blacklisted ones
-    val allSongs by viewModel.songs.collectAsState() // Keep all songs for specific cases
-    val albums by viewModel.filteredAlbums.collectAsState() // Use filtered albums to exclude albums with all songs blacklisted
-    val artists by viewModel.filteredArtists.collectAsState() // Use filtered artists to exclude artists with all songs blacklisted
-    val playlists by viewModel.playlists.collectAsState()
-    val currentSong by viewModel.currentSong.collectAsState()
-    val isPlaying by viewModel.isPlaying.collectAsState()
-    val progress by viewModel.progress.collectAsState()
-    val isShuffleEnabled by viewModel.isShuffleEnabled.collectAsState()
-    val repeatMode by viewModel.repeatMode.collectAsState()
-    val isFavorite by viewModel.isFavorite.collectAsState()
-    val sortOrder by viewModel.sortOrder.collectAsState()
-    val showLyrics by viewModel.showLyrics.collectAsState()
-    val showOnlineOnlyLyrics by viewModel.showOnlineOnlyLyrics.collectAsState()
-    val lyrics by viewModel.currentLyrics.collectAsState()
-    val isLoadingLyrics by viewModel.isLoadingLyrics.collectAsState()
-    val useExperimentalPlayerUi by appSettings.useExperimentalPlayerUi.collectAsState()
-    val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
-    val currentDevice by viewModel.currentDevice.collectAsState()
-    val isMediaScanning by viewModel.isMediaScanning.collectAsState() // Add media scanning state
+    val songs by viewModel.filteredSongs.collectAsStateWithLifecycle() // Use filtered songs to exclude blacklisted ones
+    val allSongs by viewModel.songs.collectAsStateWithLifecycle() // Keep all songs for specific cases
+    val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
+    val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
+    val progress by viewModel.progress.collectAsStateWithLifecycle()
+    val isShuffleEnabled by viewModel.isShuffleEnabled.collectAsStateWithLifecycle()
+    val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
+    val isFavorite by viewModel.isFavorite.collectAsStateWithLifecycle()
+    val sortOrder by viewModel.sortOrder.collectAsStateWithLifecycle()
+    val showLyrics by viewModel.showLyrics.collectAsStateWithLifecycle()
+    val showOnlineOnlyLyrics by viewModel.showOnlineOnlyLyrics.collectAsStateWithLifecycle()
+    val lyrics by viewModel.currentLyrics.collectAsStateWithLifecycle()
+    val isLoadingLyrics by viewModel.isLoadingLyrics.collectAsStateWithLifecycle()
+    val useExperimentalPlayerUi by appSettings.useExperimentalPlayerUi.collectAsStateWithLifecycle()
+    val recentlyPlayed by viewModel.recentlyPlayed.collectAsStateWithLifecycle()
+    val currentDevice by viewModel.currentDevice.collectAsStateWithLifecycle()
+    val isMediaScanning by viewModel.isMediaScanning.collectAsStateWithLifecycle() // Add media scanning state
 
     // Theme state
-    val useSystemTheme by themeViewModel.useSystemTheme.collectAsState()
-    val darkMode by themeViewModel.darkMode.collectAsState()
+    val useSystemTheme by themeViewModel.useSystemTheme.collectAsStateWithLifecycle()
+    val darkMode by themeViewModel.darkMode.collectAsStateWithLifecycle()
 
     // Library tab order settings - used to determine first visible tab
-    val libraryTabOrder by appSettings.libraryTabOrder.collectAsState()
-    val hiddenLibraryTabs by appSettings.hiddenLibraryTabs.collectAsState()
+    val libraryTabOrder by appSettings.libraryTabOrder.collectAsStateWithLifecycle()
+    val hiddenLibraryTabs by appSettings.hiddenLibraryTabs.collectAsStateWithLifecycle()
 
     // Compute the first visible tab based on user's tab order (respecting hidden tabs)
     val firstVisibleLibraryTab = remember(libraryTabOrder, hiddenLibraryTabs) {
@@ -399,8 +397,8 @@ fun LocalNavigation(
     }
 
     // Default landing screen
-    val defaultScreen by appSettings.defaultScreen.collectAsState()
-    val floatingNavigationBar by appSettings.floatingNavigationBar.collectAsState()
+    val defaultScreen by appSettings.defaultScreen.collectAsStateWithLifecycle()
+    val floatingNavigationBar by appSettings.floatingNavigationBar.collectAsStateWithLifecycle()
     val startDestination = when (defaultScreen) {
         "library" -> Screen.Library.createRoute(firstVisibleLibraryTab)
         else -> Screen.Home.route
@@ -441,6 +439,15 @@ fun LocalNavigation(
 
     // Track current destination for hiding navigation bar on player screen
     var currentRoute by remember { mutableStateOf(Screen.Home.route) }
+
+    // Heavy groupings exist only for destinations that display them. StateFlow keeps a
+    // short warm interval for rapid navigation; playback/settings don't subscribe.
+    val needsLibraryGroups = currentRoute == Screen.Home.route ||
+        currentRoute.startsWith("library") || currentRoute.startsWith("search") ||
+        currentRoute.startsWith("album") || currentRoute.startsWith("artist") ||
+        currentRoute.startsWith("playlist")
+    val albums = if (needsLibraryGroups) viewModel.filteredAlbums.collectAsStateWithLifecycle().value else emptyList()
+    val artists = if (needsLibraryGroups) viewModel.filteredArtists.collectAsStateWithLifecycle().value else emptyList()
 
     // Update current route when destination changes
     LaunchedEffect(navController) {
@@ -754,7 +761,7 @@ fun LocalNavigation(
 
     // Global Update Bottom Sheet - shows automatically when update is available
     val isOnUpdatesScreen = currentRoute == Screen.TunerUpdates.route
-    val installedVersion by updaterViewModel.currentVersion.collectAsState()
+    val installedVersion by updaterViewModel.currentVersion.collectAsStateWithLifecycle()
     chromahub.rhythm.app.features.updates.InstalledReleaseNotesPrompt(
         installedVersion, enabled = !showUpdateBottomSheet && !isOnUpdatesScreen)
     if (showUpdateBottomSheet && !isOnUpdatesScreen) {
@@ -832,17 +839,17 @@ private fun LocalNavigationContent(
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
 
-    val appMode by appSettings.appMode.collectAsState()
+    val appMode by appSettings.appMode.collectAsStateWithLifecycle()
     val isStreamingMode = appMode == "STREAMING"
-    val floatingNavigationBar by appSettings.floatingNavigationBar.collectAsState()
-    val playbackStatsSummary by viewModel.playbackStatsSummary.collectAsState()
-    val listeningTime by viewModel.listeningTime.collectAsState()
+    val floatingNavigationBar by appSettings.floatingNavigationBar.collectAsStateWithLifecycle()
+    val playbackStatsSummary by viewModel.playbackStatsSummary.collectAsStateWithLifecycle()
+    val listeningTime by viewModel.listeningTime.collectAsStateWithLifecycle()
 
     val showAddToPlaylistSheet = remember { mutableStateOf(false) }
     val showCreatePlaylistDialog = remember { mutableStateOf(false) }
     val songForCreatePlaylistDialog = remember { mutableStateOf<chromahub.rhythm.app.shared.data.model.Song?>(null) }
 
-    LaunchedEffect(viewModel.selectedSongForPlaylist.collectAsState().value) {
+    LaunchedEffect(viewModel.selectedSongForPlaylist.collectAsStateWithLifecycle().value) {
         if (viewModel.selectedSongForPlaylist.value != null) {
             showAddToPlaylistSheet.value = true
         }
@@ -903,8 +910,8 @@ private fun LocalNavigationContent(
     }
 
 
-    val miniPlayerThemeId by appSettings.miniPlayerThemeId.collectAsState()
-    val respectAlbumOnPlay by appSettings.respectAlbumOnPlay.collectAsState()
+    val miniPlayerThemeId by appSettings.miniPlayerThemeId.collectAsStateWithLifecycle()
+    val respectAlbumOnPlay by appSettings.respectAlbumOnPlay.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier,
@@ -1008,8 +1015,8 @@ private fun LocalNavigationContent(
                         isPlaying = isPlaying,
                         progress = progress,
                         location = currentDevice,
-                        queuePosition = viewModel.currentQueue.collectAsState().value.currentIndex + 1,
-                        queueTotal = viewModel.currentQueue.collectAsState().value.songs.size,
+                        queuePosition = viewModel.currentQueue.collectAsStateWithLifecycle().value.currentIndex + 1,
+                        queueTotal = viewModel.currentQueue.collectAsStateWithLifecycle().value.songs.size,
                         onPlayPause = onPlayPause,
                         onSkipNext = onSkipNext,
                         onSkipPrevious = onSkipPrevious,
@@ -1037,8 +1044,8 @@ private fun LocalNavigationContent(
                         onRetryLyrics = {
                             viewModel.retryFetchLyrics()
                         },
-                        volume = viewModel.volume.collectAsState().value,
-                        isMuted = viewModel.isMuted.collectAsState().value,
+                        volume = viewModel.volume.collectAsStateWithLifecycle().value,
+                        isMuted = viewModel.isMuted.collectAsStateWithLifecycle().value,
                         onVolumeChange = { volume ->
                             viewModel.setVolume(volume)
                         },
@@ -1051,7 +1058,7 @@ private fun LocalNavigationContent(
                         onStopDeviceMonitoring = {
                             viewModel.stopDeviceMonitoringOnDemand()
                         },
-                        locations = viewModel.locations.collectAsState().value,
+                        locations = viewModel.locations.collectAsStateWithLifecycle().value,
                         onLocationSelect = { location ->
                             viewModel.setCurrentDevice(location)
                         },
@@ -1059,7 +1066,7 @@ private fun LocalNavigationContent(
                             viewModel.maxVolume()
                         },
                         playlists = playlists,
-                        queue = viewModel.currentQueue.collectAsState().value.songs,
+                        queue = viewModel.currentQueue.collectAsStateWithLifecycle().value.songs,
                         onSongClick = { song ->
                             viewModel.playSong(song)
                         },
@@ -1104,11 +1111,11 @@ private fun LocalNavigationContent(
                         onClearQueue = {
                             viewModel.clearQueue()
                         },
-                        isMediaLoading = viewModel.isBuffering.collectAsState().value,
-                        isSeeking = viewModel.isSeeking.collectAsState().value,
-                        songs = viewModel.filteredSongs.collectAsState().value,
-                        albums = viewModel.albums.collectAsState().value,
-                        artists = viewModel.artists.collectAsState().value,
+                        isMediaLoading = viewModel.isBuffering.collectAsStateWithLifecycle().value,
+                        isSeeking = viewModel.isSeeking.collectAsStateWithLifecycle().value,
+                        songs = viewModel.filteredSongs.collectAsStateWithLifecycle().value,
+                        albums = viewModel.albums.collectAsStateWithLifecycle().value,
+                        artists = viewModel.artists.collectAsStateWithLifecycle().value,
                         onPlayAlbumSongs = { songs -> viewModel.playSongs(songs) },
                         onShuffleAlbumSongs = { songs -> viewModel.playShuffled(songs) },
                         onPlayArtistSongs = { songs -> viewModel.playSongs(songs) },
@@ -1665,6 +1672,7 @@ private fun LocalNavigationContent(
                 ) {
                     HomeScreen(
                             musicViewModel = viewModel,
+                            onAiClick = { navController.navigate("music_ai") { launchSingleTop = true } },
                             songs = songs,
                             albums = albums,
                             artists = artists,
@@ -1754,8 +1762,11 @@ private fun LocalNavigationContent(
                         )
                 }
 
+                composable("music_ai") {
+                    chromahub.rhythm.app.features.ai.AiMusicScreen(viewModel, onBack = { navController.popBackStack() })
+                }
                 composable(Screen.Popular.route) {
-                    chromahub.rhythm.app.features.local.presentation.metadata.PopularListScreen(songs = viewModel.songs.collectAsState().value, onPlay = viewModel::playSong)
+                    chromahub.rhythm.app.features.local.presentation.metadata.PopularListScreen(songs = viewModel.songs.collectAsStateWithLifecycle().value, onPlay = viewModel::playSong)
                 }
 
                 composable(
@@ -2376,10 +2387,10 @@ private fun LocalNavigationContent(
                 ) { backStackEntry ->
                     val playlistId = backStackEntry.arguments?.getString("playlistId") ?: ""
                     val playlist = playlists.find { it.id == playlistId }
-                    val favoriteSongs by viewModel.favoriteSongs.collectAsState()
+                    val favoriteSongs by viewModel.favoriteSongs.collectAsStateWithLifecycle()
 
                     // Album/Artist data for bottom sheets
-                    val allAlbums by viewModel.albums.collectAsState()
+                    val allAlbums by viewModel.albums.collectAsStateWithLifecycle()
                     val playlistHaptics = LocalHapticFeedback.current
 
                     // Write permission launcher for Android 11+ metadata editing
@@ -2538,7 +2549,7 @@ private fun LocalNavigationContent(
                     }
                 ) { backStackEntry ->
                     val artistName = backStackEntry.arguments?.getString("artistName")?.let { Uri.decode(it) } ?: ""
-                    val favoriteSongs by viewModel.favoriteSongs.collectAsState()
+                    val favoriteSongs by viewModel.favoriteSongs.collectAsStateWithLifecycle()
                     var pendingMetadataEditCompleteCallback by remember { mutableStateOf<((Boolean) -> Unit)?>(null) }
 
                     // Write permission launcher for Android 11+ metadata editing
@@ -2776,7 +2787,7 @@ private fun LocalNavigationContent(
                 ) { backStackEntry ->
                     val albumId = backStackEntry.arguments?.getString("albumId")?.let { Uri.decode(it) } ?: ""
                     val albumName = backStackEntry.arguments?.getString("albumName")?.let { Uri.decode(it) } ?: ""
-                    val favoriteSongs by viewModel.favoriteSongs.collectAsState()
+                    val favoriteSongs by viewModel.favoriteSongs.collectAsStateWithLifecycle()
 
                     // Write permission launcher for Android 11+ metadata editing
                     val writePermissionLauncher = rememberLauncherForActivityResult(
@@ -3043,8 +3054,8 @@ private fun LocalNavigationContent(
                                 )
                     }
                 ) {
-                    val songToAdd = viewModel.selectedSongForPlaylist.collectAsState().value
-                    val targetPlaylistId = viewModel.targetPlaylistId.collectAsState().value
+                    val songToAdd = viewModel.selectedSongForPlaylist.collectAsStateWithLifecycle().value
+                    val targetPlaylistId = viewModel.targetPlaylistId.collectAsStateWithLifecycle().value
 
                     var searchQuery by remember { mutableStateOf("") }
 
@@ -3185,9 +3196,9 @@ private fun LocalNavigationContent(
     }
 
     // Queue action dialog - show at top level
-    val queueActionRequest by viewModel.queueActionRequest.collectAsState()
-    val queueListActionRequest by viewModel.queueListActionRequest.collectAsState()
-    val currentQueueForDialog by viewModel.currentQueue.collectAsState()
+    val queueActionRequest by viewModel.queueActionRequest.collectAsStateWithLifecycle()
+    val queueListActionRequest by viewModel.queueListActionRequest.collectAsStateWithLifecycle()
+    val currentQueueForDialog by viewModel.currentQueue.collectAsStateWithLifecycle()
 
     queueActionRequest?.let { request ->
         QueueActionDialog(
