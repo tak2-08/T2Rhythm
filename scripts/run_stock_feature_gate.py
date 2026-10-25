@@ -22,7 +22,7 @@ try:
         '--resource-name','youtube_artwork_fallback','--resource-text','Use matching YouTube thumbnails as a fallback',
         '--activation-only','--output',str(output/'activation')],check=True)
     results=[]
-    for name,count in [('features.local.presentation.metadata.UserEnhancementsTest',5),
+    for name,count in [('features.local.presentation.metadata.UserEnhancementsTest',6),
                        ('shared.presentation.screens.GenreSearchStateTest',1),
                        ('features.local.presentation.metadata.PlaybackContinuityTest',1)]:
         subprocess.run(['adb','shell','am','force-stop',package],check=True)
@@ -34,7 +34,7 @@ try:
         results.append(dict(target=name,expected=count,passed=statuses.count(0),success=success))
         (output/'ui-summary.json').write_text(json.dumps(results,indent=2)+'\n')
         assert success,value.stdout[-6000:]
-    print('Verified 4 production update phases and 7 UI/playback checks on the unchanged installed 1327 base payload.')
+    print('Verified 4 production update phases and 8 UI/playback checks on the unchanged installed 1327 base payload.')
 finally:
     log=subprocess.run(['adb','logcat','-d'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=30)
     (output/'logcat.txt').write_text(log.stdout,errors='replace')

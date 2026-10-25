@@ -128,4 +128,24 @@ class UserEnhancementsTest {
             assertTrue(opened.all { !it.isOpen })
         } finally { root.deleteRecursively() }
     }
+    @Test fun manualYouTubeFallbackWorksWithAutomaticEnrichmentOffAndHonorsGlobalOnlineChoice() = runBlocking {
+        val settings = AppSettings.getInstance(context)
+        val preferences = chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(context).preferences
+        val previous = preferences.options.value
+        val song = Song("manual-art", "Song", "Artist", "Album", duration = 180_000, uri = Uri.parse("content://test/manual-art"))
+        var calls = 0
+        val fetch: suspend (String) -> List<chromahub.rhythm.app.features.local.data.discovery.AudioSourceCandidate> = {
+            calls++
+            listOf(chromahub.rhythm.app.features.local.data.discovery.AudioSourceCandidate("https://www.youtube.com/watch?v=abcdefghijk", "Song", "Artist", 180))
+        }
+        try {
+            preferences.update(previous.copy(enabled = false, artwork = false, youtubeArtworkFallback = true))
+            settings.setIntegrationsEnabled(true)
+            val repository = chromahub.rhythm.app.features.local.data.metadata.CatalogImportRepository(context)
+            assertEquals(1, repository.youtubeFallback(song, emptyList(), fetch).size)
+            settings.setIntegrationsEnabled(false)
+            assertTrue(repository.youtubeFallback(song, emptyList(), fetch).isEmpty())
+            assertEquals(1, calls)
+        } finally { preferences.update(previous); settings.setIntegrationsEnabled(false) }
+    }
 }

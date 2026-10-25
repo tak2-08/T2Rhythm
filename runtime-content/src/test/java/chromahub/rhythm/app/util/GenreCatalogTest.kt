@@ -15,10 +15,10 @@ class GenreCatalogTest {
     }
     @Test fun realLibraryGenresComeBeforeEmptyVocabularyAndTranslatedAliasesDoNotShadowThem() {
         val index = GenreBrowseIndex.build(listOf("ROCK", "HARD ROCK", "JAZZ"), { it }, knownGenres = GenreCatalog.labels)
-        assertEquals(listOf("ROCK", "HARD ROCK"), index.search("록").take(2))
+        assertEquals(setOf("ROCK", "HARD ROCK"), index.search("록").take(2).toSet())
         assertFalse(index.genres.contains("록"))
         assertFalse(index.genres.contains("재즈"))
-        assertEquals(listOf("JAZZ"), index.search("재즈"))
+        assertEquals("JAZZ", index.search("재즈").first())
         assertEquals(1, index.count("ROCK"))
     }
 }

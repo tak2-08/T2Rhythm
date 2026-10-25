@@ -28,11 +28,13 @@ class CatalogImportRepository(private val context: Context) {
     suspend fun search(provider: Provider?, kind: EntityKind, query: String) =
         if (provider == null) search.searchAll(kind, query, 10) else search.searchVariants(provider, kind, query)
 
-    internal suspend fun youtubeFallback(song: chromahub.rhythm.app.shared.data.model.Song?, hits: List<SearchHit>): List<YouTubeArtworkMatch> {
+    internal suspend fun youtubeFallback(song: chromahub.rhythm.app.shared.data.model.Song?, hits: List<SearchHit>,
+        fetch: (suspend (String) -> List<chromahub.rhythm.app.features.local.data.discovery.AudioSourceCandidate>)? = null): List<YouTubeArtworkMatch> {
         if (song == null) return emptyList()
         val service = CatalogEnrichmentService.get(context)
         val options = service.preferences.options.value
-        if (!service.enabled() || !options.artwork || !options.youtubeArtworkFallback) return emptyList()
+        // Manual import is independent of automatic enrichment; global online/fallback choices still apply.
+        if (!chromahub.rhythm.app.shared.data.model.AppSettings.getInstance(context).integrationsEnabled.value || !options.youtubeArtworkFallback) return emptyList()
         val possible = hits.filter { it.kind == EntityKind.TRACK &&
             ArtworkMatchPolicy.score(song.title, song.artist, it.title, it.artists?.takeIf(String::isNotBlank) ?: song.artist) * 100 + 1e-8 >= options.artworkMatchPercent }.take(4)
         for (hit in possible) {
@@ -42,7 +44,8 @@ class CatalogImportRepository(private val context: Context) {
                     doc[CatalogField.TRACK_TITLE].orEmpty(), doc[CatalogField.TRACK_ARTISTS].orEmpty(), options.artworkMatchPercent,
                     if (options.strictDuration) song.duration else 0, doc[CatalogField.TRACK_DURATION_MS]?.toLongOrNull(), options.durationTolerancePercent)) return emptyList()
         }
-        return YouTubeArtwork.search(song.title, song.artist, song.duration, options)
+        return if (fetch == null) YouTubeArtwork.search(song.title, song.artist, song.duration, options)
+            else YouTubeArtwork.search(song.title, song.artist, song.duration, options, fetch)
     }
 
     suspend fun load(hit: SearchHit): CatalogDocument? = withContext(Dispatchers.IO) {
