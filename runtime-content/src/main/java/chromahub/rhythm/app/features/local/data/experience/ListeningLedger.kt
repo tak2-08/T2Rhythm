@@ -65,7 +65,7 @@ data class ListeningRecord(
 
 /** Indexed source of truth. Older journals retain compact observations and can rebuild the DB. */
 class ListeningLedger private constructor(private val context: Context) :
-    SQLiteOpenHelper(context, "listening_ledger.db", null, 4) {
+    SQLiteOpenHelper(context, "listening_ledger.db", null, 4), java.io.Closeable {
     private val gson = Gson()
     private val lock = Any()
     @Volatile private var recovered = false

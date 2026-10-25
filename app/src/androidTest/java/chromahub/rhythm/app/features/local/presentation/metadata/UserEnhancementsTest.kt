@@ -22,6 +22,7 @@ import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Rule
+import org.junit.Before
 import org.junit.Test
 import org.junit.rules.ExternalResource
 import org.junit.rules.RuleChain
@@ -40,6 +41,16 @@ class UserEnhancementsTest {
         }
     }
     @get:Rule val rules: RuleChain = RuleChain.outerRule(prep).around(compose)
+    @Before @Suppress("DEPRECATION") fun renderKoreanResourcesInTheComponentActivityHarness() {
+        compose.runOnUiThread {
+            java.util.Locale.setDefault(java.util.Locale.KOREAN)
+            listOf(context.resources, compose.activity.resources).forEach { resource ->
+                resource.updateConfiguration(android.content.res.Configuration(resource.configuration).apply {
+                    setLocale(java.util.Locale.KOREAN)
+                }, resource.displayMetrics)
+            }
+        }
+    }
     private fun capture(name: String) {
         compose.waitForIdle()
         val image = requireNotNull(instrumentation.uiAutomation.takeScreenshot())
@@ -104,6 +115,17 @@ class UserEnhancementsTest {
             assertEquals(1, updated.count("NEW GENRE"))
             assertTrue(updated.genres.size > 100)
             assertEquals(0, LibraryGenreIndex.get(first, emptyList()).count("NEW GENRE"))
+        } finally { root.deleteRecursively() }
+    }
+    @Test fun compactIndexesCloseOnAndroid8WithoutDependingOnNewPlatformInterfaces() {
+        val root = File(context.cacheDir, "closeable-index-${System.nanoTime()}").apply { mkdirs() }
+        val isolated = object : ContextWrapper(context) { override fun getCacheDir() = root }
+        val opened = mutableListOf<android.database.sqlite.SQLiteDatabase>()
+        try {
+            chromahub.rhythm.app.features.local.data.experience.ContextPreferenceIndex(isolated).use { opened += it.readableDatabase }
+            chromahub.rhythm.app.features.local.data.discovery.EnrichmentLearningIndex(isolated).use { opened += it.readableDatabase }
+            assertEquals(2, opened.size)
+            assertTrue(opened.all { !it.isOpen })
         } finally { root.deleteRecursively() }
     }
 }

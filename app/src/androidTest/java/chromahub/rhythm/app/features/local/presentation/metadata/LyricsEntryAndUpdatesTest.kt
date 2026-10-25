@@ -49,7 +49,7 @@ class LyricsEntryAndUpdatesTest {
     private val text = "밤의 문장을 따라\n천천히 걸어가\n서로의 시간을 맞춰\n우리의 노래가 돼"
     private fun song() = Song("lyrics-ui-${UUID.randomUUID()}", "밤의 문장", "리듬", "기억의 조각", duration = 180_000, uri = Uri.fromFile(File(base.cacheDir, "lyrics-ui.m4a")))
     @Before @Suppress("DEPRECATION") fun koreanActivityAndDialogs() {
-        InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(base.packageName, Manifest.permission.READ_EXTERNAL_STORAGE)
+        chromahub.rhythm.app.testing.grantTestPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
         compose.runOnUiThread {
             Locale.setDefault(Locale.KOREAN)
             listOf(ctx.resources, base.resources).forEach { r ->

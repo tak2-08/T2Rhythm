@@ -50,7 +50,7 @@ class PageArtworkFlowTest {
         }
     }
     @Before @Suppress("DEPRECATION") fun setup() {
-        InstrumentationRegistry.getInstrumentation().uiAutomation.grantRuntimePermission(base.packageName,
+        chromahub.rhythm.app.testing.grantTestPermission(
             if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE)
         compose.runOnUiThread {
             Locale.setDefault(Locale.KOREAN)

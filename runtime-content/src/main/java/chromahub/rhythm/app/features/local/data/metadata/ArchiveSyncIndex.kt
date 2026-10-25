@@ -11,7 +11,7 @@ import android.database.sqlite.SQLiteOpenHelper
  * Disposable copy receipts, not backup content. Never rewrite a growing preferences XML per file.
  */
 internal class ArchiveSyncIndex(context: Context) :
-    SQLiteOpenHelper(context, "archive_sync.db", null, 1) {
+    SQLiteOpenHelper(context, "archive_sync.db", null, 1), java.io.Closeable {
     private var batch = 0
 
     init {

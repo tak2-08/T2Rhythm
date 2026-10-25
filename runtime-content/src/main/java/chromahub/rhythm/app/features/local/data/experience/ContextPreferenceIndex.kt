@@ -15,7 +15,7 @@ internal class ContextPreferenceIndex(context: Context) :
         java.io.File(context.cacheDir, "context-preferences-v1.db").absolutePath,
         null,
         5,
-    ) {
+    ), java.io.Closeable {
     private val gson = Gson()
 
     data class Pattern(val dimension: String, val bucket: String, val genres: List<Pair<String, Double>>)

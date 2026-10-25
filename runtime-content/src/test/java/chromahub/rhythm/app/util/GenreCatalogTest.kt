@@ -13,4 +13,12 @@ class GenreCatalogTest {
         assertTrue("R&B" in index.search("알앤비"))
         assertTrue(index.songs("인디 록").contains("인디 록"))
     }
+    @Test fun realLibraryGenresComeBeforeEmptyVocabularyAndTranslatedAliasesDoNotShadowThem() {
+        val index = GenreBrowseIndex.build(listOf("ROCK", "HARD ROCK", "JAZZ"), { it }, knownGenres = GenreCatalog.labels)
+        assertEquals(listOf("ROCK", "HARD ROCK"), index.search("록").take(2))
+        assertFalse(index.genres.contains("록"))
+        assertFalse(index.genres.contains("재즈"))
+        assertEquals(listOf("JAZZ"), index.search("재즈"))
+        assertEquals(1, index.count("ROCK"))
+    }
 }

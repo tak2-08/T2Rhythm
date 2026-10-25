@@ -10,8 +10,11 @@ internal class GenreBrowseIndex<T> private constructor(
     private val index: LibrarySearchIndex<String>,
 ) {
     val genres: List<String> get() = index.source
-    fun search(query: String): List<String> = if (query.isBlank()) genres else
-        (index.search(query) + index.search(canonical(query.take(256)))).distinct()
+    fun search(query: String): List<String> {
+        val matches = if (query.isBlank()) genres else (index.search(query) + index.search(canonical(query.take(256)))).distinct()
+        val (available, vocabulary) = matches.partition { count(it) > 0 }
+        return available + vocabulary
+    }
     fun songs(genre: String?): List<T> = if (genre == null) emptyList() else byGenre[genre].orEmpty()
     fun count(genre: String): Int = songs(genre).size
 
@@ -52,7 +55,6 @@ internal class GenreBrowseIndex<T> private constructor(
 
         fun <T> build(songs: List<T>, genreOf: (T) -> String?, checkActive: () -> Unit = {}, knownGenres: List<String> = emptyList()): GenreBrowseIndex<T> {
             val grouped = sortedMapOf<String, MutableList<T>>()
-            knownGenres.flatMap(GenreUtils::splitGenres).forEach { grouped.getOrPut(it) { mutableListOf() } }
             val neighbors = mutableMapOf<String, MutableSet<String>>()
             songs.forEachIndexed { i, song ->
                 if (i % 128 == 0) checkActive()
@@ -62,7 +64,12 @@ internal class GenreBrowseIndex<T> private constructor(
                     neighbors.getOrPut(genre) { mutableSetOf() }.addAll(labels.filter { it != genre })
                 }
             }
-            val labels = grouped.keys.toList()
+            // A translated vocabulary label must not shadow an equivalent real library tag with zero tracks.
+            val existing = grouped.keys.map(::canonical).toMutableSet()
+            knownGenres.flatMap(GenreUtils::splitGenres).forEach {
+                if (existing.add(canonical(it))) grouped.getOrPut(it) { mutableListOf() }
+            }
+            val labels = grouped.keys.filter { grouped[it]?.isNotEmpty() == true } + grouped.keys.filter { grouped[it].isNullOrEmpty() }
             return GenreBrowseIndex(grouped, neighbors, LibrarySearchIndex.build(labels, { it }, { label ->
                 val family = families(label)
                 sequenceOf(label, canonical(label)) + aliases.filter { it.first().filter(Char::isLetterOrDigit) in family }
