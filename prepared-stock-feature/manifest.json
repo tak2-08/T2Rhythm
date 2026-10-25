@@ -1,0 +1,24 @@
+{
+  "source_revision": "9409aa70c753841217871648a0de7306b7a28a0a",
+  "assets": [
+    {
+      "name": "next.t2module",
+      "size": 27251290,
+      "sha256": "0f71126258b41dfa92120665a38e92c09544ef2778f46a1e9e28c51ab50fbf27",
+      "parts": [
+        "asset00-000.part"
+      ]
+    },
+    {
+      "name": "instrumentation-unsigned.zip",
+      "size": 3322855,
+      "sha256": "914b24f388e24967c4f7ba75cd7a9b0039ee1689e66f16afa3fd6768c4164b90",
+      "parts": [
+        "asset01-000.part"
+      ]
+    }
+  ],
+  "module_source_revision": "052ef184d360b0728eb50ab5e10f01aa72ad74bb",
+  "instrumentation_source_revision": "0d862b85388a6a8678905bec46c5517d86b3c127",
+  "instrumentation_workflow_run": 40160859817
+}
