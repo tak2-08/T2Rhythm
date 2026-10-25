@@ -1,0 +1,110 @@
+name: AI and playback signed review build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'runtime-content/src/main/java/chromahub/rhythm/app/features/ai/**'
+      - '.github/workflows/ai-performance-review.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  signed-review:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check optional signing inputs
+        id: signing
+        env:
+          MODULE_KEY: ${{ secrets.RUNTIME_MODULE_SIGNING_KEY }}
+          APK_KEY: ${{ secrets.SIGNING_KEYSTORE }}
+          APK_PROPERTIES: ${{ secrets.SIGNING_PROPERTIES }}
+        shell: bash
+        run: |
+          if [[ -n "$MODULE_KEY" && -n "$APK_KEY" && -n "$APK_PROPERTIES" ]]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Signed APK not generated: original APK and production module signing inputs are required. Standard CI runs independently.'
+          fi
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - if: steps.signing.outputs.available == 'true'
+        uses: actions/setup-java@v6
+        with:
+          java-version: '17'
+          distribution: zulu
+          cache: gradle
+      - name: Prepare protected module signing
+        if: steps.signing.outputs.available == 'true'
+        uses: ./.github/actions/setup-native-packaging
+        with:
+          production-key: ${{ secrets.RUNTIME_MODULE_SIGNING_KEY }}
+      - if: steps.signing.outputs.available == 'true'
+        uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - name: Prepare original APK signing
+        if: steps.signing.outputs.available == 'true'
+        env:
+          SIGNING_KEYSTORE: ${{ secrets.SIGNING_KEYSTORE }}
+          SIGNING_PROPERTIES: ${{ secrets.SIGNING_PROPERTIES }}
+        shell: bash
+        run: |
+          test -n "$RUNTIME_SIGNING_KEY_FILE"
+          test -n "$SIGNING_KEYSTORE"
+          test -n "$SIGNING_PROPERTIES"
+          umask 077
+          mkdir -p config/signing .config
+          printf '%s' "$SIGNING_KEYSTORE" | base64 --decode > config/signing/rhythm_keystore.jks
+          printf '%s' "$SIGNING_PROPERTIES" | base64 --decode > .config/keystore.properties
+      - name: Verify and build installable review APK
+        if: steps.signing.outputs.available == 'true'
+        run: >-
+          ./gradlew :runtime-core:test :crawler:test :runtime-content:testGithubDebugUnitTest
+          :runtime-content:lintGithubDebug :app:lintGithubRelease :app:assembleGithubRelease
+          -PrequireReleaseSigning=true -PruntimeTestOnly=false
+          --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g
+          -Pkotlin.compiler.execution.strategy=in-process --console=plain
+      - name: Verify original certificate and feature ownership
+        if: steps.signing.outputs.available == 'true'
+        shell: bash
+        run: |
+          apk=app/build/outputs/apk/github/release/Rhythm-5.5.499.1330-githubRelease.apk
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$apk" > app/build/review-certificate.txt
+          grep -q 'c55ec7843dd8190f2ce249ddc1562c616647c50c317930076e2e98bf7e304c18' app/build/review-certificate.txt
+          python3 scripts/audit_runtime_classpath.py --base "$apk" --feature-dex runtime-content/build/outputs/runtime-feature/githubRelease/content.dex.jar --out app/build/review-classpath.json
+          sha256sum "$apk" > app/build/REVIEW-SHA256SUMS
+      - if: steps.signing.outputs.available == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: T2Rhythm-1330-signed-review
+          retention-days: 7
+          path: |
+            app/build/outputs/apk/github/release/*.apk
+            app/build/review-certificate.txt
+            app/build/review-classpath.json
+            app/build/REVIEW-SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.signing.outputs.available == 'true'
+        with:
+          name: T2Rhythm-1330-review-checks
+          retention-days: 7
+          path: |
+            runtime-content/build/test-results/testGithubDebugUnitTest/*.xml
+            runtime-content/build/reports/lint-results-githubDebug.*
+            app/build/reports/lint-results-githubRelease.*
+      - name: Remove temporary signing inputs
+        if: always() && steps.signing.outputs.available == 'true'
+        shell: bash
+        run: |
+          rm -rf .config config/signing
+          if [[ -n "$RUNTIME_SIGNING_KEY_FILE" ]]; then rm -f "$RUNTIME_SIGNING_KEY_FILE"; fi

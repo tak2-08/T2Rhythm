@@ -108,6 +108,7 @@ import chromahub.rhythm.app.features.local.data.database.RhythmDatabase
 import chromahub.rhythm.app.features.local.data.database.entity.ArtistEntity
 import chromahub.rhythm.app.features.local.data.database.entity.SongEntity
 import chromahub.rhythm.app.features.local.data.database.entity.toEntity
+import chromahub.rhythm.app.features.local.data.metadata.SongFileIdentity
 import chromahub.rhythm.app.features.local.data.database.entity.SongArtistEntity
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -282,6 +283,13 @@ class MusicRepository(context: Context) {
     }
 
     private val songWriteMutex = Mutex()
+
+    /** Serialize the final rename location with scans that may already hold an older snapshot. */
+    suspend fun persistRenamedSongLocation(song: Song) = withContext(Dispatchers.IO) {
+        songWriteMutex.withLock {
+            songDao.updateFileLocation(song.id, song.uri.toString(), requireNotNull(song.path), song.dateModified)
+        }
+    }
 
     private suspend fun saveSongsToRoom(
         incomingSongs: List<Song>,
@@ -2677,7 +2685,7 @@ class MusicRepository(context: Context) {
 
     fun storedSongs(songs: List<Song>): List<Song> {
         val names = chromahub.rhythm.app.core.domain.scan.AlbumNameResolver(context)
-        return songs.map { catalog.apply(names.apply(it)) }
+        return songs.map { catalog.apply(names.apply(SongFileIdentity.currentLocation(context, it))) }
     }
     fun peekLocalLyrics(song: Song): LyricsData? = autoLyrics.read(song)?.takeUnless { it.isErrorMessage() }
         ?: findLocalLyrics(song.artist, song.title, song.id, song.uri)?.takeIf { it.hasLyrics() && !it.isErrorMessage() }
@@ -5713,7 +5721,10 @@ class MusicRepository(context: Context) {
         onBatchUpdated: ((List<Song>) -> Unit)? = null
     ): List<Song> = withContext(Dispatchers.IO) {
         if (songs.isEmpty()) return@withContext emptyList()
-        val updatedSongs = songs.map { song ->
+        val updatedSongs = songs.mapIndexed { index, song ->
+            if (index % 64 == 0) {
+                yield()
+            }
             val onDemandUri = RhythmAlbumArtProvider.buildSongUri(
                 id = song.id,
                 path = song.path,
@@ -6542,6 +6553,7 @@ class MusicRepository(context: Context) {
                 val batchStartTime = System.currentTimeMillis()
 
                 batch.forEach { song ->
+                    chromahub.rhythm.app.util.PlaybackWorkload.awaitIdle()
                     try {
                         val songId = song.id.toLongOrNull()
                         if (songId == null) {
@@ -6626,6 +6638,7 @@ class MusicRepository(context: Context) {
             }
 
             val beforeById = songs.associateBy { it.id }
+            chromahub.rhythm.app.util.PlaybackWorkload.awaitIdle()
             roomDb.withTransaction {
                 updatedSongs.forEach { result ->
                     beforeById[result.id]?.let { before ->
@@ -6678,6 +6691,7 @@ class MusicRepository(context: Context) {
 
             val batchResults = batch.map { song ->
                 async(metadataReadDispatcher) {
+                    chromahub.rhythm.app.util.PlaybackWorkload.awaitIdle()
                     try {
                         val formatInfo = AudioFormatDetector.detectFormat(context, song.uri, song)
                         song.copy(
@@ -6699,6 +6713,7 @@ class MusicRepository(context: Context) {
 
             // Update only technical columns: full-entity upserts could revert an edit made
             // while the probe was running, or resurrect a song deleted in the meantime.
+            chromahub.rhythm.app.util.PlaybackWorkload.awaitIdle()
             roomDb.withTransaction {
                 batchResults.forEach { info ->
                     roomDb.songDao().updateAudioMetadata(info.id, info.uri.toString(), info.bitrate, info.sampleRate, info.channels, info.codec)

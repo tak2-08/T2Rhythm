@@ -1023,15 +1023,13 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
         playerListener = object : Player.Listener {
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
                 if (::preloadController.isInitialized) {
-                    val mediaItems = mutableListOf<MediaItem>()
-                    for (i in 0 until player.mediaItemCount) {
-                        mediaItems.add(player.getMediaItemAt(i))
-                    }
-                    preloadController.addOrUpdateQueue(mediaItems)
+                    preloadController.update(player)
                 }
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
+                chromahub.rhythm.app.util.PlaybackWorkload.active = player.playWhenReady &&
+                    (playbackState == Player.STATE_BUFFERING || playbackState == Player.STATE_READY)
                 if (playbackState == Player.STATE_ENDED && player.repeatMode == Player.REPEAT_MODE_OFF && player.playWhenReady &&
                     chromahub.rhythm.app.features.local.data.experience.PersonalCollections.autoplay(this@MediaPlaybackDelegate)) {
                     continuePersonalRadio()
@@ -1085,6 +1083,8 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
             }
 
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                chromahub.rhythm.app.util.PlaybackWorkload.active = playWhenReady &&
+                    (player.playbackState == Player.STATE_BUFFERING || player.playbackState == Player.STATE_READY)
                 if (playWhenReady) {
                     val now = System.currentTimeMillis()
                     if (appSettings.rhythmGuardTimeoutUntilMs.value > now) {
@@ -1104,6 +1104,7 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
             }
             
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                chromahub.rhythm.app.util.PlaybackWorkload.active = isPlaying || (player.playWhenReady && player.playbackState == Player.STATE_BUFFERING)
                 
                 // Broadcast status for Tasker/KWGT/automation apps
                 if (appSettings.broadcastStatusEnabled.value) {
@@ -1127,7 +1128,7 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
                 if (::preloadController.isInitialized) {
                     val currentIndex = player.currentMediaItemIndex
                     if (currentIndex != androidx.media3.common.C.INDEX_UNSET) {
-                        preloadController.setPlayingIndex(currentIndex)
+                        preloadController.update(player)
                     }
                 }
 
@@ -2453,6 +2454,7 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
     }
 
     override fun onDestroy(parent: Runnable) {
+        chromahub.rhythm.app.util.PlaybackWorkload.active = false
         listeningRecorder?.close(); listeningRecorder = null
         chromahub.rhythm.app.features.local.data.metadata.CatalogEnrichmentService.get(this).setActiveSong(null)
         chromahub.rhythm.app.infrastructure.worker.CatalogWriteWorker.enqueue(this)
@@ -2751,6 +2753,7 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
 
     override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
         super.onShuffleModeEnabledChanged(shuffleModeEnabled)
+        if (::preloadController.isInitialized && ::player.isInitialized) preloadController.update(player)
         Log.d(TAG, "Shuffle mode changed to: $shuffleModeEnabled")
 
         // Broadcast explicit shuffle state updates so UI can reconcile queue order immediately.
@@ -2766,6 +2769,7 @@ notificationManager.createNotificationChannel(sleepTimerChannel)
 
     override fun onRepeatModeChanged(repeatMode: Int) {
         super<Player.Listener>.onRepeatModeChanged(repeatMode)
+        if (::preloadController.isInitialized && ::player.isInitialized) preloadController.update(player)
         Log.d(TAG, "Repeat mode changed to: $repeatMode")
         // Use debounced update to prevent rapid UI changes
         scheduleCustomLayoutUpdate(100)

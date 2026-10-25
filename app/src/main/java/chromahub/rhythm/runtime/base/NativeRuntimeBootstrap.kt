@@ -31,6 +31,12 @@ class NativeRuntimeBootstrap(private val application: Application, private val a
     private val publicKey = KeyFactory.getInstance("RSA").generatePublic(X509EncodedKeySpec(
         androidContext.assets.open("runtime/module-public.der").use { it.readBytes() }))
     private val verifier = RuntimePackageVerifier(listOf(publicKey))
+    // An original-signer APK update can establish a new production key. Retain the old
+    // key solely to authenticate the pre-upgrade activation journal before reconciliation.
+    // Downloads and executable loads continue to accept only the current production key.
+    private val journalVerifier = RuntimePackageVerifier(listOf(publicKey,
+        KeyFactory.getInstance("RSA").generatePublic(X509EncodedKeySpec(
+            androidContext.assets.open("runtime/legacy-module-public.der").use { it.readBytes() }))))
     private val runtimeFingerprint = java.util.Properties().also { properties ->
         androidContext.assets.open("runtime/host.properties").use(properties::load)
     }.getProperty("runtimeFingerprint").also { require(it.matches(Regex("[0-9a-f]{64}"))) }
@@ -41,7 +47,7 @@ class NativeRuntimeBootstrap(private val application: Application, private val a
         ModuleStateStore(androidContext, File(root, "activation"), initial) { hash ->
             val file = archive(hash)
             check(!Files.isSymbolicLink(file.toPath()))
-            verifier.verifyAuthenticity(file)
+            journalVerifier.verifyAuthenticity(file)
         }
     }
     private val loader by lazy { NativeModuleTrialLoader(androidContext, verifier, environment, androidContext.classLoader) }

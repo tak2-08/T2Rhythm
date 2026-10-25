@@ -31,6 +31,7 @@ import dalvik.system.DexClassLoader
 import java.io.File
 import java.io.RandomAccessFile
 import java.security.KeyPairGenerator
+import java.security.KeyPair
 import java.security.MessageDigest
 import java.security.Signature
 import java.util.UUID
@@ -73,20 +74,21 @@ class NativeModuleLoadingTest {
         .digest(bytes).joinToString("") { "%02x".format(it) }
 
     private fun makeArchive(version: Long, tamperPayload: Boolean = false, writable: Boolean = false,
-                            payloadBytes: ByteArray? = null, entryPoint: String = ENTRY): File {
+                            payloadBytes: ByteArray? = null, entryPoint: String = ENTRY,
+                            signer: KeyPair = key, environment: HostEnvironment = host): File {
         val payload = payloadBytes ?: instrumentation.context.assets.open("content.dex.jar").use { it.readBytes() }
         val notes = "Native runtime probe $version".toByteArray()
         val manifest = Gson().toJson(linkedMapOf(
             "formatVersion" to 1,
-            "moduleId" to host.moduleId,
+            "moduleId" to environment.moduleId,
             "versionCode" to version,
             "versionName" to "probe-$version-${UUID.randomUUID()}",
-            "signingKeyId" to RuntimePackageVerifier.keyId(key.public),
+            "signingKeyId" to RuntimePackageVerifier.keyId(signer.public),
             "entryPointClass" to entryPoint,
-            "hostApi" to host.hostApi,
-            "runtimeFingerprint" to host.runtimeFingerprint,
-            "minBaseVersion" to host.baseVersion,
-            "maxBaseVersion" to host.baseVersion,
+            "hostApi" to environment.hostApi,
+            "runtimeFingerprint" to environment.runtimeFingerprint,
+            "minBaseVersion" to environment.baseVersion,
+            "maxBaseVersion" to environment.baseVersion,
             "minSdk" to 26,
             "maxSdk" to 37,
             "minDataSchema" to 1,
@@ -97,7 +99,7 @@ class NativeModuleLoadingTest {
             "notesSha256" to hash(notes),
         )).toByteArray()
         val signature = Signature.getInstance("SHA256withRSA").run {
-            initSign(key.private); update(manifest); sign()
+            initSign(signer.private); update(manifest); sign()
         }
         val file = File(source, "${UUID.randomUUID()}.t2module")
         ZipOutputStream(file.outputStream()).use { zip ->
@@ -124,6 +126,36 @@ class NativeModuleLoadingTest {
     }
 
     private fun loader(environment: HostEnvironment = host) = NativeModuleTrialLoader(context, verifier, environment, sharedLoader)
+
+    @Test fun rotatedBaseKeyReconcilesPersistedJournalAndDropsOldExecutableReferences() {
+        val old = verifier.verify(makeArchive(1), host)
+        val candidate = verifier.verify(makeArchive(2), host)
+        val archives = source.listFiles()!!.associateBy { hash(it.readBytes()) }.toMutableMap()
+        val directory = File(source, "key-rotation-journal")
+        ModuleStateStore(context, directory, old) { verifier.verifyAuthenticity(archives.getValue(it)) }.stage(candidate)
+
+        val rotated = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+        val current = RuntimePackageVerifier(listOf(rotated.public))
+        val journal = RuntimePackageVerifier(listOf(key.public, rotated.public))
+        val newHost = host.copy(runtimeFingerprint = "d".repeat(64))
+        val embeddedFile = makeArchive(3, signer = rotated, environment = newHost)
+        val embedded = current.verify(embeddedFile, newHost)
+        archives[embedded.archiveSha256] = embeddedFile
+        val store = ModuleStateStore(context, directory, embedded) { journal.verifyAuthenticity(archives.getValue(it)) }
+        val decision = store.prepareStartup(newHost, safe)
+        assertTrue(decision is StartupDecision.Keep)
+        assertEquals(embedded.reference, decision.state.active)
+        assertNull(decision.state.previousGood)
+        assertNull(decision.state.candidate)
+        assertEquals(3L, decision.state.highestApprovedVersion)
+        // The reconciled journal no longer needs the historical verifier, even after reopening.
+        val reopened = ModuleStateStore(context, directory, embedded) { current.verifyAuthenticity(archives.getValue(it)) }
+        assertEquals(decision.state, reopened.snapshot())
+        assertEquals(Rejection.UNKNOWN_SIGNING_KEY, assertThrows(ModuleRejected::class.java) {
+            current.verifyAuthenticity(archives.getValue(old.archiveSha256))
+        }.reason)
+        assertNull(System.getProperty(MARKER))
+    }
 
     @Test fun verificationAndApprovalNeverInitializeDownloadedClasses() {
         assertThrows(ClassNotFoundException::class.java) { sharedLoader.loadClass(ENTRY) }

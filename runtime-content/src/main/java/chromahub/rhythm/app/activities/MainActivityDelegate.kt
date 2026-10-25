@@ -54,7 +54,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -205,19 +205,19 @@ class MainActivityDelegate(host: androidx.activity.ComponentActivity) : FeatureA
         val startupIntent = intent
 
         host.setContent {
-            val useSystemTheme by themeViewModel.useSystemTheme.collectAsState()
-            val darkMode by themeViewModel.darkMode.collectAsState()
-            val amoledTheme by appSettings.amoledTheme.collectAsState()
-            val useDynamicColors by themeViewModel.useDynamicColors.collectAsState()
-            val customColorScheme by appSettings.customColorScheme.collectAsState()
-            val customFont by appSettings.customFont.collectAsState()
-            val fontSource by appSettings.fontSource.collectAsState()
-            val customFontPath by appSettings.customFontPath.collectAsState()
-            val colorSource by appSettings.colorSource.collectAsState()
-            val extractedAlbumColors by appSettings.extractedAlbumColors.collectAsState()
-            val expressiveColors by appSettings.expressiveColors.collectAsState()
-            val themeIntensity by appSettings.themeIntensity.collectAsState()
-            val appMode by appSettings.appMode.collectAsState()
+            val useSystemTheme by themeViewModel.useSystemTheme.collectAsStateWithLifecycle()
+            val darkMode by themeViewModel.darkMode.collectAsStateWithLifecycle()
+            val amoledTheme by appSettings.amoledTheme.collectAsStateWithLifecycle()
+            val useDynamicColors by themeViewModel.useDynamicColors.collectAsStateWithLifecycle()
+            val customColorScheme by appSettings.customColorScheme.collectAsStateWithLifecycle()
+            val customFont by appSettings.customFont.collectAsStateWithLifecycle()
+            val fontSource by appSettings.fontSource.collectAsStateWithLifecycle()
+            val customFontPath by appSettings.customFontPath.collectAsStateWithLifecycle()
+            val colorSource by appSettings.colorSource.collectAsStateWithLifecycle()
+            val extractedAlbumColors by appSettings.extractedAlbumColors.collectAsStateWithLifecycle()
+            val expressiveColors by appSettings.expressiveColors.collectAsStateWithLifecycle()
+            val themeIntensity by appSettings.themeIntensity.collectAsStateWithLifecycle()
+            val appMode by appSettings.appMode.collectAsStateWithLifecycle()
 
             // Determine the theme based on settings
             val isDarkTheme = if (useSystemTheme) {
@@ -248,10 +248,10 @@ class MainActivityDelegate(host: androidx.activity.ComponentActivity) : FeatureA
                 ) {
                     FestiveOverlayFromSettings {
                         // Show the initialization loader first, then transition to the app
-                        val hasShownBetaPopup by appSettings.hasShownBetaPopup.collectAsState()
+                        val hasShownBetaPopup by appSettings.hasShownBetaPopup.collectAsStateWithLifecycle()
                         var showBetaPopup by remember { mutableStateOf(false) }
-                        val currentAppVersion by appUpdaterViewModel.currentVersion.collectAsState() // Observe current version
-                        val updateChannel by appUpdaterViewModel.updateChannel.collectAsState() // Observe update channel
+                        val currentAppVersion by appUpdaterViewModel.currentVersion.collectAsStateWithLifecycle() // Observe current version
+                        val updateChannel by appUpdaterViewModel.updateChannel.collectAsStateWithLifecycle() // Observe update channel
                         var showMediaScanLoader by rememberSaveable { mutableStateOf(false) }
 
                     // State for permission handling and app initialization.
@@ -260,9 +260,9 @@ class MainActivityDelegate(host: androidx.activity.ComponentActivity) : FeatureA
                     var shouldShowSettingsRedirect by remember { mutableStateOf(false) }
                     var isLoading by rememberSaveable { mutableStateOf(true) }
                     var isInitializingApp by rememberSaveable { mutableStateOf(false) }
-                    val lastCrashLog by appSettings.lastCrashLog.collectAsState() // Observe last crash log
+                    val lastCrashLog by appSettings.lastCrashLog.collectAsStateWithLifecycle() // Observe last crash log
 
-                    val pendingDeleteRequest by musicViewModel.pendingDeleteRequest.collectAsState()
+                    val pendingDeleteRequest by musicViewModel.pendingDeleteRequest.collectAsStateWithLifecycle()
                     val deletePermissionLauncher = rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.StartIntentSenderForResult()
                     ) { result ->
@@ -329,14 +329,14 @@ class MainActivityDelegate(host: androidx.activity.ComponentActivity) : FeatureA
                     }
 
                     // Show the initialization loader until the music library is ready.
-                    val isInitialized by musicViewModel.isInitialized.collectAsState()
+                    val isInitialized by musicViewModel.isInitialized.collectAsStateWithLifecycle()
                     LaunchedEffect(isInitialized) {
                         if (isInitialized) {
                             onInitializationComplete()
                             chromahub.rhythm.runtime.api.RuntimeComponentRegistry.host().reportUiReady()
                         }
                     }
-                    val scanProgress by musicViewModel.scanProgress.collectAsState()
+                    val scanProgress by musicViewModel.scanProgress.collectAsStateWithLifecycle()
 
 
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -456,9 +456,9 @@ class MainActivityDelegate(host: androidx.activity.ComponentActivity) : FeatureA
                         )
 
                         // Track Corruption Popup
-                        val showCorruptionDialog by musicViewModel.showCorruptionDialog.collectAsState()
-                        val corruptedTrackName by musicViewModel.corruptedTrackName.collectAsState()
-                        val corruptedTrackMessage by musicViewModel.corruptedTrackMessage.collectAsState()
+                        val showCorruptionDialog by musicViewModel.showCorruptionDialog.collectAsStateWithLifecycle()
+                        val corruptedTrackName by musicViewModel.corruptedTrackName.collectAsStateWithLifecycle()
+                        val corruptedTrackMessage by musicViewModel.corruptedTrackMessage.collectAsStateWithLifecycle()
 
                         if (showCorruptionDialog) {
                             TrackCorruptionDialog(

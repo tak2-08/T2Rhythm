@@ -51,6 +51,7 @@ class RhythmApplicationDelegate(private val host: Application) : android.content
     }
     
     private var anrWatchdog: ANRWatchdog? = null
+    @Volatile private var allocatedImageLoader: ImageLoader? = null
     
     override fun onCreate(parent: Runnable) {
         parent.run()
@@ -119,10 +120,11 @@ class RhythmApplicationDelegate(private val host: Application) : android.content
         val lastTrimMs = trimPrefs.getLong("last_startup_trim_ms", 0L)
         val dayMs = 24L * 60 * 60 * 1000
         if (System.currentTimeMillis() - lastTrimMs >= dayMs) {
-            trimPrefs.edit { putLong("last_startup_trim_ms", System.currentTimeMillis()) }
             CoroutineScope(Dispatchers.IO).launch {
                 try {
+                    if (chromahub.rhythm.app.util.PlaybackWorkload.active) return@launch
                     CacheManager.autoTrimCache(applicationContext, currentMaxCacheSize())
+                    trimPrefs.edit { putLong("last_startup_trim_ms", System.currentTimeMillis()) }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error during startup cache trim", e)
                 }
@@ -177,7 +179,7 @@ class RhythmApplicationDelegate(private val host: Application) : android.content
                     .build()
             }
             .crossfade(true)
-            .build()
+            .build().also { allocatedImageLoader = it }
     }
     
     /**
@@ -240,15 +242,14 @@ class RhythmApplicationDelegate(private val host: Application) : android.content
         
         Log.w(TAG, "onTrimMemory: $levelName")
         
-        // Trim levels are inverted: lower numbers mean MORE pressure (5 = critical,
-        // 10 = low, 15 = moderate). Release image caches whenever the app is under
-        // real pressure OR fully backgrounded — this is the main OOM fix when many
-        // apps are open.
-        val isBackgroundOrCritical = level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN
+        // Android's running levels are 5=moderate, 10=low, 15=critical.
+        // They are below UI_HIDDEN (20), so testing only >=20 misses real pressure.
+        val isBackgroundOrCritical = level in 5..15 || level >= ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN
         if (isBackgroundOrCritical) {
+            chromahub.rhythm.app.features.local.data.experience.DeviceAnalysisLoad.pressure()
             CoroutineScope(Dispatchers.Main).launch {
                 try {
-                    Coil.imageLoader(applicationContext).memoryCache?.clear()
+                    allocatedImageLoader?.memoryCache?.clear()
                 } catch (e: Exception) {
                     Log.w(TAG, "Error clearing Coil memory cache", e)
                 }
@@ -264,6 +265,7 @@ class RhythmApplicationDelegate(private val host: Application) : android.content
             Log.d(TAG, "App backgrounded - trimming caches")
             CoroutineScope(Dispatchers.IO).launch {
                 try {
+                    if (chromahub.rhythm.app.util.PlaybackWorkload.active) return@launch
                     CacheManager.autoTrimCache(applicationContext, currentMaxCacheSize())
                 } catch (e: Exception) {
                     Log.e(TAG, "Error during background cache trim", e)

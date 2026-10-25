@@ -28,8 +28,8 @@ android {
         targetSdk = 37
         val overrideVersionCode = providers.gradleProperty("versionCodeOverride").orNull?.toInt()
         val overrideVersionName = providers.gradleProperty("versionNameOverride").orNull
-        versionCode = overrideVersionCode ?: 554991328
-        versionName = overrideVersionName ?: "5.5.499.1328"
+        versionCode = overrideVersionCode ?: 554991330
+        versionName = overrideVersionName ?: "5.5.499.1330"
         manifestPlaceholders["runtimeTestOnly"] = runtimeTestOnly.get().toString()
         buildConfigField("long", "RUNTIME_BASE_VERSION", "1L")
         testInstrumentationRunner = "androidx.test.runner.NativeModuleJUnitRunner"
@@ -125,6 +125,7 @@ abstract class PrepareEmbeddedFeature : DefaultTask() {
     @get:Input abstract val testOnly: Property<Boolean>
     @get:Input abstract val hasOriginalApkSigner: Property<Boolean>
     @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val productionPublicKey: RegularFileProperty
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val legacyPublicKey: RegularFileProperty
     @get:OutputDirectory abstract val assetsDirectory: DirectoryProperty
     @TaskAction fun copy() {
         check(testOnly.get() || hasOriginalApkSigner.get()) { "A publishable base APK requires the original Android signer." }
@@ -136,6 +137,7 @@ abstract class PrepareEmbeddedFeature : DefaultTask() {
         listOf("default.t2module", "module-public.der", "host.properties").forEach { name ->
             input.resolve(name).copyTo(output.resolve(name), overwrite = true)
         }
+        legacyPublicKey.get().asFile.copyTo(output.resolve("legacy-module-public.der"), overwrite = true)
     }
 }
 androidComponents.onVariants { variant ->
@@ -169,6 +171,7 @@ androidComponents.onVariants { variant ->
         testOnly.set(runtimeTestOnly)
         hasOriginalApkSigner.set(signingProperties.isNotEmpty())
         productionPublicKey.set(rootProject.layout.projectDirectory.file("runtime-contract/module-public.der"))
+        legacyPublicKey.set(rootProject.layout.projectDirectory.file("runtime-contract/legacy-module-public.der"))
         assetsDirectory.set(layout.buildDirectory.dir("generated/runtime-assets/${variant.name}"))
     }
     variant.sources.assets?.addGeneratedSourceDirectory(embedded, PrepareEmbeddedFeature::assetsDirectory)

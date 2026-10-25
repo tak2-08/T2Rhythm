@@ -141,7 +141,7 @@ import chromahub.rhythm.app.ui.theme.festive.FestiveThemeEngine
 import chromahub.rhythm.app.shared.data.model.AppSettings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -252,6 +252,7 @@ fun HomeScreen(
     onSkipNext: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    onAiClick: () -> Unit = {},
     onNavigateToLibrary: () -> Unit = {},
     onAddToQueue: (Song) -> Unit = {},
     onAddSongToPlaylist: (Song, String) -> Unit = { _, _ -> },
@@ -267,15 +268,17 @@ fun HomeScreen(
     val coroutineScope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
+    LaunchedEffect(Unit) { chromahub.rhythm.app.features.ai.AiAvailability.initialize(context.applicationContext) }
+    val aiAvailable by chromahub.rhythm.app.features.ai.AiAvailability.state.collectAsStateWithLifecycle()
     val isTablet = windowScreenWidthDp() >= 600
     val isLandscapeTablet = isTablet && windowScreenWidthDp() > windowScreenHeightDp()
     val appSettings = remember { AppSettings.getInstance(context) }
 
     // Home header customization
-    val headerDisplayMode by appSettings.homeHeaderDisplayMode.collectAsState()
-    val showAppIcon by appSettings.homeShowAppIcon.collectAsState()
-    val iconVisibilityMode by appSettings.homeAppIconVisibility.collectAsState()
-    val floatingNavigationBar by appSettings.floatingNavigationBar.collectAsState()
+    val headerDisplayMode by appSettings.homeHeaderDisplayMode.collectAsStateWithLifecycle()
+    val showAppIcon by appSettings.homeShowAppIcon.collectAsStateWithLifecycle()
+    val iconVisibilityMode by appSettings.homeAppIconVisibility.collectAsStateWithLifecycle()
+    val floatingNavigationBar by appSettings.floatingNavigationBar.collectAsStateWithLifecycle()
 
     // State for AddToPlaylist bottom sheet
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
@@ -289,10 +292,10 @@ fun HomeScreen(
     // Home section order bottom sheet state
     var showHomeSectionOrderSheet by remember { mutableStateOf(false) }
 
-    val isLibraryRefreshing by musicViewModel.isLibraryRefreshing.collectAsState()
+    val isLibraryRefreshing by musicViewModel.isLibraryRefreshing.collectAsStateWithLifecycle()
 
     // Pending write request for metadata editing (Android 11+)
-    val pendingWriteRequest by musicViewModel.pendingWriteRequest.collectAsState()
+    val pendingWriteRequest by musicViewModel.pendingWriteRequest.collectAsStateWithLifecycle()
 
     var pendingMetadataEditCompleteCallback by remember { mutableStateOf<((Boolean) -> Unit)?>(null) }
 
@@ -434,7 +437,7 @@ fun HomeScreen(
     }
 
     if (showAddToPlaylistSheet && selectedSongForPlaylist != null) {
-        val playlists by musicViewModel.playlists.collectAsState()
+        val playlists by musicViewModel.playlists.collectAsStateWithLifecycle()
 
         AddToPlaylistBottomSheet(
             song = selectedSongForPlaylist!!,
@@ -506,6 +509,9 @@ fun HomeScreen(
         showAppIcon = showAppIcon,
         iconVisibilityMode = iconVisibilityMode,
         headerActions = buildList {
+            if (aiAvailable) add(HeaderAction(
+                icon = MaterialSymbolIcon("auto_awesome"), contentDescription = "AI", onClick = onAiClick
+            ))
             val showReorder = !isLandscapeTablet
             val showSettings = !isTablet && floatingNavigationBar
 
@@ -610,35 +616,35 @@ private fun ModernScrollableContent(
     val widthSizeClass = windowSizeClass.widthSizeClass
     val heightSizeClass = windowSizeClass.heightSizeClass
     val scrollState = rememberScrollState()
-    val allSongs by musicViewModel.filteredSongs.collectAsState()
-    val playingForRecommendations by musicViewModel.currentSong.collectAsState()
+    val allSongs by musicViewModel.filteredSongs.collectAsStateWithLifecycle()
+    val playingForRecommendations by musicViewModel.currentSong.collectAsStateWithLifecycle()
 
     // Home Screen Customization Settings
     val appSettings = AppSettings.getInstance(context)
-    val sectionOrder by appSettings.homeSectionOrder.collectAsState()
-    val showRecentlyPlayed by appSettings.homeShowRecentlyPlayed.collectAsState()
-    val showDiscoverCarousel by appSettings.homeShowDiscoverCarousel.collectAsState()
-    val showArtists by appSettings.homeShowArtists.collectAsState()
-    val showNewReleases by appSettings.homeShowNewReleases.collectAsState()
-    val showRecentlyAdded by appSettings.homeShowRecentlyAdded.collectAsState()
-    val showRecommended by appSettings.homeShowRecommended.collectAsState()
-    val showListeningStats by appSettings.homeShowListeningStats.collectAsState()
-    val discoverItemCount by appSettings.homeDiscoverItemCount.collectAsState()
-    val recentlyPlayedCount by appSettings.homeRecentlyPlayedCount.collectAsState()
-    val artistsCount by appSettings.homeArtistsCount.collectAsState()
-    val newReleasesCount by appSettings.homeNewReleasesCount.collectAsState()
-    val recentlyAddedCount by appSettings.homeRecentlyAddedCount.collectAsState()
-    val recommendedCount by appSettings.homeRecommendedCount.collectAsState()
+    val sectionOrder by appSettings.homeSectionOrder.collectAsStateWithLifecycle()
+    val showRecentlyPlayed by appSettings.homeShowRecentlyPlayed.collectAsStateWithLifecycle()
+    val showDiscoverCarousel by appSettings.homeShowDiscoverCarousel.collectAsStateWithLifecycle()
+    val showArtists by appSettings.homeShowArtists.collectAsStateWithLifecycle()
+    val showNewReleases by appSettings.homeShowNewReleases.collectAsStateWithLifecycle()
+    val showRecentlyAdded by appSettings.homeShowRecentlyAdded.collectAsStateWithLifecycle()
+    val showRecommended by appSettings.homeShowRecommended.collectAsStateWithLifecycle()
+    val showListeningStats by appSettings.homeShowListeningStats.collectAsStateWithLifecycle()
+    val discoverItemCount by appSettings.homeDiscoverItemCount.collectAsStateWithLifecycle()
+    val recentlyPlayedCount by appSettings.homeRecentlyPlayedCount.collectAsStateWithLifecycle()
+    val artistsCount by appSettings.homeArtistsCount.collectAsStateWithLifecycle()
+    val newReleasesCount by appSettings.homeNewReleasesCount.collectAsStateWithLifecycle()
+    val recentlyAddedCount by appSettings.homeRecentlyAddedCount.collectAsStateWithLifecycle()
+    val recommendedCount by appSettings.homeRecommendedCount.collectAsStateWithLifecycle()
 
     // Rhythm Guard States (pulled up from LazyColumn block)
-    val rhythmGuardMode by appSettings.rhythmGuardMode.collectAsState()
-    val showRhythmGuardWidget by appSettings.homeShowRhythmGuard.collectAsState()
-    val rhythmGuardAge by appSettings.rhythmGuardAge.collectAsState()
-    val rhythmGuardAlertThresholdMinutes by appSettings.rhythmGuardAlertThresholdMinutes.collectAsState()
-    val rhythmGuardTimeoutUntilMs by appSettings.rhythmGuardTimeoutUntilMs.collectAsState()
-    val dailyListeningStats by appSettings.dailyListeningStats.collectAsState()
-    val persistedSongsPlayed by appSettings.songsPlayed.collectAsState()
-    val listeningTimeMs by appSettings.listeningTime.collectAsState()
+    val rhythmGuardMode by appSettings.rhythmGuardMode.collectAsStateWithLifecycle()
+    val showRhythmGuardWidget by appSettings.homeShowRhythmGuard.collectAsStateWithLifecycle()
+    val rhythmGuardAge by appSettings.rhythmGuardAge.collectAsStateWithLifecycle()
+    val rhythmGuardAlertThresholdMinutes by appSettings.rhythmGuardAlertThresholdMinutes.collectAsStateWithLifecycle()
+    val rhythmGuardTimeoutUntilMs by appSettings.rhythmGuardTimeoutUntilMs.collectAsStateWithLifecycle()
+    val dailyListeningStats by appSettings.dailyListeningStats.collectAsStateWithLifecycle()
+    val persistedSongsPlayed by appSettings.songsPlayed.collectAsStateWithLifecycle()
+    val listeningTimeMs by appSettings.listeningTime.collectAsStateWithLifecycle()
 
     val rhythmGuardPolicy = remember(rhythmGuardAge) { appSettings.getRhythmGuardPolicy(rhythmGuardAge) }
     val rhythmGuardRecommendedMinutes = when (rhythmGuardMode) {
@@ -650,7 +656,7 @@ private fun ModernScrollableContent(
     val playbackStatsRepository = remember(context) { PlaybackStatsRepository.getInstance(context) }
     var todayListeningMinutes by remember { mutableIntStateOf(0) }
 
-    val currentIsPlaying by musicViewModel.isPlaying.collectAsState()
+    val currentIsPlaying by musicViewModel.isPlaying.collectAsStateWithLifecycle()
     LaunchedEffect(playbackStatsRepository, currentIsPlaying) {
         // Only indexed wall-time spans; seeking never counts as time heard. The service checkpoints
         // independently, so revisiting Home does not start another collector or history replay.
@@ -662,11 +668,11 @@ private fun ModernScrollableContent(
     }
 
     // Discover widget card content visibility settings
-    val discoverShowAlbumName by appSettings.homeDiscoverShowAlbumName.collectAsState()
-    val discoverShowArtistName by appSettings.homeDiscoverShowArtistName.collectAsState()
-    val discoverShowYear by appSettings.homeDiscoverShowYear.collectAsState()
-    val discoverShowPlayButton by appSettings.homeDiscoverShowPlayButton.collectAsState()
-    val discoverShowGradient by appSettings.homeDiscoverShowGradient.collectAsState()
+    val discoverShowAlbumName by appSettings.homeDiscoverShowAlbumName.collectAsStateWithLifecycle()
+    val discoverShowArtistName by appSettings.homeDiscoverShowArtistName.collectAsStateWithLifecycle()
+    val discoverShowYear by appSettings.homeDiscoverShowYear.collectAsStateWithLifecycle()
+    val discoverShowPlayButton by appSettings.homeDiscoverShowPlayButton.collectAsStateWithLifecycle()
+    val discoverShowGradient by appSettings.homeDiscoverShowGradient.collectAsStateWithLifecycle()
 
     // Enhanced artist computation
     val availableArtists = remember(topArtists) {
@@ -946,7 +952,7 @@ private fun ModernScrollableContent(
                 }
                 "RECOMMENDED" -> {
                     if (showRecommended) {
-                        val favoriteSongsState = musicViewModel.favoriteSongs.collectAsState()
+                        val favoriteSongsState = musicViewModel.favoriteSongs.collectAsStateWithLifecycle()
                         chromahub.rhythm.app.features.local.presentation.metadata.PersonalCollectionsPanel(
                             songs, favoriteSongsState.value.toList(), playingForRecommendations?.id, musicViewModel, onMovePersonalization
                         )
@@ -2093,7 +2099,7 @@ private fun ModernListeningStatsSection(
 ) {
     val context = LocalContext.current
     val viewModel = viewModel<chromahub.rhythm.app.viewmodel.MusicViewModel>()
-    val songs by viewModel.songs.collectAsState()
+    val songs by viewModel.songs.collectAsStateWithLifecycle()
 
     var statsSummary by remember { mutableStateOf<chromahub.rhythm.app.shared.data.repository.PlaybackStatsRepository.PlaybackStatsSummary?>(null) }
 
@@ -2250,8 +2256,8 @@ private fun ModernRecommendedSection(
     }
     val haptics = LocalHapticFeedback.current
     val appSettings = remember { AppSettings.getInstance(context) }
-    val artistSeparatorEnabled by appSettings.artistSeparatorEnabled.collectAsState()
-    val artistSeparatorDelimiters by appSettings.artistSeparatorDelimiters.collectAsState()
+    val artistSeparatorEnabled by appSettings.artistSeparatorEnabled.collectAsStateWithLifecycle()
+    val artistSeparatorDelimiters by appSettings.artistSeparatorDelimiters.collectAsStateWithLifecycle()
     val effectiveDelimiters = artistSeparatorDelimiters.ifBlank { AppSettings.DEFAULT_ARTIST_SEPARATOR_DELIMITERS }
 
     Column(

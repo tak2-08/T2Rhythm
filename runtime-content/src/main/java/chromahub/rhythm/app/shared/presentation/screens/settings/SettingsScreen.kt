@@ -161,6 +161,7 @@ import chromahub.rhythm.app.shared.presentation.components.SettingsPalettes
 
 // Define routes for navigation
 object SettingsRoutes {
+    const val AI_CONNECTIONS = "ai_connections"
     const val PRIVATE_STREAMING = "private_streaming"
     const val ALGORITHM_MANAGEMENT = "algorithm_management"
     const val LEARNING_POWER = "learning_power"
@@ -434,6 +435,7 @@ fun SettingsScreen(
                     add(SettingItem(RhythmIcons.Notifications, context.getString(R.string.settings_notifications), context.getString(R.string.settings_notifications_desc), palette = SettingsPalettes.Coral, onClick = { onNavigateTo(SettingsRoutes.NOTIFICATIONS) }))
                     // API Management/Integrations is available in both LOCAL and STREAMING modes
                     add(SettingItem(MaterialSymbolIcon("library_music"), context.getString(R.string.catalog_library_title), context.getString(R.string.catalog_library_hint), palette = SettingsPalettes.Emerald, onClick = { onNavigateTo(SettingsRoutes.CATALOG_LIBRARY) }))
+                    add(SettingItem(MaterialSymbolIcon("auto_awesome"), "AI 연결", "음악 추천·보관함 정리 · API 연결과 폴백", palette = SettingsPalettes.Slate, onClick = { onNavigateTo(SettingsRoutes.AI_CONNECTIONS) }))
                     add(SettingItem(MaterialSymbolIcon("hub"), context.getString(R.string.settings_api_management), context.getString(R.string.settings_api_management_desc), palette = SettingsPalettes.Slate, onClick = { onNavigateTo(SettingsRoutes.API_MANAGEMENT) }))
                     add(SettingItem(MaterialSymbolIcon("phonelink_lock"), context.getString(R.string.streaming_title), context.getString(R.string.streaming_hint), palette = SettingsPalettes.Teal, onClick = { onNavigateTo(SettingsRoutes.PRIVATE_STREAMING) }))
                 }
@@ -1220,6 +1222,7 @@ fun SettingsScreenWrapper(
 
                         )
 
+                        SettingsRoutes.AI_CONNECTIONS -> chromahub.rhythm.app.features.ai.AiSettingsScreen(onBack = handleBack)
                         SettingsRoutes.API_MANAGEMENT -> ApiManagementSettingsScreen(onBackClick = handleBack)
                         SettingsRoutes.CACHE_MANAGEMENT -> CacheManagementSettingsScreen(onBackClick = handleBack)
                         SettingsRoutes.BACKUP_RESTORE -> BackupRestoreSettingsScreen(onBackClick = handleBack)
@@ -1368,6 +1371,7 @@ fun SettingsScreenWrapper(
 
                 )
 
+                SettingsRoutes.AI_CONNECTIONS -> chromahub.rhythm.app.features.ai.AiSettingsScreen(onBack = handleBack)
                 SettingsRoutes.API_MANAGEMENT -> ApiManagementSettingsScreen(onBackClick = handleBack)
                 SettingsRoutes.CACHE_MANAGEMENT -> CacheManagementSettingsScreen(onBackClick = handleBack)
                 SettingsRoutes.BACKUP_RESTORE -> BackupRestoreSettingsScreen(onBackClick = handleBack)

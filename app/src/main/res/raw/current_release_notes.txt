@@ -1,9 +1,8 @@
 What changed in this version
 
-• Removed the duplicate reorder shortcut from personalized home music.
-• Added equal breathing room between the search input and the All / Genre search tabs.
-• Cache the genre index alongside the library, include explicit genre corrections and over 100 browsable genres, and show zero tracks honestly for unrepresented genres.
-• Restore missing artist entries from older home layouts and use the same visibility preference in the home editor.
-• When music sites have no matching artwork, automatic enrichment and manual imports can use matching YouTube thumbnails. Title and artist similarity defaults to 94%, adjustable from 90–100%, with duration and edition checks.
-• Estimate playback leakage from decoded audio and remove it from surrounding-sound measurements. Unreliable separation retains the original reading. Audio samples stay in memory.
-• Compatible feature packages apply after separate confirmation at the next safe fresh app launch.
+• Compose the expanded player only while opening or visible, preserve its saved UI state, and stop screen subscriptions while the UI is in the background.
+• Warm only the next one or two local tracks, evict obsolete preload sources, and honor shuffle order without copying the whole queue.
+• Defer automatic analysis during playback and clear disposable artwork caches on running-memory pressure.
+• Optional AI connections: Google AI Studio, Groq, Cerebras, Hugging Face, OpenAI, Anthropic Claude and xAI Grok. Choose connections, priority, fallback and request rotation.
+• Review exactly what metadata will be sent, then ask for playlists, songs, albums, genres, library edits or sharing suggestions. AI controls appear on home only after enabling a connection.
+• Review library edits individually, preserve durable undo records, and use the system trash confirmation on supported Android 11+ files. AI cannot execute commands or modify audio files.

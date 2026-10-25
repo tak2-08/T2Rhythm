@@ -811,7 +811,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         result.distinctBy { it.id }
-    }.distinctUntilChanged().conflate().flowOn(Dispatchers.Default).stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, emptyList())
+    }.distinctUntilChanged().conflate().flowOn(Dispatchers.Default).stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000, 30_000), emptyList())
 
     private val _artists = MutableStateFlow<List<Artist>>(emptyList())
     val artists: StateFlow<List<Artist>> = _artists.asStateFlow()
@@ -868,7 +868,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 null
             }
         }
-    }.distinctUntilChanged().conflate().flowOn(Dispatchers.Default).stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, emptyList())
+    }.distinctUntilChanged().conflate().flowOn(Dispatchers.Default).stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000, 30_000), emptyList())
 
     private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
     val playlists: StateFlow<List<Playlist>> = _playlists.asStateFlow()
@@ -3003,9 +3003,36 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { commitSongMetadata(mapOf(update.id to update)) }
     }
 
+    /** Reviewed, journaled library edits. Never writes or renames an audio file. */
+    suspend fun applyReviewedLibraryMetadata(expected: Song, replacement: Song) = withContext(kotlinx.coroutines.NonCancellable) {
+        metadataCommitMutex.withLock {
+            require(expected.id == replacement.id && expected.uri == replacement.uri)
+            val current = _songs.value.firstOrNull { it.id == expected.id && it.uri == expected.uri }
+            require(current != null && chromahub.rhythm.app.features.ai.AiLibraryEdits.sameTags(current, expected)) {
+                "음악 정보가 변경되었습니다. 다시 검토해 주세요."
+            }
+            val safe = current.copy(title = replacement.title, artist = replacement.artist,
+                album = replacement.album, genre = replacement.genre)
+            try {
+                withContext(Dispatchers.IO) { repository.catalog.recordManualSong(safe) }
+                commitSongMetadataLocked(mapOf(safe.id to safe))
+            } catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (error: Exception) {
+                withContext(Dispatchers.IO) { repository.catalog.recordManualSong(current) }
+                commitSongMetadataLocked(mapOf(current.id to current))
+                throw error
+            }
+        }
+
+    }
+
     /** Save, regroup and publish one coherent edit before reporting completion to the editor. */
     private suspend fun commitSongMetadata(updates: Map<String, Song>) = metadataCommitMutex.withLock {
-        if (updates.isEmpty()) return@withLock
+        commitSongMetadataLocked(updates)
+    }
+
+    private suspend fun commitSongMetadataLocked(updates: Map<String, Song>) {
+        if (updates.isEmpty()) return
         val replacements = withContext(Dispatchers.IO) { updates.mapValues { repository.catalog.apply(it.value) } }
         val before = _songs.value
         val updatedSongs = before.map { song -> replacements[song.id]?.takeIf { it.uri == song.uri } ?: song }
@@ -4691,7 +4718,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 if (playing) {
                     while (isActive) {
                         updateProgress()
-                        delay(100) // Update every 100ms for smooth progress
+                        delay(if (_progress.subscriptionCount.value > 0) 100 else 500) // UI cadence only while visible; preserve external lyrics.
                     }
                 } else {
                     // Update one last time when paused/stopped
