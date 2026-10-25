@@ -189,9 +189,7 @@ class LibrarySearchNavigationTest {
                 ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) != true
         }
         androidx.test.espresso.Espresso.pressBack()
-        val songsTitle = label(R.string.settings_tab_songs)
-        runCatching { compose.waitUntil(10_000) { compose.onAllNodesWithText(songsTitle).fetchSemanticsNodes().isEmpty() } }
-            .onFailure { chromahub.rhythm.app.testing.snapshotTestUi(compose.activity, "library-search-back-failure") }.getOrThrow()
+        awaitSongsPageClosed()
         awaitSelectedGenre("FOLK ROCK")
         androidx.test.espresso.Espresso.pressBack()
         compose.waitForIdle()
@@ -203,9 +201,14 @@ class LibrarySearchNavigationTest {
         awaitNode("이등병의 편지")
         awaitNode("서른 즈음에")
         androidx.test.espresso.Espresso.pressBack()
-        compose.waitForIdle()
+        awaitSongsPageClosed()
+        awaitSelectedGenre("FOLK")
         click(label(R.string.genre_search_all))
+        compose.onNodeWithText(label(R.string.genre_search_all)).assertIsSelected()
         // Switching tabs restores the original general search, rather than reusing a genre query.
+        // The retained song title exists in the outgoing genre page too, so its presence alone
+        // cannot establish that the debounced general-search result has replaced that page.
+        compose.waitUntil(10_000) { locate("서른 즈음에") == null }
         awaitNode("이등병의 편지")
         assertNull(locate("서른 즈음에"))
         enter("존재하지않는노래")
@@ -243,6 +246,17 @@ class LibrarySearchNavigationTest {
         node.assertIsDisplayed()
         val bounds = node.getUnclippedBoundsInRoot()
         assertTrue("Selected genre chip must not cover the screen", bounds.bottom - bounds.top <= 56.dp)
+    }
+
+    private fun awaitSongsPageClosed() {
+        val songsTitle = label(R.string.settings_tab_songs)
+        runCatching {
+            compose.waitUntil(10_000) {
+                compose.onAllNodesWithText(songsTitle).fetchSemanticsNodes().isEmpty()
+            }
+        }.onFailure {
+            chromahub.rhythm.app.testing.snapshotTestUi(compose.activity, "library-search-back-failure")
+        }.getOrThrow()
     }
 
     private fun label(resource: Int): String {
