@@ -399,7 +399,7 @@ jobs:
           api-level: ${{ matrix.api }}
           system-image-api-level: ${{ matrix.api }}
           arch: x86_64
-          target: ${{ matrix.api == '35' && 'google_atd' || 'google_apis' }}
+          target: ${{ matrix.api == '35' && matrix.group != 'enhancements' && 'google_atd' || 'google_apis' }}
           profile: pixel_2
           ram-size: ${{ matrix.api == '37.0' && '4096M' || '3072M' }}
           heap-size: 512M
