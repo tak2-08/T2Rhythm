@@ -6,8 +6,6 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
-import time
-import xml.etree.ElementTree as ET
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--prepared',type=Path,default=Path('stock-gate'))
@@ -23,20 +21,6 @@ try:
         '--app-apk',str((args.prepared/'base.apk').resolve()),'--test-apk',str((args.prepared/'test.apk').resolve()),
         '--resource-name','youtube_artwork_fallback','--resource-text','Use matching YouTube thumbnails as a fallback',
         '--activation-only','--output',str(output/'activation')],check=True)
-    subprocess.run(['adb','shell','am','start','-W','-n',package+'/chromahub.rhythm.app.activities.MainActivity'],check=True)
-    deadline = time.monotonic() + 120
-    while True:
-        subprocess.run(['adb','shell','uiautomator','dump','/sdcard/t2-stock-home.xml'],stdout=subprocess.DEVNULL,check=True,timeout=30)
-        layout = subprocess.check_output(['adb','exec-out','cat','/sdcard/t2-stock-home.xml'],timeout=30)
-        tree = ET.fromstring(layout)
-        if any(node.get('content-desc') in ('Library','보관함') for node in tree.iter('node')):
-            (output/'stock-home-after-feature-update.xml').write_bytes(layout)
-            break
-        assert time.monotonic() < deadline, 'The actual home did not finish loading after feature activation'
-        time.sleep(1)
-    screenshot = subprocess.check_output(['adb','exec-out','screencap','-p'],timeout=30)
-    assert screenshot.startswith(b'\x89PNG\r\n\x1a\n')
-    (output/'stock-home-after-feature-update.png').write_bytes(screenshot)
     results=[]
     for name,count in [('features.local.presentation.metadata.UserEnhancementsTest',6),
                        ('shared.presentation.screens.GenreSearchStateTest',1),

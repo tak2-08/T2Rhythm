@@ -69,6 +69,7 @@ class LibrarySearchNavigationTest {
         // Apply the requested language after that delegate exists, as the settings UI does.
         activity.scenario.onActivity { LanguageHelper.setLanguage(it, "ko") }
         awaitNode("보관함", description = true)
+        capture("home-before-library-navigation.png")
         click("보관함", description = true)
         awaitNode("라이브러리")
         val songs =
