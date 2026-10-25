@@ -5715,7 +5715,6 @@ class MusicRepository(context: Context) {
         if (songs.isEmpty()) return@withContext emptyList()
         val updatedSongs = songs.mapIndexed { index, song ->
             if (index % 64 == 0) {
-                chromahub.rhythm.app.util.PlaybackWorkload.awaitIdle()
                 yield()
             }
             val onDemandUri = RhythmAlbumArtProvider.buildSongUri(
