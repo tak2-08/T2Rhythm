@@ -30,6 +30,7 @@ class PlaybackContinuityTest {
     private fun controller() = controllerField.get(requireNotNull(vm)) as? MediaController
 
     @After fun cleanup() {
+        chromahub.rhythm.app.features.local.data.experience.PlaybackAudioReference.enable(false)
         compose.runOnUiThread { if (vm != null) controller()?.let { it.stop(); it.clearMediaItems() } }
         uri?.let { context.contentResolver.delete(it, null, null) }
         legacyFile?.delete()
@@ -84,6 +85,11 @@ class PlaybackContinuityTest {
             compose.runOnUiThread { playing = controller()!!.isPlaying && controller()!!.currentPosition >= 20_000 }
             playing
         }
+        // Exercise the real decoder/sink tap while checking that queue restoration cannot rewind audio.
+        val reference = chromahub.rhythm.app.features.local.data.experience.PlaybackAudioReference
+        reference.enable(true)
+        compose.waitUntil(10_000) { reference.snapshot().size >= 16_000 }
+        assertTrue("The installed player must supply actual non-silent decoded PCM", reference.snapshot().any { kotlin.math.abs(it) > .001f })
         val backwards = mutableListOf<Long>()
         val listener = object : Player.Listener {
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
