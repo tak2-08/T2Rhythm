@@ -183,15 +183,10 @@ class LibrarySearchNavigationTest {
         awaitNode("서른 즈음에")
         assertNull(locate("이등병의 편지"))
         capture("library-search-genre-songs.png")
-        androidx.test.espresso.Espresso.closeSoftKeyboard()
-        compose.waitUntil(10_000) {
-            androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
-                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) != true
-        }
-        androidx.test.espresso.Espresso.pressBack()
+        pressNavigationBack()
         awaitSongsPageClosed()
         awaitSelectedGenre("FOLK ROCK")
-        androidx.test.espresso.Espresso.pressBack()
+        pressNavigationBack()
         compose.waitForIdle()
         awaitSelectedGenre("FOLK")
         compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("genre-result:POP"))
@@ -200,7 +195,7 @@ class LibrarySearchNavigationTest {
         compose.onNodeWithTag("genre-open-songs").performScrollTo().performClick()
         awaitNode("이등병의 편지")
         awaitNode("서른 즈음에")
-        androidx.test.espresso.Espresso.pressBack()
+        pressNavigationBack()
         awaitSongsPageClosed()
         awaitSelectedGenre("FOLK")
         click(label(R.string.genre_search_all))
@@ -257,6 +252,17 @@ class LibrarySearchNavigationTest {
         }.onFailure {
             chromahub.rhythm.app.testing.snapshotTestUi(compose.activity, "library-search-back-failure")
         }.getOrThrow()
+    }
+
+    private fun pressNavigationBack() {
+        // API 26's IME can reconnect to the retained search field when the child page closes.
+        // Establish the same keyboard-free precondition for every navigation Back event.
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
+        compose.waitUntil(10_000) {
+            androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) != true
+        }
+        androidx.test.espresso.Espresso.pressBack()
     }
 
     private fun label(resource: Int): String {
