@@ -177,7 +177,9 @@ class LibraryPagesTest {
     }
     @Test fun folderAlbumSettingIsVisibleAndPersistsTheUsersChoice() {
         compose.setContent { CompositionLocalProvider(LocalContext provides compose.activity) { MaterialTheme { LibrarySettingsScreen {} } } }
-        compose.onNodeWithText(base.getString(R.string.folder_album_title)).performScrollTo().assertIsDisplayed()
+        // Additional catalog controls can place this lazy item beyond the composed viewport.
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(base.getString(R.string.folder_album_title)))
+        compose.onNodeWithText(base.getString(R.string.folder_album_title)).assertIsDisplayed()
         compose.onNode(isToggleable() and hasAnyAncestor(hasText(base.getString(R.string.folder_album_title), substring = true))).performClick()
         assertTrue(AppSettings.getInstance(base).useFolderNameAsAlbum.value)
         assertTrue(base.getSharedPreferences("rhythm_preferences", 0).getBoolean("use_folder_name_as_album", false))
