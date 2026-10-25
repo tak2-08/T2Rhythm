@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import time
 
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--prepared',type=Path,default=Path('stock-gate'))
@@ -21,6 +22,11 @@ try:
         '--app-apk',str((args.prepared/'base.apk').resolve()),'--test-apk',str((args.prepared/'test.apk').resolve()),
         '--resource-name','youtube_artwork_fallback','--resource-text','Use matching YouTube thumbnails as a fallback',
         '--activation-only','--output',str(output/'activation')],check=True)
+    subprocess.run(['adb','shell','am','start','-W','-n',package+'/chromahub.rhythm.app.activities.MainActivity'],check=True)
+    time.sleep(2)
+    screenshot = subprocess.check_output(['adb','exec-out','screencap','-p'],timeout=30)
+    assert screenshot.startswith(b'\x89PNG\r\n\x1a\n')
+    (output/'stock-home-after-feature-update.png').write_bytes(screenshot)
     results=[]
     for name,count in [('features.local.presentation.metadata.UserEnhancementsTest',6),
                        ('shared.presentation.screens.GenreSearchStateTest',1),
