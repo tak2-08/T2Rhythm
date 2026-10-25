@@ -37,6 +37,7 @@ for path in (path for directory in source_directories for path in directory.rglo
         sources[path.stem] = (namespace + '.' + path.stem, count, names)
 
 groups = {
+ 'enhancements_debug': ['LibrarySearchNavigationTest', 'PageArtworkFlowTest'],
  'enhancements': ['UserEnhancementsTest', 'GenreSearchStateTest', 'LibrarySearchNavigationTest', 'PlaybackContinuityTest', 'PageArtworkFlowTest', 'ArtworkRefreshTest', 'LyricsEntryAndUpdatesTest'],
  'native_boot': ['NativeRuntimeBootTest'],
  'file_names': ['LearningFileNamesTest'],
@@ -109,7 +110,7 @@ def collect(name):
     remote = f'/sdcard/Android/data/{pkg}/files'
     for file in adb('shell','find',remote,'-type','f',check=False).splitlines():
         file = file.strip()
-        if file.endswith('.png') or file.endswith('update-lifecycle-evidence.json'):
+        if file.endswith(('.png', '-ui.txt')) or file.endswith('update-lifecycle-evidence.json'):
             adb('pull',file,str(destination/Path(file).name),check=False,timeout=60)
     (destination/'logcat.txt').write_text(adb('logcat','-d',check=False,timeout=30), errors='replace')
     return destination

@@ -248,7 +248,8 @@ class PageArtworkFlowTest {
         compose.onNodeWithText(base.getString(R.string.songinfobottomsheet_fetch_online_art)).performScrollTo().assertIsEnabled()
         capture("song-editor-online-artwork.png")
         compose.onNodeWithText(base.getString(R.string.songinfobottomsheet_fetch_online_art)).performClick()
-        compose.waitUntil(10_000) { runCatching { compose.onNodeWithTag("artwork-query").assertIsDisplayed() }.isSuccess }
+        runCatching { compose.waitUntil(10_000) { runCatching { compose.onNodeWithTag("artwork-query").assertIsDisplayed() }.isSuccess } }
+            .onFailure { chromahub.rhythm.app.testing.snapshotTestUi(compose.activity, "song-editor-artwork-failure") }.getOrThrow()
         compose.onNodeWithTag("artwork-query").assertIsDisplayed()
         listOf("Melon","Bugs","Genie").forEach { compose.onNodeWithText(it).assertIsDisplayed() }
         compose.onNodeWithText(base.getString(R.string.catalog_close)).performClick()

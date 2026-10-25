@@ -184,7 +184,8 @@ class LibrarySearchNavigationTest {
         capture("library-search-genre-songs.png")
         androidx.test.espresso.Espresso.pressBack()
         val songsTitle = label(R.string.settings_tab_songs)
-        compose.waitUntil(10_000) { compose.onAllNodesWithText(songsTitle).fetchSemanticsNodes().isEmpty() }
+        runCatching { compose.waitUntil(10_000) { compose.onAllNodesWithText(songsTitle).fetchSemanticsNodes().isEmpty() } }
+            .onFailure { chromahub.rhythm.app.testing.snapshotTestUi(compose.activity, "library-search-back-failure") }.getOrThrow()
         awaitSelectedGenre("FOLK ROCK")
         androidx.test.espresso.Espresso.pressBack()
         compose.waitForIdle()
