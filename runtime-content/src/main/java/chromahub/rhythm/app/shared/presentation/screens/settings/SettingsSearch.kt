@@ -2762,35 +2762,14 @@ fun buildSettingsSearchIndex(context: Context): List<SearchableSettingItem> {
  * Performs search on the settings index
  */
 fun searchSettings(query: String, index: List<SearchableSettingItem>): List<SearchableSettingItem> {
-    if (query.isBlank()) return emptyList()
-
-    val normalizedQuery = query.lowercase().trim()
-    val queryWords = normalizedQuery.split(" ").filter { it.isNotBlank() }
-
-    return index.filter { item ->
-        val titleMatch = item.title.lowercase().contains(normalizedQuery)
-        val descMatch = item.description.lowercase().contains(normalizedQuery)
-        val keywordMatch = item.keywords.any { keyword ->
-            keyword.lowercase().contains(normalizedQuery) ||
-            queryWords.any { word -> keyword.lowercase().contains(word) }
-        }
-        val parentMatch = item.parentScreen.lowercase().contains(normalizedQuery)
-
-        titleMatch || descMatch || keywordMatch || parentMatch
-    }.sortedByDescending { item ->
-        // Prioritize exact title matches, then keyword matches
-        when {
-            item.title.lowercase() == normalizedQuery -> 100
-            item.title.lowercase().startsWith(normalizedQuery) -> 90
-            item.title.lowercase().contains(normalizedQuery) -> 80
-            item.keywords.any { it.lowercase() == normalizedQuery } -> 70
-            item.keywords.any { it.lowercase().startsWith(normalizedQuery) } -> 60
-            item.keywords.any { it.lowercase().contains(normalizedQuery) } -> 50
-            item.description.lowercase().contains(normalizedQuery) -> 40
-            else -> 30
-        }
-    }
+    return buildSettingsTextIndex(index).search(query)
 }
+
+/** Reuse normalized metadata while typing; all query words must match across its fields. */
+fun buildSettingsTextIndex(index: List<SearchableSettingItem>) =
+    chromahub.rhythm.app.util.LibrarySearchIndex.build(index, { it.title }, {
+        sequenceOf(it.title, it.description, it.parentScreen) + it.keywords.asSequence()
+    })
 
 /**
  * Search bar composable for settings

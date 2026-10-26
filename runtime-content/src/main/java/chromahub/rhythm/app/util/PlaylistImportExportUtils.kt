@@ -61,7 +61,7 @@ object PlaylistImportExportUtils {
                     songIdToSong[id]?.let { song ->
                         // Store both original path and lowercase version for case-insensitive matching
                         pathToSong[filePath] = song
-                        pathToSong[filePath.lowercase()] = song
+                        pathToSong[filePath.lowercase(Locale.ROOT)] = song
                     }
                 }
             }
@@ -416,7 +416,7 @@ object PlaylistImportExportUtils {
             val artist = entry.artist.trim()
             val uriStr = entry.uri
             
-            val songKey = "${title.lowercase()}_${artist.lowercase()}"
+            val songKey = "${title.lowercase(Locale.ROOT)}_${artist.lowercase(Locale.ROOT)}"
             
             if (addedSongUris.contains(uriStr) || addedSongKeys.contains(songKey)) {
                 Log.d(TAG, "Skipping duplicate song: $title by $artist")
@@ -431,7 +431,7 @@ object PlaylistImportExportUtils {
             
             matchedSong?.let {
                 addedSongUris.add(it.uri.toString())
-                addedSongKeys.add("${it.title.trim().lowercase()}_${it.artist.trim().lowercase()}")
+                addedSongKeys.add("${it.title.trim().lowercase(Locale.ROOT)}_${it.artist.trim().lowercase(Locale.ROOT)}")
             }
             
             matchedSong
@@ -453,53 +453,8 @@ object PlaylistImportExportUtils {
         filePathMap: Map<String, Song>,
         m3uDirectory: String?
     ): Playlist {
-        val lines = content.lines().filter { it.isNotBlank() }
-        val matchedSongs = mutableListOf<Song>()
-        val addedSongUris = mutableSetOf<String>()
-        val addedSongKeys = mutableSetOf<String>()
-        var currentTitle = ""
-        
-        lines.forEach { line ->
-            when {
-                line.startsWith("#EXTINF:") -> {
-                    // Extract title from extended info
-                    val titleStart = line.indexOf(',')
-                    if (titleStart != -1 && titleStart + 1 < line.length) {
-                        currentTitle = line.substring(titleStart + 1)
-                    }
-                }
-                line.startsWith("#") -> {
-                    // Skip other comments
-                }
-                else -> {
-                    // This is a file path/URI - process ALL non-comment lines
-                    val trimmedLine = line.trim()
-                    if (trimmedLine.isNotEmpty()) {
-                        val song = findSongByPathOrTitle(trimmedLine, currentTitle, availableSongs, filePathMap, m3uDirectory)
-                        if (song != null) {
-                            val songKey = "${song.title.trim().lowercase()}_${song.artist.trim().lowercase()}"
-                            val songUri = song.uri.toString()
-                            
-                            // Check for duplicates
-                            if (!addedSongUris.contains(songUri) && !addedSongKeys.contains(songKey)) {
-                                matchedSongs.add(song) 
-                                addedSongUris.add(songUri)
-                                addedSongKeys.add(songKey)
-                                Log.d(TAG, "Imported song from M3U: ${song.title} (${song.artist}) from path: $trimmedLine")
-                            } else {
-                                Log.d(TAG, "Skipping duplicate song in M3U: ${song.title} by ${song.artist}")
-                            }
-                        } else {
-                            Log.w(TAG, "Could not find song for M3U path: $trimmedLine" + 
-                                if (currentTitle.isNotEmpty()) " (title: $currentTitle)" else "")
-                        }
-                    }
-                    // Reset currentTitle after processing each path (whether match found or not)
-                    currentTitle = ""
-                }
-            }
-        }
-        
+        val matchedSongs = matchPlaylistEntries(PlaylistTextParser.m3u(content), availableSongs, filePathMap, m3uDirectory)
+
         Log.d(TAG, "M3U import completed: ${matchedSongs.size} songs imported from ${fileName}")
         return Playlist(
             id = System.currentTimeMillis().toString(),
@@ -517,58 +472,8 @@ object PlaylistImportExportUtils {
         filePathMap: Map<String, Song>,
         m3uDirectory: String?
     ): Playlist {
-        val lines = content.lines()
-        val matchedSongs = mutableListOf<Song>()
-        val addedSongUris = mutableSetOf<String>()
-        val addedSongKeys = mutableSetOf<String>()
-        val entries = mutableMapOf<Int, Triple<String?, String?, String?>>() // file, title, length
-        
-        lines.forEach { line ->
-            when {
-                line.startsWith("File") -> {
-                    val parts = line.split("=", limit = 2)
-                    if (parts.size == 2) {
-                        val num = parts[0].removePrefix("File").toIntOrNull()
-                        if (num != null) {
-                            val current = entries[num] ?: Triple(null, null, null)
-                            entries[num] = current.copy(first = parts[1])
-                        }
-                    }
-                }
-                line.startsWith("Title") -> {
-                    val parts = line.split("=", limit = 2)
-                    if (parts.size == 2) {
-                        val num = parts[0].removePrefix("Title").toIntOrNull()
-                        if (num != null) {
-                            val current = entries[num] ?: Triple(null, null, null)
-                            entries[num] = current.copy(second = parts[1])
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Process entries in order
-        entries.toSortedMap().forEach { (_, entry) ->
-            val (filePath, title, _) = entry
-            if (filePath != null) {
-                val song = findSongByPathOrTitle(filePath, title ?: "", availableSongs, filePathMap, m3uDirectory)
-                song?.let { 
-                    val songKey = "${it.title.trim().lowercase()}_${it.artist.trim().lowercase()}"
-                    val songUri = it.uri.toString()
-                    
-                    // Check for duplicates
-                    if (!addedSongUris.contains(songUri) && !addedSongKeys.contains(songKey)) {
-                        matchedSongs.add(it)
-                        addedSongUris.add(songUri)
-                        addedSongKeys.add(songKey)
-                    } else {
-                        Log.d(TAG, "Skipping duplicate song in PLS: ${it.title} by ${it.artist}")
-                    }
-                }
-            }
-        }
-        
+        val matchedSongs = matchPlaylistEntries(PlaylistTextParser.pls(content), availableSongs, filePathMap, m3uDirectory)
+
         return Playlist(
             id = System.currentTimeMillis().toString(),
             name = fileName.substringBeforeLast("."),
@@ -578,15 +483,32 @@ object PlaylistImportExportUtils {
         )
     }
     
+    private fun matchPlaylistEntries(
+        entries: List<PlaylistTextEntry>, availableSongs: List<Song>,
+        filePathMap: Map<String, Song>, directory: String?,
+    ): List<Song> {
+        // Build once per import, rather than once for every unmatched playlist entry.
+        val songsByUri = availableSongs.associateBy { it.uri.toString() }
+        val fileNames = filePathMap.entries.filter { it.key.contains("/") }
+            .groupBy { File(it.key).name.lowercase(Locale.ROOT) }
+        val seen = HashSet<String>()
+        return entries.mapNotNull { entry ->
+            findSongByPathOrTitle(entry.path, entry.title, availableSongs, filePathMap, directory, songsByUri, fileNames)
+                ?.takeIf { seen.add(it.uri.toString()) }
+        }
+    }
+
     private fun findSongByPathOrTitle(
         path: String, 
         title: String, 
         availableSongs: List<Song>,
         filePathMap: Map<String, Song>,
-        m3uDirectory: String?
+        m3uDirectory: String?,
+        songsByUri: Map<String, Song>,
+        fileNameToSongs: Map<String, List<Map.Entry<String, Song>>>,
     ): Song? {
         // Try exact URI match first (for content:// URIs exported by Rhythm)
-        availableSongs.find { it.uri.toString() == path }?.let { 
+        songsByUri[path]?.let {
             Log.d(TAG, "Found song by exact URI match: $path")
             return it 
         }
@@ -598,7 +520,7 @@ object PlaylistImportExportUtils {
         }
         
         // Try case-insensitive file path match
-        filePathMap[path.lowercase()]?.let {
+        filePathMap[path.lowercase(Locale.ROOT)]?.let {
             Log.d(TAG, "Found song by case-insensitive file path match: $path")
             return it
         }
@@ -610,7 +532,7 @@ object PlaylistImportExportUtils {
                 Log.d(TAG, "Found song by resolved relative path: $path -> $absolutePath")
                 return it
             }
-            filePathMap[absolutePath.lowercase()]?.let {
+            filePathMap[absolutePath.lowercase(Locale.ROOT)]?.let {
                 Log.d(TAG, "Found song by resolved relative path (case-insensitive): $path -> $absolutePath")
                 return it
             }
@@ -632,7 +554,7 @@ object PlaylistImportExportUtils {
                     Log.d(TAG, "Found song by prefix resolution: $path -> $absolutePath")
                     return it
                 }
-                filePathMap[absolutePath.lowercase()]?.let {
+                filePathMap[absolutePath.lowercase(Locale.ROOT)]?.let {
                     Log.d(TAG, "Found song by prefix resolution (case-insensitive): $path -> $absolutePath")
                     return it
                 }
@@ -640,14 +562,11 @@ object PlaylistImportExportUtils {
         }
         
         // Build a map of filenames to songs for fallback matching
-        val fileNameToSongs = filePathMap.entries
-            .filter { it.key.contains("/") }
-            .groupBy { java.io.File(it.key).name.lowercase() }
         
         // Try file name match (basename with extension)
         val fileName = path.substringAfterLast("/").substringAfterLast("\\")
         if (fileName.isNotBlank()) {
-            fileNameToSongs[fileName.lowercase()]?.firstOrNull()?.let { entry ->
+            fileNameToSongs[fileName.lowercase(Locale.ROOT)]?.firstOrNull()?.let { entry ->
                 Log.d(TAG, "Found song by filename match: $fileName")
                 return entry.value
             }
@@ -657,7 +576,7 @@ object PlaylistImportExportUtils {
         val fileNameNoExt = fileName.substringBeforeLast(".")
         if (fileNameNoExt.isNotBlank()) {
             fileNameToSongs.entries.find { (key, _) ->
-                key.substringBeforeLast(".") == fileNameNoExt.lowercase()
+                key.substringBeforeLast(".") == fileNameNoExt.lowercase(Locale.ROOT)
             }?.value?.firstOrNull()?.let { entry ->
                 Log.d(TAG, "Found song by filename (no extension) match: $fileNameNoExt")
                 return entry.value
@@ -665,7 +584,7 @@ object PlaylistImportExportUtils {
         }
         
         // Try fuzzy filename match (handles URL encoding, underscores vs spaces, etc.)
-        val normalizedFileName = fileNameNoExt.replace("_", " ").replace("%20", " ").replace("-", " ").lowercase()
+        val normalizedFileName = fileNameNoExt.replace("_", " ").replace("%20", " ").replace("-", " ").lowercase(Locale.ROOT)
         if (normalizedFileName.isNotBlank()) {
             fileNameToSongs.entries.find { (key, _) ->
                 val normalizedKey = key.substringBeforeLast(".")
@@ -680,9 +599,9 @@ object PlaylistImportExportUtils {
         // Try matching by path segments (handles different root paths but same folder structure)
         val pathSegments = path.split("/", "\\").filter { it.isNotBlank() }
         if (pathSegments.size >= 2) {
-            val lastTwoSegments = pathSegments.takeLast(2).map { it.lowercase() }
+            val lastTwoSegments = pathSegments.takeLast(2).map { it.lowercase(Locale.ROOT) }
             filePathMap.entries.find { (filePath, _) ->
-                val songSegments = filePath.split("/").filter { it.isNotBlank() }.map { it.lowercase() }
+                val songSegments = filePath.split("/").filter { it.isNotBlank() }.map { it.lowercase(Locale.ROOT) }
                 songSegments.takeLast(2) == lastTwoSegments
             }?.let { entry ->
                 Log.d(TAG, "Found song by path segments match: ${pathSegments.takeLast(2)}")
@@ -735,14 +654,14 @@ object PlaylistImportExportUtils {
     
     private fun createPlaylistsZip(playlists: List<Playlist>, format: PlaylistExportFormat, zipFile: File) {
         // Create a temp directory to hold individual playlist files
-        val tempDir = File(zipFile.parentFile, "temp_playlists_${System.currentTimeMillis()}")
-        tempDir.mkdirs()
+        val tempDir = java.nio.file.Files.createTempDirectory(zipFile.absoluteFile.parentFile.toPath(), "playlists-").toFile()
 
         try {
             // Write each playlist to a temp file
             val tempFiles = mutableListOf<File>()
-            playlists.forEach { playlist ->
-                val fileName = sanitizeFileName("${playlist.name}${format.extension}")
+            val names = allocatePlaylistExportNames(playlists.map { sanitizeFileName("${it.name}${format.extension}") })
+            playlists.forEachIndexed { index, playlist ->
+                val fileName = names[index]
                 val tempFile = File(tempDir, fileName)
 
                 when (format) {
@@ -794,7 +713,9 @@ object PlaylistImportExportUtils {
     }
     
     private fun sanitizeFileName(fileName: String): String {
-        return fileName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+        val policy = chromahub.rhythm.app.features.local.data.metadata.FileNamePolicy
+        val base = policy.base(fileName.substringBeforeLast('.'), null, "TITLE") ?: "Playlist"
+        return policy.filename(base, fileName.substringAfterLast('.'))
     }
     
     private fun getFileName(context: Context, uri: Uri): String {
@@ -872,15 +793,23 @@ object PlaylistImportExportUtils {
         val directory = DocumentFile.fromTreeUri(context, directoryUri)
             ?: throw IllegalArgumentException("Cannot access selected directory")
         
-        // For now, export as separate files instead of ZIP to user directory
-        // since ZIP creation in SAF is complex
-        playlists.forEach { playlist ->
-            val fileName = sanitizeFileName("${playlist.name}${format.extension}")
-            exportToUserSelectedDirectory(context, directoryUri, playlist, format, fileName)
+        val archive = File.createTempFile("playlists-", ".zip", context.cacheDir)
+        var document: DocumentFile? = null
+        try {
+            createPlaylistsZip(playlists, format, archive)
+            val created = directory.createFile("application/zip", zipFileName)
+                ?: throw IOException("Cannot create playlist archive")
+            document = created
+            val output = context.contentResolver.openOutputStream(created.uri)
+                ?: throw IOException("Cannot open playlist archive")
+            output.use { stream -> archive.inputStream().use { it.copyTo(stream) } }
+            return File(directory.uri.path ?: "user_selected", created.name ?: zipFileName)
+        } catch (e: Exception) {
+            runCatching { document?.delete() }
+            throw e
+        } finally {
+            archive.delete()
         }
-        
-        // Return a dummy File object for compatibility
-        return File(directory.uri.path ?: "user_selected", "playlists_exported")
     }
     
     /**

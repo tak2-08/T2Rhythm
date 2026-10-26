@@ -38,7 +38,12 @@ fun DownloadCenter(
     var limit by remember { mutableIntStateOf(100) }
     var error by remember { mutableStateOf(false) }
     var removing by remember { mutableStateOf(false) }
-    LaunchedEffect(limit) {
+    var loading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf(false) }
+    var reload by remember { mutableIntStateOf(0) }
+    LaunchedEffect(limit, reload) {
+        loading = true
+        loadError = false
         try {
             DownloadRegistry.recoverLegacy(context)
             combine(
@@ -68,11 +73,14 @@ fun DownloadCenter(
                                 }
                         }
                     albums = withContext(Dispatchers.IO) { DownloadAlbums.list(context) }
+                    loading = false
                 }
         } catch (cancel: CancellationException) {
             throw cancel
         } catch (_: Exception) {
-            error = true
+            loadError = true
+        } finally {
+            loading = false
         }
     }
     ModalBottomSheet(
@@ -133,14 +141,23 @@ fun DownloadCenter(
                         Text(context.getString(R.string.download_remove_failed_all))
                     }
             }
-            if (error)
+            if (loading) item(key = "downloads-loading") {
+                LinearProgressIndicator(Modifier.fillMaxWidth().testTag("downloads-loading"))
+            }
+            if (error || loadError)
                 item {
                     Text(
                         context.getString(R.string.discovery_operation_failed),
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
-            if (records.isEmpty())
+            if (loadError) item(key = "downloads-retry") {
+                TextButton(onClick = { reload++ }, enabled = !loading,
+                    modifier = Modifier.testTag("downloads-retry")) {
+                    Text(context.getString(R.string.mv_retry))
+                }
+            }
+            if (!loading && !loadError && records.isEmpty() && albums.isEmpty())
                 item {
                     Text(
                         context.getString(R.string.discovery_downloads_empty),

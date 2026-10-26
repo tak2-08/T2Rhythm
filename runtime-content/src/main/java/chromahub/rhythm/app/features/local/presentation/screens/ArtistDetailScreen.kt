@@ -563,7 +563,9 @@ fun ArtistDetailScreen(
                                 val songsCount = rawArtistSongs.size.takeIf { it > 0 } ?: artist?.numberOfTracks ?: 0
                                 val albumsCount = artistAlbums.size.takeIf { it > 0 } ?: artist?.numberOfAlbums ?: 0
                                 val detailsText = buildString {
-                                    append("$albumsCount albums • $songsCount tracks")
+                                    append(context.resources.getQuantityString(R.plurals.settings_count_albums, albumsCount, albumsCount))
+                                    append(" • ")
+                                    append(context.resources.getQuantityString(R.plurals.ui_songs_count, songsCount, songsCount))
                                     if (totalDuration > 0) {
                                         append(" • ${formatDuration(totalDuration, useHoursFormat)}")
                                     }
@@ -811,7 +813,9 @@ fun ArtistDetailScreen(
                         val songsCount = rawArtistSongs.size.takeIf { it > 0 } ?: artist?.numberOfTracks ?: 0
                         val albumsCount = artistAlbums.size.takeIf { it > 0 } ?: artist?.numberOfAlbums ?: 0
                         val detailsText = buildString {
-                            append("$albumsCount albums • $songsCount tracks")
+                            append(context.resources.getQuantityString(R.plurals.settings_count_albums, albumsCount, albumsCount))
+                                    append(" • ")
+                                    append(context.resources.getQuantityString(R.plurals.ui_songs_count, songsCount, songsCount))
                             if (totalDuration > 0) {
                                 append(" • ${formatDuration(totalDuration, useHoursFormat)}")
                             }
@@ -1490,7 +1494,8 @@ private fun ArtistAlbumCard(
                 Spacer(modifier = Modifier.height(2.dp))
                 
                 Text(
-                    text = "${album.numberOfSongs} ${if (album.numberOfSongs == 1) "song" else "songs"}${if (album.year > 0) " • ${album.year}" else ""}",
+                    text = androidx.compose.ui.res.pluralStringResource(R.plurals.ui_songs_count, album.numberOfSongs, album.numberOfSongs) +
+                        if (album.year > 0) " • ${album.year}" else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

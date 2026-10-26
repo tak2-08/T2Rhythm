@@ -906,11 +906,8 @@ fun UpdatesSettingsScreen(onBackClick: () -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = if (displayVersionName.length > 20) {
-                            if (isUpdateAvail) "Available Version:\n$displayVersionName" else "Version:\n$displayVersionName"
-                        } else {
-                            if (isUpdateAvail) "Available Version: V $displayVersionName" else context.getString(R.string.updates_version_prefix, displayVersionName)
-                        },
+                        text = context.getString(if (isUpdateAvail) R.string.updates_available else R.string.settings_about_version_label) +
+                            "\n" + context.getString(R.string.updates_version_prefix, displayVersionName),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = if (isUpdateAvail) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -918,7 +915,7 @@ fun UpdatesSettingsScreen(onBackClick: () -> Unit) {
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = if (isUpdateAvail) "Released: $displayReleaseDate" else context.getString(R.string.updates_released_prefix, displayReleaseDate),
+                        text = context.getString(R.string.updates_released_prefix, displayReleaseDate),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

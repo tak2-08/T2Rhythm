@@ -284,8 +284,9 @@ fun SettingsScreen(
     val searchFocus = androidx.compose.ui.platform.LocalFocusManager.current
     val searchKeyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val searchIndex = remember(context, learningUi) { buildSettingsSearchIndex(context).filter { learningUi || it.route != SettingsRoutes.ALGORITHM_TRAINING } }
-    val searchResults = remember(searchQuery, searchIndex) { 
-        searchSettings(searchQuery, searchIndex) 
+    val searchTextIndex = remember(searchIndex) { buildSettingsTextIndex(searchIndex) }
+    val searchResults = remember(searchQuery, searchTextIndex) {
+        searchTextIndex.search(searchQuery)
     }
     val isSearchActive = searchQuery.isNotEmpty()
 
