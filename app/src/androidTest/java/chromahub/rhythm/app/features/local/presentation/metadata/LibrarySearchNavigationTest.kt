@@ -157,6 +157,30 @@ class LibrarySearchNavigationTest {
         awaitNode("서른 즈음에")
         assertNull(locate("이등병의 편지"))
         capture("library-search-initials.png")
+        enter("서른ㅈㅇㅇ")
+        awaitNode("서른 즈음에")
+        compose.runOnUiThread {
+            androidx.core.view.WindowCompat.getInsetsController(compose.activity.window, compose.activity.window.decorView)
+                .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
+        }
+        compose.onNodeWithTag("search-toggle-filters").performClick()
+        listOf("songs", "albums", "artists", "playlists").forEach { type ->
+            compose.onNodeWithTag("search-filter-$type").performScrollTo().performClick()
+        }
+        awaitNode(label(R.string.no_results_found))
+        compose.onNodeWithTag("search-toggle-filters").performClick()
+        compose.onNodeWithTag("search-filter-summary").assertIsDisplayed()
+        capture("library-search-collapsed-filters.png")
+        // A recreated screen must explain why its restored query has no results.
+        activity.scenario.recreate()
+        awaitNode(label(R.string.no_results_found))
+        compose.onNodeWithTag("search-filter-summary").assertIsDisplayed()
+        compose.onNodeWithTag("search-reset-filters").performClick()
+        awaitNode("서른 즈음에")
+        compose.onNodeWithTag("search-filter-summary").assertDoesNotExist()
+        compose.onNodeWithTag("search-clear-query").assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp).performClick()
+        awaitNode(label(R.string.local_search_hint))
         enter("김광석 편지")
         awaitNode("이등병의 편지")
         assertNull(locate("서른 즈음에"))

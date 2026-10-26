@@ -59,6 +59,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -217,7 +221,7 @@ fun UniversalSearchScreen(
     val isGenreDetectionComplete by localViewModel.isGenreDetectionComplete.collectAsState()
 
 
-    val search = rememberLocalSearch(query, localSongs, fullLocalAlbums, localArtists, localPlaylists,
+    val search = rememberLocalSearch(if (genreTab) "" else query, localSongs, fullLocalAlbums, localArtists, localPlaylists,
         filterSongs, filterAlbums, filterArtists, filterPlaylists)
     val genreBrowse = if (genreTab) rememberGenreBrowse(localSongs) else null
     val genreResults = remember(genreBrowse, genreQuery) { genreBrowse?.search(genreQuery).orEmpty() }
@@ -228,6 +232,21 @@ fun UniversalSearchScreen(
     val matchedLocalAlbums = search.results.albums
     val matchedLocalArtists = search.results.artists
     val matchedLocalPlaylists = search.results.playlists
+
+    val selectedSearchTypes = listOfNotNull(
+        stringResource(R.string.settings_tab_songs).takeIf { filterSongs },
+        stringResource(R.string.settings_tab_albums).takeIf { filterAlbums },
+        stringResource(R.string.settings_tab_artists).takeIf { filterArtists },
+        stringResource(R.string.settings_tab_playlists).takeIf { filterPlaylists },
+    )
+    val filtersActive = selectedSearchTypes.size != 4
+    val resetSearchFilters = {
+        filterSongs = true
+        filterAlbums = true
+        filterArtists = true
+        filterPlaylists = true
+    }
+    val filterDescription = "${stringResource(R.string.cd_filters)}: ${selectedSearchTypes.size}/4"
 
     val hasResults = matchedLocalSongs.isNotEmpty() || matchedLocalAlbums.isNotEmpty() ||
         matchedLocalArtists.isNotEmpty() || matchedLocalPlaylists.isNotEmpty()
@@ -254,8 +273,10 @@ fun UniversalSearchScreen(
 
     val statusBarsTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navigationBarsBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val searchBarHeightPadding = 156.dp + (if (genreTab && selectedGenre != null) 48.dp else 0.dp) + (if (showFilters) 48.dp else 0.dp)
-    val totalBottomPadding = searchBarHeightPadding + navigationBarsBottom + 16.dp
+    val density = LocalDensity.current
+    var controlsHeight by remember { mutableStateOf(156.dp) }
+    val keyboardBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    val totalBottomPadding = controlsHeight + maxOf(navigationBarsBottom, keyboardBottom) + 16.dp
 
     Box(
         modifier = Modifier
@@ -1079,6 +1100,7 @@ fun UniversalSearchScreen(
                         Modifier.fillMaxWidth()
                     }
                 )
+                .onSizeChanged { controlsHeight = with(density) { it.height.toDp() } }
                 .padding(horizontal = horizontalPadding)
                 .padding(top = 16.dp, bottom = 12.dp)
                 .animateContentSize(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium))
@@ -1087,6 +1109,9 @@ fun UniversalSearchScreen(
             PrimaryTabRow(selectedTabIndex = if (genreTab) 1 else 0, modifier = Modifier.testTag("universal-search-tabs")) {
                 Tab(selected = !genreTab, onClick = { genreTab = false }, text = { Text(stringResource(R.string.genre_search_all)) })
                 Tab(selected = genreTab, onClick = { genreTab = true; showFilters = false }, text = { Text(stringResource(R.string.genre_search_tab)) })
+            }
+            if (!genreTab && filtersActive) {
+                SearchFilterSummary(selectedSearchTypes, onReset = resetSearchFilters)
             }
             selectedGenre?.takeIf { genreTab }?.let { genre ->
                 InputChip(selected = true, onClick = { genreTrail = emptyList() }, label = { Text(genre, maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -1118,7 +1143,7 @@ fun UniversalSearchScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(RhythmIcons.Search, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1151,7 +1176,7 @@ fun UniversalSearchScreen(
                             IconButton(onClick = {
                                 HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                                 if (genreTab) { genreQuery = ""; genreTrail = emptyList() } else query = ""
-                            }, modifier = Modifier.size(32.dp)) {
+                            }, modifier = Modifier.size(48.dp).testTag("search-clear-query")) {
                                 Icon(MaterialSymbolIcon("clear", filled = true), contentDescription = stringResource(R.string.ui_clear), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -1160,16 +1185,17 @@ fun UniversalSearchScreen(
 
                 Surface(
                     shape = CircleShape,
-                    color = if (showFilters) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh
+                    color = if (showFilters || filtersActive && !genreTab) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
                 ) {
                     IconButton(onClick = {
                         HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                         showFilters = !showFilters
-                    }, enabled = !genreTab) {
+                    }, enabled = !genreTab, modifier = Modifier.testTag("search-toggle-filters")
+                        .semantics { stateDescription = filterDescription }) {
                         Icon(
                             RhythmIcons.FilterList,
                             contentDescription = stringResource(R.string.cd_filters),
-                            tint = if (showFilters) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                            tint = if (showFilters || filtersActive && !genreTab) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(25.dp)
                         )
                     }
@@ -1197,6 +1223,7 @@ fun UniversalSearchScreen(
                     )
                     FilterChip(
                         selected = filterSongs,
+                        modifier = Modifier.testTag("search-filter-songs"),
                         onClick = {
                             HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                             filterSongs = !filterSongs
@@ -1229,6 +1256,7 @@ fun UniversalSearchScreen(
                     )
                     FilterChip(
                         selected = filterAlbums,
+                        modifier = Modifier.testTag("search-filter-albums"),
                         onClick = {
                             HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                             filterAlbums = !filterAlbums
@@ -1261,6 +1289,7 @@ fun UniversalSearchScreen(
                     )
                     FilterChip(
                         selected = filterArtists,
+                        modifier = Modifier.testTag("search-filter-artists"),
                         onClick = {
                             HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                             filterArtists = !filterArtists
@@ -1293,6 +1322,7 @@ fun UniversalSearchScreen(
                     )
                     FilterChip(
                         selected = filterPlaylists,
+                        modifier = Modifier.testTag("search-filter-playlists"),
                         onClick = {
                             HapticUtils.performHapticFeedback(context, haptics, HapticType.LIGHT)
                             filterPlaylists = !filterPlaylists
