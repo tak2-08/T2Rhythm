@@ -78,7 +78,9 @@ jobs:
         if: steps.signing.outputs.available == 'true'
         shell: bash
         run: |
-          apk=app/build/outputs/apk/github/release/Rhythm-5.5.499.1330-githubRelease.apk
+          apks=(app/build/outputs/apk/github/release/*.apk)
+          test "${#apks[@]}" -eq 1
+          apk="${apks[0]}"
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$apk" > app/build/review-certificate.txt
           grep -q 'c55ec7843dd8190f2ce249ddc1562c616647c50c317930076e2e98bf7e304c18' app/build/review-certificate.txt
           python3 scripts/audit_runtime_classpath.py --base "$apk" --feature-dex runtime-content/build/outputs/runtime-feature/githubRelease/content.dex.jar --out app/build/review-classpath.json
@@ -86,7 +88,7 @@ jobs:
       - if: steps.signing.outputs.available == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: T2Rhythm-1330-signed-review
+          name: T2Rhythm-signed-review
           retention-days: 7
           path: |
             app/build/outputs/apk/github/release/*.apk
@@ -96,7 +98,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always() && steps.signing.outputs.available == 'true'
         with:
-          name: T2Rhythm-1330-review-checks
+          name: T2Rhythm-review-checks
           retention-days: 7
           path: |
             runtime-content/build/test-results/testGithubDebugUnitTest/*.xml
