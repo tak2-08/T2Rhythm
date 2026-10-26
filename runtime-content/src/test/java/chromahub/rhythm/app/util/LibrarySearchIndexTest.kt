@@ -27,6 +27,69 @@ class LibrarySearchIndexTest {
     }
 
     @Test
+    fun mixedSyllablesAndInitialsMatchWithinEachToken() {
+        val song = Item("서른 즈음에", "김광석", "Folk")
+        val catalog = index(song, Item("서른 즈음에", "김광수"), Item("사랑 즈음에", "김광석"))
+        assertEquals(listOf(song), catalog.search("김ㄱ석 서른ㅈㅇㅇ"))
+        assertEquals(listOf(song), catalog.search("ㄱ광ㅅ 서ㄹ즈ㅇ에 Folk"))
+        assertTrue(catalog.search("김ㄱ석 서른ㅈ아ㅇ").isEmpty())
+    }
+
+    @Test
+    fun mixedQueryKeepsLatinDigitsAndPunctuationLiteral() {
+        val song = Item("봄날 (Live 2026)")
+        val catalog = index(song, Item("밤낮 (Live 2026)"), Item("봄날 [Live 2026]"))
+        assertEquals(listOf(song), catalog.search("봄ㄴ(ＬＩＶＥ２０２６)"))
+        assertTrue(catalog.search("봄ㄴ(live2025)").isEmpty())
+        assertTrue(catalog.search("봄ㄴ.*").isEmpty())
+    }
+
+    @Test
+    fun mixedQuerySupportsCanonicalJamoAndEveryModernInitial() {
+        val song = Item("서른 즈음에")
+        val query = Normalizer.normalize("서른", Normalizer.Form.NFD) + "\u110c\u110b\u110b"
+        assertEquals(listOf(song), index(song).search(query))
+        val initials = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
+        initials.forEachIndexed { i, initial ->
+            val syllable = ('가'.code + i * 588).toChar()
+            val item = Item("노래${syllable}끝")
+            assertEquals(initial.toString(), listOf(item), index(item).search("노래${initial}끝"))
+        }
+        assertTrue(index(Item("까치")).search("가ㅊ").isEmpty())
+    }
+
+    @Test
+    fun mixedQueryUsesTitleRelevanceAndStableLibraryOrder() {
+        val metadata = Item("다른 노래", "서른 즈음에")
+        val contains = Item("다시 서른 즈음에")
+        val prefix = Item("서른 즈음에 (Live)")
+        val exact = Item("서른 즈음에")
+        val otherPrefix = Item("서른 즈음에 (Acoustic)")
+        val catalog = index(metadata, contains, prefix, exact, otherPrefix)
+        listOf("서른ㅈㅇㅇ", "ㅅㄹㅈㅇㅇ", "서른즈음에").forEach { query ->
+            assertEquals(
+                query, listOf(exact, prefix, otherPrefix, contains, metadata), catalog.search(query)
+            )
+        }
+    }
+
+    @Test
+    fun mixedQueryChecksLaterCandidatesWithoutLosingCompletedSyllables() {
+        val song = Item("사랑 서른 즈음에")
+        assertEquals(listOf(song), index(song).search("ㅅ른"))
+        assertTrue(index(Item("사랑 즈음에")).search("서ㄹ").isEmpty())
+    }
+
+    @Test
+    fun mixedQueryCannotCrossMetadataBoundariesOrIgnoreMissingWords() {
+        val song = Item("서른", "즈음에")
+        val catalog = index(song)
+        assertTrue(catalog.search("서른ㅈㅇㅇ").isEmpty())
+        assertTrue(catalog.search("서ㄹ missing").isEmpty())
+        assertEquals(listOf(song), catalog.search("서ㄹ 즈ㅇ에"))
+    }
+
+    @Test
     fun optionalSpacesAndDecomposedHangulFindTheSameTitle() {
         val song = Item("서른 즈음에")
         val catalog = index(song)
@@ -90,12 +153,13 @@ class LibrarySearchIndexTest {
             LibrarySearchIndex.build(songs, { it.title }, { sequenceOf(it.title, it.artist) })
         checks = 0
         try {
-            catalog.search("노래") { if (++checks == 2) throw CancellationException() }
+            catalog.search("노ㄹ") { if (++checks == 2) throw CancellationException() }
             fail("Expected cancellation")
         } catch (_: CancellationException) {
             assertEquals(2, checks)
         }
         assertEquals(songs.last(), catalog.search("노래49999 가수49999").single())
+        assertEquals(songs.last(), catalog.search("노ㄹ49999 가ㅅ49999").single())
     }
     @Test
     fun genreMetadataIndexDoesNotMatchTitlesAndSplitsMultiGenreTags() {
