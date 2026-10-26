@@ -1,0 +1,37 @@
+name: Stage verified 1331 release assets
+on:
+  push:
+    branches: [codex/publish-1331]
+permissions:
+  contents: write
+jobs:
+  stage:
+    if: github.repository == 'tak2-08/T2Rhythm'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify exact approved payload and original APK certificate
+        working-directory: release-prebuilt/1331
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum --strict -c SHA256SUMS
+          echo '1ddcccd76999812ddf1eb5d94f2348c88d8c17e0130bdb9bc447a7d25dcb402b  T2Rhythm-5.5.499.1331.apk' | sha256sum --strict -c -
+          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 11
+          test -z "$(find . -type f \( -name '*.pk8' -o -name '*.jks' -o -name '*.keystore' -o -name '*.properties' -o -name '*.t2vault' \))"
+          signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          test -n "$signer"
+          "$signer" verify --verbose --print-certs T2Rhythm-5.5.499.1331.apk > /tmp/t2-certificate.txt
+          grep -q 'certificate SHA-256 digest: c55ec7843dd8190f2ce249ddc1562c616647c50c317930076e2e98bf7e304c18' /tmp/t2-certificate.txt
+      - name: Attach approved files to existing draft only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: tak2-08/T2Rhythm
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh release view v5.5.499.1331 --json isDraft --jq .isDraft)" = true
+          gh release upload v5.5.499.1331 release-prebuilt/1331/* --clobber

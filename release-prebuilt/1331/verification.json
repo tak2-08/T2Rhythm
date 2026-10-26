@@ -1,0 +1,33 @@
+{
+  "version": "5.5.499.1331",
+  "version_code": 554991331,
+  "apk_bytes": 102308731,
+  "apk_sha256": "1ddcccd76999812ddf1eb5d94f2348c88d8c17e0130bdb9bc447a7d25dcb402b",
+  "apk_certificate_sha256": "c55ec7843dd8190f2ce249ddc1562c616647c50c317930076e2e98bf7e304c18",
+  "test_only": false,
+  "module_signing_key_id": "ee26407974d949d48aa67ace73347c1dfda97dd93e7e8d2b472fe2144bc41270",
+  "runtime_fingerprint": "c80b2049d5b7cd85e1ce86b3ceb5d6baaad870f2cb040367d6a967aaa89901af",
+  "unit_tests": {
+    "tests": 545,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "source_commit": "dff1b0a1f13b725bfb8f4783902b3f20013bca52",
+  "classpath": {
+    "baseClasses": 33073,
+    "featureClasses": 16969,
+    "desugaredReferences": 6,
+    "missingDesugaredMethods": []
+  },
+  "live_provider_api_tested": false,
+  "android_regression": {
+    "tests": 110,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": 16,
+    "run_id": 40242137168,
+    "job_id": 121316001199
+  }
+}
