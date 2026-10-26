@@ -86,6 +86,7 @@ fun AiMusicScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
                     snapshot.operation, snapshot.songs.keys) { connection -> transport.complete(connection, snapshot.payload) }
                 request = snapshot; answer = result; selected = result.plan.ids.toSet(); playlistName = result.plan.title
             } catch (cancel: CancellationException) { throw cancel }
+            catch (failure: AiFailure) { message = failure.userMessage() }
             catch (_: Exception) { message = "추천을 받지 못했습니다. 연결·모델·잔여 한도를 확인하고 잠시 후 다시 시도해 주세요. 음악 재생은 계속 사용할 수 있습니다." }
             finally { busy = false; sending = false }
         }

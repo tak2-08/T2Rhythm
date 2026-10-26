@@ -2,6 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package chromahub.rhythm.app.util
 
+/** Prefer the player's actual occurrence when several queue entries have the same media ID. */
+internal fun <T> resolveQueueAnchor(items: List<T>, playerIndex: Int, mediaId: String?, id: (T) -> String): Int {
+    if (playerIndex in items.indices && (mediaId == null || id(items[playerIndex]) == mediaId)) return playerIndex
+    return mediaId?.let { target -> items.indexOfFirst { id(it) == target }.takeIf { it >= 0 } } ?: 0
+}
+
 /** Restore occurrences, not a set of song IDs. Keep the current queue's metadata and extras. */
 internal fun <T> restoreUpcomingQueueOrder(
     currentSongs: List<T>, currentIndex: Int, originalOrder: List<T>, idSelector: (T) -> String,

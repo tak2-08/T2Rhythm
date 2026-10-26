@@ -1,8 +1,11 @@
 What changed in this version
 
-• Compose the expanded player only while opening or visible, preserve its saved UI state, and stop screen subscriptions while the UI is in the background.
-• Warm only the next one or two local tracks, evict obsolete preload sources, and honor shuffle order without copying the whole queue.
-• Defer automatic analysis during playback and clear disposable artwork caches on running-memory pressure.
-• Optional AI connections: Google AI Studio, Groq, Cerebras, Hugging Face, OpenAI, Anthropic Claude and xAI Grok. Choose connections, priority, fallback and request rotation.
-• Review exactly what metadata will be sent, then ask for playlists, songs, albums, genres, library edits or sharing suggestions. AI controls appear on home only after enabling a connection.
-• Review library edits individually, preserve durable undo records, and use the system trash confirmation on supported Android 11+ files. AI cannot execute commands or modify audio files.
+• Use provider-specific Gemini GenerateContent, OpenAI/xAI Responses, Claude Messages and compatible Chat Completions requests and response decoding. Handle nullable fields and reasoning blocks while rejecting incomplete results.
+• Edit saved AI connections without re-entering their keys, browse provider model IDs, test with fictitious music, and see actionable authentication, permissions, quota and timeout errors.
+• Search with mixed Hangul syllables and initials. See active filters while collapsed and reset all filters without losing the query.
+• Preserve duplicate queue entries and the actual playing occurrence when toggling shuffle; improve large queue key tracking.
+• Improve M3U/PLS compatibility, retain different recordings with identical titles, preserve Korean ZIP names and export actual ZIP archives to selected folders.
+• Separate download loading, failure and retry states; skip corrupt album records without blocking the full list.
+• Keep loaded streaming tracks on paging errors and retry the affected server.
+• Improve multiword/Korean settings search and Korean artist/update labels.
+• Retain the original module trust restored in 1331 and the existing APK signing identity.

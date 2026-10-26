@@ -1,0 +1,179 @@
+name: Publish verified T2Rhythm update
+
+on:
+  push:
+    branches: ['codex/release-1332']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: publish-t2rhythm-1332
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/codex/release-1332'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Require passing regression workflows on this source commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&event=pull_request&per_page=100" > "$RUNNER_TEMP/source-checks.json"
+          python3 - "$RUNNER_TEMP/source-checks.json" <<'PY'
+          import json, sys
+          runs = json.load(open(sys.argv[1]))['workflow_runs']
+          for name in ['Android CI', 'Personal experience regression', 'Private phone streaming', 'File name Android compatibility']:
+              matches = [run for run in runs if run['name'] == name]
+              assert matches, f'Missing source validation: {name}'
+              latest = max(matches, key=lambda run: run['id'])
+              assert latest['conclusion'] == 'success', f'Not yet successful: {name}'
+          PY
+      - name: Require original signing inputs
+        env:
+          MODULE_KEY: ${{ secrets.RUNTIME_MODULE_SIGNING_KEY }}
+          APK_KEY: ${{ secrets.SIGNING_KEYSTORE }}
+          APK_PROPERTIES: ${{ secrets.SIGNING_PROPERTIES }}
+        run: |
+          missing=0
+          for name in MODULE_KEY APK_KEY APK_PROPERTIES; do
+            if [[ -z "${!name}" ]]; then echo "::error::Required signing input is unavailable: $name"; missing=1; fi
+          done
+          exit "$missing"
+      - uses: actions/setup-java@v6
+        with:
+          java-version: 17
+          distribution: zulu
+          cache: gradle
+      - uses: ./.github/actions/setup-native-packaging
+        with:
+          production-key: ${{ secrets.RUNTIME_MODULE_SIGNING_KEY }}
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ''
+      - name: Prepare original APK signing
+        env:
+          SIGNING_KEYSTORE: ${{ secrets.SIGNING_KEYSTORE }}
+          SIGNING_PROPERTIES: ${{ secrets.SIGNING_PROPERTIES }}
+        run: |
+          umask 077
+          mkdir -p config/signing .config
+          printf '%s' "$SIGNING_KEYSTORE" | base64 --decode > config/signing/rhythm_keystore.jks
+          printf '%s' "$SIGNING_PROPERTIES" | base64 --decode > .config/keystore.properties
+      - name: Build and verify production APK
+        run: |
+          ./gradlew :runtime-core:test :crawler:test :runtime-content:testGithubDebugUnitTest :app:lintGithubRelease :app:assembleGithubRelease -PrequireReleaseSigning=true -PruntimeTestOnly=false --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --console=plain
+          apk=app/build/outputs/apk/github/release/Rhythm-5.5.499.1332-githubRelease.apk
+          test -s "$apk"
+          python3 scripts/export_runtime_release.py --distribution build/runtime-distribution/githubRelease --apk "$apk" --apksigner "$ANDROID_HOME/build-tools/37.0.0/apksigner" --out build/runtime-release
+          python3 scripts/audit_runtime_classpath.py --base "$apk" --feature-dex runtime-content/build/outputs/runtime-feature/githubRelease/content.dex.jar --out build/runtime-release/classpath.json
+          cp "$apk" build/runtime-release/T2Rhythm-5.5.499.1332.apk
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$apk" > build/runtime-release/apk-certificate.txt
+          cp runtime-contract/module-public.der build/runtime-release/module-public.der
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path('build/runtime-release')
+          apk = root / 'T2Rhythm-5.5.499.1332.apk'
+          digest = hashlib.sha256(apk.read_bytes()).hexdigest()
+          (root / (apk.name + '.sha256')).write_text(f'{digest}  {apk.name}\n')
+          (root / 'verification.json').write_text(json.dumps({'source_revision': os.environ['GITHUB_SHA'], 'versionCode': 554991332, 'versionName': '5.5.499.1332', 'apkSha256': digest, 'testOnly': False, 'certificateSha256': Path('runtime-contract/base-cert-sha256.txt').read_text().strip()}, indent=2) + '\n')
+          (root / 'SHA256SUMS').write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in sorted(root.iterdir()) if p.is_file() and p.name != 'SHA256SUMS'))
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: T2Rhythm-1332-production
+          path: build/runtime-release/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove signing material
+        if: always()
+        run: |
+          rm -rf .config config/signing
+          if [[ -n "${RUNTIME_SIGNING_KEY_FILE:-}" ]]; then rm -f "$RUNTIME_SIGNING_KEY_FILE"; fi
+
+  upgrade:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: T2Rhythm-1332-production
+          path: release-assets
+      - name: Verify checksums and download the previous public release
+        run: |
+          (cd release-assets && sha256sum -c SHA256SUMS)
+          curl --fail --location --retry 2 https://github.com/tak2-08/T2Rhythm/releases/download/v5.5.499.1331/T2Rhythm-5.5.499.1331.apk -o previous.apk
+          echo '1ddcccd76999812ddf1eb5d94f2348c88d8c17e0130bdb9bc447a7d25dcb402b  previous.apk' | sha256sum -c -
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install as an update over the actual 1331 APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          script: |
+            adb root
+            adb wait-for-device
+            adb install previous.apk
+            adb shell monkey -p chromahub.rhythm.app -c android.intent.category.LAUNCHER 1
+            sleep 8
+            adb shell am force-stop chromahub.rhythm.app
+            adb shell 'mkdir -p /data/user/0/chromahub.rhythm.app/files; echo retained > /data/user/0/chromahub.rhythm.app/files/release-upgrade-marker'
+            adb install -r release-assets/T2Rhythm-5.5.499.1332.apk
+            adb shell cat /data/user/0/chromahub.rhythm.app/files/release-upgrade-marker | tr -d '\r' | grep -x retained
+            adb shell dumpsys package chromahub.rhythm.app | grep 'versionCode=554991332'
+            adb logcat -c
+            adb shell monkey -p chromahub.rhythm.app -c android.intent.category.LAUNCHER 1
+            sleep 15
+            adb shell pidof chromahub.rhythm.app
+            adb logcat -d > upgrade-logcat.txt
+            if grep -E 'FATAL EXCEPTION|Fatal signal|Unable to instantiate application' upgrade-logcat.txt; then exit 1; fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: T2Rhythm-1332-upgrade-evidence
+          path: upgrade-logcat.txt
+
+  publish:
+    needs: [build, upgrade]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: T2Rhythm-1332-production
+          path: release-assets
+      - name: Publish verified APK and feature bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd release-assets && sha256sum -c SHA256SUMS)
+          tag=v5.5.499.1332
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo '::error::Release already exists; refusing to overwrite assets.'
+            exit 1
+          fi
+          gh release create "$tag" release-assets/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'T2Rhythm 5.5.499.1332' --notes-file app/src/main/res/raw-ko/current_release_notes.txt --draft
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest

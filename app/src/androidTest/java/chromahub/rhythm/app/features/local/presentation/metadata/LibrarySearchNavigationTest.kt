@@ -39,6 +39,7 @@ class LibrarySearchNavigationTest {
             )
             .use { it.readBytes() }
 
+    private var previousAutoCheck = true
     private val preparation =
         object : ExternalResource() {
             override fun before() {
@@ -47,6 +48,8 @@ class LibrarySearchNavigationTest {
                     else Manifest.permission.READ_EXTERNAL_STORAGE
                 shell("pm grant ${context.packageName} $permission")
                 val settings = AppSettings.getInstance(context)
+                previousAutoCheck = settings.autoCheckForUpdates.value
+                settings.setAutoCheckForUpdates(false)
                 settings.setOnboardingCompleted(true)
                 context.getSharedPreferences("installed_release_notes", 0).edit().putInt("seen", chromahub.rhythm.app.BuildConfig.VERSION_CODE).commit()
                 settings.setDefaultScreen("home")
@@ -59,6 +62,7 @@ class LibrarySearchNavigationTest {
             override fun after() {
                 shell("settings put system font_scale 1.0")
                 AppSettings.getInstance(context).setShowKeyboardOnSearchOpen(true)
+                AppSettings.getInstance(context).setAutoCheckForUpdates(previousAutoCheck)
             }
         }
     @get:Rule val rules: RuleChain = RuleChain.outerRule(preparation).around(compose)

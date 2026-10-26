@@ -60,4 +60,15 @@ class AiRouterTest {
         assertTrue(runCatching { request(AiRouter(), listOf(connection("off", false))) { attempted = true; valid } }.isFailure)
         assertFalse(attempted)
     }
+    @Test fun finalFailureSurvivesCooldownAndEditedConnectionCanRetry() = runBlocking {
+        val router = AiRouter(); val connections = listOf(connection("first"))
+        val first = runCatching { request(router, connections) { throw AiFailure(401) } }.exceptionOrNull() as AiFailure
+        assertEquals(401, first.status)
+        var attempted = false
+        val cooled = runCatching { request(router, connections) { attempted = true; valid } }.exceptionOrNull() as AiFailure
+        assertFalse(attempted); assertEquals(401, cooled.status)
+        router.resetConnection("first")
+        assertEquals(1, request(router, connections) { attempted = true; valid }.attempts)
+        assertTrue(attempted)
+    }
 }

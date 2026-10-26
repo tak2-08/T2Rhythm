@@ -7,6 +7,14 @@ import kotlin.random.Random
 
 class QueueOrderTest {
     private data class Track(val id: String, val title: String = id)
+    @Test fun playbackAnchorKeepsTheSecondOccurrenceAndFallsBackForStaleIndices() {
+        val songs = listOf("a", "b", "a", "c")
+        assertEquals(2, resolveQueueAnchor(songs, 2, "a") { it })
+        assertEquals(2, resolveQueueAnchor(songs, 2, null) { it })
+        assertEquals(1, resolveQueueAnchor(songs, 20, "b") { it })
+        assertEquals(3, resolveQueueAnchor(songs, 1, "c") { it })
+        assertEquals(0, resolveQueueAnchor(emptyList<String>(), -1, "missing") { it })
+    }
     @Test fun duplicatesAreConsumedOnceAndCurrentMetadataSurvives() {
         val original = listOf(Track("a"), Track("b"), Track("a"), Track("c"))
         val current = listOf(Track("a", "playing"), Track("c", "new C"), Track("a", "new A"), Track("b", "new B"))
