@@ -58,6 +58,12 @@ class AiTransport internal constructor(private val callFactory: Call.Factory) {
                 .put(if (provider == AiProvider.HUGGING_FACE) "max_tokens" else "max_completion_tokens", 8192)
                 .put("messages", JSONArray().put(message("system", AiProtocol.SYSTEM)).put(message("user", payload)))
         }
+        // These endpoints document JSON mode; avoid imposing it on heterogeneous HF backends.
+        when (provider) {
+            AiProvider.OPENAI -> body.put("text", JSONObject().put("format", JSONObject().put("type", "json_object")))
+            AiProvider.GROQ, AiProvider.CEREBRAS -> body.put("response_format", JSONObject().put("type", "json_object"))
+            else -> Unit
+        }
         return authenticate(Request.Builder().url(url), connection)
             .post(body.toString().toRequestBody("application/json; charset=utf-8".toMediaType())).build()
     }
@@ -80,7 +86,9 @@ class AiTransport internal constructor(private val callFactory: Call.Factory) {
                 val methods = entry.optJSONArray("supportedGenerationMethods") ?: return@mapNotNull null
                 if ((0 until methods.length()).none { methods.optString(it) == "generateContent" }) return@mapNotNull null
             }
-            entry.optString(if (provider == AiProvider.GOOGLE) "name" else "id").removePrefix("models/")
+            val idKey = if (provider == AiProvider.GOOGLE) "name" else "id"
+            if (entry.isNull(idKey)) return@mapNotNull null
+            entry.optString(idKey).removePrefix("models/")
                 .takeIf { it.isNotBlank() && it.length <= 160 && it.none(Char::isISOControl) }
         }.distinct().sorted().take(200)
     }

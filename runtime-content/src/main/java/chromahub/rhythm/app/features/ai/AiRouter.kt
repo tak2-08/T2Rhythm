@@ -63,6 +63,7 @@ class AiRouter(private val now: () -> Long = System::currentTimeMillis) {
             for (connection in order) {
                 if ((cooldowns[connection.id] ?: 0) > now()) {
                     lastFailure = failures[connection.id] ?: lastFailure
+                    if (!fallback) throw lastFailure ?: AiFailure()
                     continue
                 }
                 attempts++

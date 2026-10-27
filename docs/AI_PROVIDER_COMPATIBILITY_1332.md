@@ -12,11 +12,11 @@ The previous common request body obscured provider differences, and `has("tool_c
 | Cerebras | `/v1/chat/completions` | Bearer | `max_completion_tokens` |
 | Hugging Face | `/v1/chat/completions` | Bearer | `max_tokens` |
 
-Responses requests set `store=false`. Optional model-specific sampling/reasoning parameters are omitted. Gemini uses JSON output. Native reasoning blocks and complete leading HF `<think>` envelopes are separated from the answer. Null/empty tool-call fields are allowed; actual tool requests, refusals and truncated outputs never become music actions. Existing key storage and explicit review of library actions remain in place.
+Responses requests set `store=false`. Optional model-specific sampling/reasoning parameters are omitted. Gemini, OpenAI, Groq and Cerebras use their documented JSON output modes. Native reasoning blocks and complete leading HF `<think>` envelopes are separated from the answer. Null/empty tool-call fields are allowed; actual tool requests, refusals and truncated outputs never become music actions. Existing key storage and explicit review of library actions remain in place.
 
 Connections can be edited while keeping an existing encrypted key. Model lists come from each provider's models endpoint (first page for paginated providers, up to 200 displayed entries); manual entry remains available. Lists may contain non-text models, so the UI asks the user to select a text model and test it. A connection test uses the same transport and catalog validation with one fictitious track, without reading the music library. It is an explicit billable API request. Model IDs already saved by the user are never silently replaced.
 
-Authentication, permission, missing model, invalid request, quota, server, timeout, truncated and invalid-format errors have separate guidance. HTTP Retry-After seconds and dates are supported. The router preserves the last failure during cooldown; editing or successfully testing a connection clears its cooldown. Requests remain cancellable, with a 65-second per-call timeout and a 180-second overall fallback budget.
+Authentication, permission, missing model, invalid request, quota, server, timeout, truncated and invalid-format errors have separate guidance. HTTP Retry-After seconds and dates are supported. Disabling fallback also prevents switching to another account while the primary account is in cooldown. The router preserves the last failure during cooldown; editing or successfully testing a connection clears its cooldown. Requests remain cancellable, with a 65-second per-call timeout and a 180-second overall fallback budget.
 
 ## Validation and limits
 

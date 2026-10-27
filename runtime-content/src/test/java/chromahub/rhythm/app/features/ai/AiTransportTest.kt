@@ -60,6 +60,7 @@ class AiTransportTest {
             assertFalse(json.getBoolean("stream")); assertEquals(8192, json.getInt("max_output_tokens"))
             assertFalse(json.has("max_tokens")); assertFalse(json.has("messages"))
             assertEquals("catalog", json.getJSONArray("input").getJSONObject(1).getString("content"))
+            if (provider == AiProvider.OPENAI) assertEquals("json_object", json.getJSONObject("text").getJSONObject("format").getString("type"))
         }
     }
     @Test fun messagesAndChatProvidersUseTheirOwnTokenAndSystemFields() {
@@ -72,6 +73,7 @@ class AiTransportTest {
                 assertEquals(AiProtocol.SYSTEM, json.getString("system"))
                 assertEquals(1, json.getJSONArray("messages").length())
             } else assertEquals("system", json.getJSONArray("messages").getJSONObject(0).getString("role"))
+            if (provider in listOf(AiProvider.GROQ, AiProvider.CEREBRAS)) assertEquals("json_object", json.getJSONObject("response_format").getString("type"))
         }
     }
     @Test fun normalNullAndEmptyToolFieldsAreAcceptedButActualCallsAreRejected() {
@@ -112,6 +114,7 @@ class AiTransportTest {
     @Test fun modelsFilterUnsupportedGeminiMethodsAndPreserveHuggingFaceRoutingSuffixes() {
         assertEquals(listOf("gemini-test"), transport.decodeModels(AiProvider.GOOGLE, """{"models":[{"name":"models/embed","supportedGenerationMethods":["embedContent"]},{"name":"models/gemini-test","supportedGenerationMethods":["generateContent"]}]}"""))
         assertEquals(listOf("org/model:provider"), transport.decodeModels(AiProvider.HUGGING_FACE, """{"data":[{"id":"org/model:provider"},{"id":"org/model:provider"},{"id":""}]}"""))
+        assertTrue(transport.decodeModels(AiProvider.OPENAI, """{"data":[{"id":null},{}]}""").isEmpty())
     }
     @Test fun retryAfterSupportsSecondsAndHttpDatesWithoutOverflow() {
         assertEquals(30_000L, AiTransport.retryAfterMillis("30", 0))

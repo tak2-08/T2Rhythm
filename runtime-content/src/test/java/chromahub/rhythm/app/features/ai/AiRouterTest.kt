@@ -71,4 +71,16 @@ class AiRouterTest {
         assertEquals(1, request(router, connections) { attempted = true; valid }.attempts)
         assertTrue(attempted)
     }
+    @Test fun disablingFallbackNeverUsesAnotherAccountDuringPrimaryCooldown() = runBlocking {
+        val router = AiRouter()
+        val connections = listOf(connection("primary"), connection("other-account"))
+        runCatching { request(router, connections, fallback = false) { throw AiFailure(429, 60_000) } }
+        val attempts = mutableListOf<String>()
+        val failure = runCatching {
+            request(router, connections, fallback = false) { attempts += it.id; valid }
+        }.exceptionOrNull() as AiFailure
+        assertTrue(attempts.isEmpty())
+        assertEquals(429, failure.status)
+        assertEquals(60_000L, failure.retryAfterMs)
+    }
 }

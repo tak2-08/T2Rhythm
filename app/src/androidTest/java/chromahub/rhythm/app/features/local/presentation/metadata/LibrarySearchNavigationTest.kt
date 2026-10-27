@@ -163,11 +163,11 @@ class LibrarySearchNavigationTest {
         capture("library-search-initials.png")
         enter("서른ㅈㅇㅇ")
         awaitNode("서른 즈음에")
-        compose.runOnUiThread {
-            androidx.core.view.WindowCompat.getInsetsController(compose.activity.window, compose.activity.window.decorView)
-                .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
-        }
+        dismissSearchKeyboard()
         compose.onNodeWithTag("search-toggle-filters").performClick()
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("search-filter-songs").fetchSemanticsNodes().isNotEmpty()
+        }
         listOf("songs", "albums", "artists", "playlists").forEach { type ->
             compose.onNodeWithTag("search-filter-$type").performScrollTo().performClick()
         }
@@ -198,10 +198,7 @@ class LibrarySearchNavigationTest {
         assertNull(locate("이등병의 편지"))
         assertNull(locate("기억의 습작"))
         capture("library-search-genre-tags.png")
-        compose.runOnUiThread {
-            androidx.core.view.WindowCompat.getInsetsController(compose.activity.window, compose.activity.window.decorView)
-                .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
-        }
+        dismissSearchKeyboard()
         compose.onNodeWithTag("genre-result:FOLK").performClick()
         awaitSelectedGenre("FOLK")
         awaitNode(label(R.string.genre_browse_children))
@@ -252,6 +249,18 @@ class LibrarySearchNavigationTest {
             MusicViewModel::class.java.getDeclaredField(field).apply { isAccessible = true }.get(vm)
                 as kotlinx.coroutines.flow.MutableStateFlow<T>
         flow.value = value
+    }
+
+    private fun dismissSearchKeyboard() {
+        // Use the screen's Search action to clear focus, so the IME cannot reconnect while
+        // its asynchronous dismissal moves the bottom controls under the next test click.
+        compose.onAllNodes(hasSetTextAction()).onFirst().performImeAction()
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
+        compose.waitUntil(10_000) {
+            androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) != true
+        }
+        compose.waitForIdle()
     }
 
     private fun enter(text: String) {
