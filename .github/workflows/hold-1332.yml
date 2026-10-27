@@ -1,0 +1,24 @@
+name: Hold 1332 for final visual correction
+on:
+  push:
+    branches: [codex/hold-1332]
+permissions:
+  actions: write
+  contents: write
+jobs:
+  hold:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stop publication while fixing a visually verified keyboard defect
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X POST repos/tak2-08/T2Rhythm/actions/runs/40502755681/cancel || true
+          for attempt in $(seq 1 12); do
+            status=$(gh api repos/tak2-08/T2Rhythm/actions/runs/40502755681 --jq .status)
+            if [[ "$status" == completed ]]; then break; fi
+            sleep 3
+          done
+          if gh release view v5.5.499.1332 --repo tak2-08/T2Rhythm >/dev/null 2>&1; then
+            gh release edit v5.5.499.1332 --repo tak2-08/T2Rhythm --draft=true
+          fi
