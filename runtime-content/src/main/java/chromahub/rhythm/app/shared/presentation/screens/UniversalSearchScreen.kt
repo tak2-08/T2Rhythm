@@ -60,6 +60,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -279,17 +281,19 @@ fun UniversalSearchScreen(
     val statusBarsTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navigationBarsBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val density = LocalDensity.current
-    val keyboardOverlap = rememberKeyboardOverlap()
+    var viewportBottom by remember { mutableFloatStateOf(0f) }
+    val keyboard = rememberKeyboardOverlap(viewportBottom)
     var controlsHeight by remember { mutableStateOf(156.dp) }
     // Constrain the list and controls together above the IME, so lazy lists can scroll
     // items into the actual visible viewport rather than behind the keyboard.
-    val totalBottomPadding = controlsHeight + navigationBarsBottom + 16.dp
+    val totalBottomPadding = controlsHeight + (if (keyboard.visible) 0.dp else navigationBarsBottom) + 16.dp
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(bottom = keyboardOverlap)
+            .onGloballyPositioned { viewportBottom = it.boundsInWindow().bottom }
+            .padding(bottom = keyboard.bottomPadding)
     ) {
         if (genreTab) {
             GenreBrowseContent(
@@ -1096,7 +1100,7 @@ fun UniversalSearchScreen(
                         )
                     )
                 )
-                .navigationBarsPadding()
+                .then(if (keyboard.visible) Modifier else Modifier.navigationBarsPadding())
         ) {
         Column(
             modifier = Modifier

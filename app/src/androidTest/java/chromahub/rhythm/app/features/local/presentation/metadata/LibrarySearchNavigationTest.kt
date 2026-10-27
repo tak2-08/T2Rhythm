@@ -185,8 +185,11 @@ class LibrarySearchNavigationTest {
         compose.onNodeWithTag("search-clear-query").assertWidthIsAtLeast(48.dp)
             .assertHeightIsAtLeast(48.dp).performClick()
         awaitNode(label(R.string.local_search_hint))
+        compose.onAllNodes(hasSetTextAction()).onFirst().performClick()
         enter("김광석 편지")
         awaitNode("이등병의 편지")
+        awaitInputAboveKeyboard()
+        compose.onNodeWithText("이등병의 편지").assertIsDisplayed()
         assertNull(locate("서른 즈음에"))
         capture("library-search-tokens.png")
         click(label(R.string.genre_search_tab))
@@ -266,7 +269,10 @@ class LibrarySearchNavigationTest {
                 val windowPosition = IntArray(2)
                 decor.getLocationOnScreen(windowPosition)
                 val input = compose.onNodeWithTag("universal-search-input-row").fetchSemanticsNode().boundsInWindow
-                input.bottom + windowPosition[1] <= visible.bottom + 1f
+                val tabs = compose.onNodeWithTag("universal-search-tabs").fetchSemanticsNode().boundsInWindow
+                val gap = visible.bottom - input.bottom - windowPosition[1]
+                val maximumGap = with(compose.density) { 96.dp.toPx() }
+                gap >= -1f && gap <= maximumGap && tabs.top + windowPosition[1] >= visible.top
             }
         }.onFailure { capture("library-search-keyboard-failure.png") }.getOrThrow()
         activity.scenario.onActivity {
