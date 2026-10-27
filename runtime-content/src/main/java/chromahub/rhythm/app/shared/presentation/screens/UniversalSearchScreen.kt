@@ -136,9 +136,14 @@ fun UniversalSearchScreen(
     DisposableEffect(context) {
         val activity = context.findActivity()
         val originalMode = activity?.window?.attributes?.softInputMode
+        // R+ edge-to-edge windows can still pan a focused field under adjustResize.
+        // Search owns IME padding, so disable that second movement on those platforms.
+        val adjustMode = if (android.os.Build.VERSION.SDK_INT >= 30)
+            android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+        else android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         activity?.window?.setSoftInputMode(
             (originalMode ?: 0) and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST.inv() or
-                android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+                adjustMode
         )
         onDispose {
             if (originalMode != null) {
@@ -745,6 +750,7 @@ fun UniversalSearchScreen(
                                                         .clickable {
                                                             HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
                                                             showAllSongsPage = true
+                                                            focusManager.clearFocus()
                                                         }
                                                 ) {
                                                     Row(
@@ -958,6 +964,7 @@ fun UniversalSearchScreen(
                                                     .clickable {
                                                         HapticUtils.performHapticFeedback(context, haptics, HapticType.HEAVY)
                                                         showAllSongsPage = true
+                                                        focusManager.clearFocus()
                                                     }
                                             ) {
                                                 Row(

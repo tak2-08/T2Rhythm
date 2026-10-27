@@ -271,10 +271,15 @@ class LibrarySearchNavigationTest {
                 decor.getLocationOnScreen(windowPosition)
                 val input = compose.onNodeWithTag("universal-search-input-row").fetchSemanticsNode().boundsInWindow
                 val tabs = compose.onNodeWithTag("universal-search-tabs").fetchSemanticsNode().boundsInWindow
-                val gap = visible.bottom - input.bottom - windowPosition[1]
+                val imeBottom = androidx.core.view.ViewCompat.getRootWindowInsets(decor)
+                    ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime())?.bottom ?: 0
+                val keyboardTop = if (android.os.Build.VERSION.SDK_INT >= 30 && imeBottom > 0)
+                    minOf(visible.bottom, windowPosition[1] + decor.height - imeBottom)
+                else visible.bottom
+                val gap = keyboardTop - input.bottom - windowPosition[1]
                 val maximumGap = with(compose.density) { 96.dp.toPx() }
                 val viewport = compose.onNodeWithTag("universal-search-viewport").fetchSemanticsNode().boundsInWindow
-                lastGeometry = "frame=$visible input=$input tabs=$tabs viewport=$viewport windowY=${windowPosition[1]} decor=${decor.height} gap=$gap"
+                lastGeometry = "frame=$visible ime=$imeBottom top=$keyboardTop input=$input tabs=$tabs viewport=$viewport windowY=${windowPosition[1]} decor=${decor.height} gap=$gap"
                 gap >= -1f && gap <= maximumGap && tabs.top + windowPosition[1] >= visible.top
             }
         }.onFailure {
@@ -282,7 +287,10 @@ class LibrarySearchNavigationTest {
             capture("library-search-keyboard-failure.png")
         }.getOrThrow()
         activity.scenario.onActivity {
-            assertEquals(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE,
+            val expectedMode = if (android.os.Build.VERSION.SDK_INT >= 30)
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+            else android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            assertEquals(expectedMode,
                 it.window.attributes.softInputMode and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST)
         }
     }

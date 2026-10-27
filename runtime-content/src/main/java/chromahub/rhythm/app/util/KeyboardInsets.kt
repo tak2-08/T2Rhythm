@@ -19,9 +19,8 @@ import kotlin.math.roundToInt
 
 internal data class KeyboardOverlap(val bottomPadding: Dp, val visible: Boolean)
 
-/** The part of this Compose view actually obscured by the IME, including on pre-R windows.
- * A resized view already ends above the keyboard; subtracting the full IME again would
- * shrink it twice. Read the visible frame in screen coordinates to handle both cases.
+/** The part of the destination obscured by the IME. Legacy windows can already be resized;
+ * modern search windows use adjustNothing so platform panning cannot duplicate our padding.
  */
 @Composable
 internal fun rememberKeyboardOverlap(bottomInWindow: Float): KeyboardOverlap {
@@ -32,34 +31,43 @@ internal fun rememberKeyboardOverlap(bottomInWindow: Float): KeyboardOverlap {
         val frame = Rect()
         val screen = IntArray(2)
         val window = IntArray(2)
+        val rootScreen = IntArray(2)
         var lastDiagnostic = 0L
         fun update() {
-            val visible = ViewCompat.getRootWindowInsets(view)
-                ?.isVisible(WindowInsetsCompat.Type.ime()) == true
+            val insets = ViewCompat.getRootWindowInsets(view)
+            val visible = insets?.isVisible(WindowInsetsCompat.Type.ime()) == true
+            val imeBottom = insets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
             view.getWindowVisibleDisplayFrame(frame)
             view.getLocationOnScreen(screen)
             view.getLocationInWindow(window)
+            val root = view.rootView
+            root.getLocationOnScreen(rootScreen)
+            // adjustNothing does not promise a resized visible display frame. On R+ the
+            // explicit IME inset gives the actual keyboard edge without asking Android to pan.
+            val keyboardTop = if (android.os.Build.VERSION.SDK_INT >= 30 && visible && imeBottom > 0)
+                minOf(frame.bottom, rootScreen[1] + root.height - imeBottom)
+            else frame.bottom
             keyboardVisible = visible
             // The Compose view can span the full window while this destination already
             // has resized constraints. Measure the destination, not the entire view.
             overlap = if (visible && frame.height() > 0)
-                (bottomInWindow + screen[1] - window[1] - frame.bottom)
+                (bottomInWindow + screen[1] - window[1] - keyboardTop)
                     .roundToInt().coerceIn(0, view.height)
             else 0
             if (chromahub.rhythm.app.BuildConfig.DEBUG &&
                 android.os.SystemClock.elapsedRealtime() - lastDiagnostic >= 1000) {
                 lastDiagnostic = android.os.SystemClock.elapsedRealtime()
                 android.util.Log.d("SearchKeyboardLayout",
-                    "visible=$visible bottom=$bottomInWindow frame=$frame screen=${screen[1]} window=${window[1]} view=${view.height} overlap=$overlap")
+                    "visible=$visible bottom=$bottomInWindow frame=$frame ime=$imeBottom top=$keyboardTop screen=${screen[1]} window=${window[1]} view=${view.height} overlap=$overlap")
             }
         }
         val observer = view.viewTreeObserver
-        val listener = ViewTreeObserver.OnGlobalLayoutListener { update() }
-        observer.addOnGlobalLayoutListener(listener)
+        val listener = ViewTreeObserver.OnPreDrawListener { update(); true }
+        observer.addOnPreDrawListener(listener)
         update()
         onDispose {
-            if (observer.isAlive) observer.removeOnGlobalLayoutListener(listener)
-            else view.viewTreeObserver.removeOnGlobalLayoutListener(listener)
+            if (observer.isAlive) observer.removeOnPreDrawListener(listener)
+            else view.viewTreeObserver.removeOnPreDrawListener(listener)
         }
     }
     return KeyboardOverlap(with(LocalDensity.current) { overlap.toDp() }, keyboardVisible)
