@@ -1,0 +1,10 @@
+{
+  "source_revision": "3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e",
+  "versionCode": 554991332,
+  "versionName": "5.5.499.1332-gh",
+  "apkSha256": "f8a1e2d0ebcf53a3ca88365d79605774cf8b47c3936d9de7c3247d7d03496d63",
+  "testOnly": false,
+  "certificateSha256": "c55ec7843dd8190f2ce249ddc1562c616647c50c317930076e2e98bf7e304c18",
+  "modulePublicKeySha256": "ee26407974d949d48aa67ace73347c1dfda97dd93e7e8d2b472fe2144bc41270",
+  "privateSigningMaterialExcluded": true
+}

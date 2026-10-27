@@ -1,0 +1,16 @@
+{
+  "source_revision": "3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e",
+  "transport": "Existing public GitHub CI artifact plus public signatures and ZIP/build metadata",
+  "sourceArtifactId": 12732626109,
+  "sourceApkSha256": "e84b6063da87ee27dfd56ffcb73211268b52744391b71f621d5188ccab228f84",
+  "targetApkSha256": "f8a1e2d0ebcf53a3ca88365d79605774cf8b47c3936d9de7c3247d7d03496d63",
+  "reconstructedByteForByte": true,
+  "privateSigningMaterialIncluded": false,
+  "applicationCodeTransferred": false,
+  "onlyFeaturePayloadDifference": [
+    "META-INF/version-control-info.textproto"
+  ],
+  "moduleMetadataEditBytes": 661,
+  "recipeSha256": "e8900fc0531704d8d7324db7dc4996a634356987c3a179bd2212264208b14ead",
+  "publicSigningCertificateSha256": "c55ec7843dd8190f2ce249ddc1562c616647c50c317930076e2e98bf7e304c18"
+}

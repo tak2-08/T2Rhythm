@@ -1,0 +1,226 @@
+name: Publish verified prebuilt 1332 update
+on:
+  push:
+    branches: [codex/publish-1332]
+permissions:
+  contents: read
+  actions: read
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Require passing source checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api 'repos/tak2-08/T2Rhythm/actions/runs?head_sha=3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e&event=pull_request&per_page=100' > /tmp/source-checks.json
+          python3 - <<'PY'
+          import json
+          runs = json.load(open('/tmp/source-checks.json'))['workflow_runs']
+          for name in ['Android CI', 'Personal experience regression', 'Private phone streaming', 'File name Android compatibility']:
+              found = [r for r in runs if r['name'] == name]
+              assert found and max(found, key=lambda r: r['id'])['conclusion'] == 'success', name
+          PY
+      - name: Download the already verified public CI build
+        uses: actions/download-artifact@v8
+        with:
+          name: rhythm-pr-33
+          run-id: 40496539001
+          github-token: ${{ github.token }}
+          path: source-ci
+      - name: Reconstruct the signed APK from CI and public signature metadata
+        run: |
+          mkdir release-assets
+          python3 release-prebuilt/1332/rebuild_apk.py source-ci/app/build/outputs/apk/github/release/Rhythm-5.5.499.1332-githubRelease.apk release-prebuilt/1332/rebuild.json release-assets/T2Rhythm-5.5.499.1332.apk
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import hashlib, json, shutil, zipfile
+          root = Path('release-prebuilt/1332').resolve()
+          manifest = json.loads((root / 'manifest.json').read_text())
+          assert manifest['source_revision'] == '3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e'
+          out = Path('release-assets')
+          apk = out / 'T2Rhythm-5.5.499.1332.apk'
+          for asset in manifest['assets']:
+              name = asset['name']
+              assert name == Path(name).name and not name.endswith(('.jks', '.keystore', '.pk8', '.p12', '.t2vault', '.properties'))
+              target = out / name
+              if asset['derivation'] == 'embedded-module':
+                  assert name.endswith('.t2module')
+                  with zipfile.ZipFile(apk) as base:
+                      target.write_bytes(base.read('assets/runtime/default.t2module'))
+              elif asset['derivation'] == 'recipe':
+                  assert target == apk
+              else:
+                  assert asset['derivation'] == 'metadata'
+                  shutil.copyfile(root / 'metadata' / name, target)
+              assert target.stat().st_size == asset['size'] and hashlib.sha256(target.read_bytes()).hexdigest() == asset['sha256'], name
+          PYCODE
+          (cd release-assets && sha256sum --strict -c SHA256SUMS)
+      - uses: ./.github/actions/setup-native-packaging
+      - name: Independently verify APK identity and signed embedded feature
+        run: |
+          signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)
+          aapt=$(dirname "$signer")/aapt2
+          "$signer" verify --verbose --print-certs release-assets/T2Rhythm-5.5.499.1332.apk > /tmp/certificate.txt
+          grep -q 'certificate SHA-256 digest: c55ec7843dd8190f2ce249ddc1562c616647c50c317930076e2e98bf7e304c18' /tmp/certificate.txt
+          "$aapt" dump xmltree release-assets/T2Rhythm-5.5.499.1332.apk --file AndroidManifest.xml > /tmp/manifest.txt
+          grep -q 'testOnly(0x01010272)=false' /tmp/manifest.txt
+          "$aapt" dump badging release-assets/T2Rhythm-5.5.499.1332.apk > /tmp/badging.txt
+          grep -q "package: name='chromahub.rhythm.app' versionCode='554991332'" /tmp/badging.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, io, json, zipfile
+          from cryptography.hazmat.primitives import hashes, serialization
+          from cryptography.hazmat.primitives.asymmetric import padding
+          root = Path('release-assets')
+          apk = root / 'T2Rhythm-5.5.499.1332.apk'
+          verification = json.loads((root / 'verification.json').read_text())
+          assert verification['source_revision'] == '3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e'
+          assert verification['apkSha256'] == hashlib.sha256(apk.read_bytes()).hexdigest()
+          public = Path('runtime-contract/module-public.der').read_bytes()
+          assert (root / 'module-public.der').read_bytes() == public
+          key = serialization.load_der_public_key(public)
+          with zipfile.ZipFile(apk) as base:
+              assert not any(name.lower().endswith(('.pk8', '.jks', '.keystore', '.p12')) or 'community-signing' in name.lower() for name in base.namelist())
+              assert base.read('assets/runtime/module-public.der') == public
+              embedded = base.read('assets/runtime/default.t2module')
+              with zipfile.ZipFile(io.BytesIO(embedded)) as bundle:
+                  raw = bundle.read('manifest.json')
+                  key.verify(bundle.read('manifest.sig'), raw, padding.PKCS1v15(), hashes.SHA256())
+                  manifest = json.loads(raw)
+                  assert manifest['versionCode'] == 554991332
+                  assert manifest['signingKeyId'] == hashlib.sha256(public).hexdigest()
+                  payload = bundle.read('content.dex.jar'); notes = bundle.read('notes.md')
+                  assert len(payload) == manifest['payloadSize'] and hashlib.sha256(payload).hexdigest() == manifest['payloadSha256']
+                  assert len(notes) == manifest['notesSize'] and hashlib.sha256(notes).hexdigest() == manifest['notesSha256']
+                  assert base.read('assets/runtime/host.properties') == ('runtimeFingerprint=' + manifest['runtimeFingerprint'] + '\n').encode()
+                  name = f"T2Rhythm-feature-554991332-{manifest['runtimeFingerprint']}.t2module"
+                  assert (root / name).read_bytes() == embedded
+          print('Verified original APK signer, production trust, complete signed feature, source revision and exact public assets.')
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: T2Rhythm-1332-production
+          path: release-assets/
+          retention-days: 14
+          if-no-files-found: error
+
+  upgrade:
+    needs: stage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: T2Rhythm-1332-production
+          path: release-assets
+      - name: Verify assets and retrieve the actual previous public APK
+        run: |
+          (cd release-assets && sha256sum --strict -c SHA256SUMS)
+          curl --fail --location --retry 2 https://github.com/tak2-08/T2Rhythm/releases/download/v5.5.499.1331/T2Rhythm-5.5.499.1331.apk -o previous.apk
+          echo '1ddcccd76999812ddf1eb5d94f2348c88d8c17e0130bdb9bc447a7d25dcb402b  previous.apk' | sha256sum --strict -c -
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify the production APK installs over 1331 and retains application data
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          ram-size: 3072M
+          heap-size: 512M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
+          script: |
+            adb root
+            adb wait-for-device
+            adb install previous.apk
+            adb shell monkey -p chromahub.rhythm.app -c android.intent.category.LAUNCHER 1
+            sleep 8
+            adb shell am force-stop chromahub.rhythm.app
+            adb shell 'mkdir -p /data/user/0/chromahub.rhythm.app/files; echo retained > /data/user/0/chromahub.rhythm.app/files/release-upgrade-marker'
+            adb install -r release-assets/T2Rhythm-5.5.499.1332.apk
+            adb shell cat /data/user/0/chromahub.rhythm.app/files/release-upgrade-marker | tr -d '\r' | grep -x retained
+            adb shell dumpsys package chromahub.rhythm.app | grep 'versionCode=554991332'
+            adb logcat -c
+            adb shell monkey -p chromahub.rhythm.app -c android.intent.category.LAUNCHER 1
+            sleep 15
+            adb shell pidof chromahub.rhythm.app
+            adb logcat -d > upgrade-logcat.txt
+            if grep -E 'FATAL EXCEPTION|Fatal signal|Unable to instantiate application|Native startup failed|Unable to commit healthy startup' upgrade-logcat.txt; then exit 1; fi
+            adb pull /data/user/0/chromahub.rhythm.app/no_backup/native-runtime/activation/activation.bin upgrade-activation.bin
+            adb shell uiautomator dump /sdcard/upgrade-ui.xml
+            adb pull /sdcard/upgrade-ui.xml upgrade-ui.xml
+            adb shell screencap -p /sdcard/upgrade-startup.png
+            adb pull /sdcard/upgrade-startup.png upgrade-startup.png
+      - name: Verify the upgraded app activated the exact 1332 module
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          import hashlib, io, json, struct, xml.etree.ElementTree as ET
+          raw = Path('upgrade-activation.bin').read_bytes()
+          payload, checksum = raw[:-32], raw[-32:]
+          assert hashlib.sha256(payload).digest() == checksum
+          stream = io.BytesIO(payload)
+          assert struct.unpack('>II', stream.read(8)) == (0x54325253, 1)
+          def text():
+              length = struct.unpack('>H', stream.read(2))[0]
+              return stream.read(length).decode('ascii')
+          def flag():
+              value = stream.read(1); assert value in (b'\0', b'\1')
+              return value == b'\1'
+          active = text()
+          if flag(): text()
+          assert not flag(), 'Unexpected staged candidate'
+          assert not flag(), 'Unexpected approved candidate'
+          assert not flag(), 'Unfinished module startup trial'
+          highest = struct.unpack('>q', stream.read(8))[0]
+          assert highest == 554991332
+          assert not flag(), 'Module failed after the APK upgrade'
+          assert stream.read() == b''
+          module = next(Path('release-assets').glob('*.t2module'))
+          assert active == hashlib.sha256(module.read_bytes()).hexdigest()
+          ui = ET.parse('upgrade-ui.xml').getroot()
+          assert any(node.attrib.get('package') == 'chromahub.rhythm.app' for node in ui.iter('node'))
+          Path('upgrade-verification.json').write_text(json.dumps({'versionCode': highest, 'activeModuleSha256': active, 'retainedData': True, 'startupUiRendered': True}, indent=2) + '\n')
+          print('Actual 1331-to-1332 install retained app data and activated the exact new module with a rendered UI.')
+          PYCODE
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: T2Rhythm-1332-upgrade-evidence
+          path: upgrade-*
+
+  publish:
+    needs: [stage, upgrade]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: T2Rhythm-1332-production
+          path: release-assets
+      - name: Publish verified APK and signed feature updates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd release-assets && sha256sum --strict -c SHA256SUMS)
+          if gh release view v5.5.499.1332 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo '::error::Release exists; refusing to replace public assets.'
+            exit 1
+          fi
+          gh release create v5.5.499.1332 release-assets/* --repo "$GITHUB_REPOSITORY" --target 3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e --title 'T2Rhythm 5.5.499.1332' --notes-file app/src/main/res/raw-ko/current_release_notes.txt --draft
+          gh release edit v5.5.499.1332 --repo "$GITHUB_REPOSITORY" --draft=false --latest
