@@ -1,0 +1,61 @@
+name: Focused 1332 modern keyboard visual gate
+on:
+  push:
+    branches: [codex/keyboard-1332-modern]
+permissions:
+  contents: read
+jobs:
+  keyboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        api: ['35', '37.0']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: 7f7f94ba59345c9c2a8714f81a56e00653a8eb2a
+      - uses: actions/setup-java@v6
+        with:
+          java-version: '17'
+          distribution: zulu
+          cache: gradle
+      - uses: ./.github/actions/setup-native-packaging
+      - name: Select the exact source keyboard regression
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('scripts/run_personal_experience_regression.sh')
+          s = p.read_text()
+          s = re.sub(r'classes=\(.*?\n\)', 'classes=(chromahub.rhythm.app.features.local.presentation.metadata.LibrarySearchNavigationTest)', s, count=1, flags=re.S)
+          s = re.sub(r'expected_counts=\([^\n]*\)', 'expected_counts=(1)', s, count=1)
+          p.write_text(s)
+          PY
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Build the exact source APKs
+        run: ./gradlew :app:assembleGithubDebug :app:assembleGithubDebugAndroidTest --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --console=plain
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: google_apis
+          profile: pixel_2
+          ram-size: 4096M
+          heap-size: 512M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -no-snapshot-save
+          script: bash scripts/run_personal_experience_regression.sh
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: keyboard-1332-7f7f-api${{ matrix.api }}
+          path: |
+            app/build/outputs/experience-regression/
+            app/build/outputs/experience-screenshots/
+          retention-days: 7
