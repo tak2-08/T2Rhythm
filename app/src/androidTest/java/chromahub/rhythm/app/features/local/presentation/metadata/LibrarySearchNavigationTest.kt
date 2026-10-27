@@ -190,16 +190,18 @@ class LibrarySearchNavigationTest {
         assertNull(locate("서른 즈음에"))
         capture("library-search-tokens.png")
         click(label(R.string.genre_search_tab))
+        compose.onAllNodes(hasSetTextAction()).onFirst().performClick()
         enter("folk")
+        awaitInputAboveKeyboard()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("genre-result:FOLK").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("genre-result:FOLK").assertIsDisplayed()
-        compose.onNodeWithTag("genre-result:FOLK ROCK").assertIsDisplayed()
+        compose.onNodeWithTag("genre-result:FOLK").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("genre-result:FOLK ROCK").performScrollTo().assertIsDisplayed()
         assertNull(locate("서른 즈음에"))
         assertNull(locate("이등병의 편지"))
         assertNull(locate("기억의 습작"))
         capture("library-search-genre-tags.png")
         dismissSearchKeyboard()
-        compose.onNodeWithTag("genre-result:FOLK").performClick()
+        compose.onNodeWithTag("genre-result:FOLK").performScrollTo().performClick()
         awaitSelectedGenre("FOLK")
         awaitNode(label(R.string.genre_browse_children))
         compose.onNodeWithTag("genre-result:FOLK ROCK").assertIsDisplayed().performClick()
@@ -249,6 +251,26 @@ class LibrarySearchNavigationTest {
             MusicViewModel::class.java.getDeclaredField(field).apply { isAccessible = true }.get(vm)
                 as kotlinx.coroutines.flow.MutableStateFlow<T>
         flow.value = value
+    }
+
+    private fun awaitInputAboveKeyboard() {
+        compose.waitUntil(10_000) {
+            androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
+        }
+        runCatching {
+            compose.waitUntil(10_000) {
+                val decor = compose.activity.window.decorView
+                val keyboard = androidx.core.view.ViewCompat.getRootWindowInsets(decor)
+                    ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime())?.bottom ?: return@waitUntil false
+                val input = compose.onNodeWithTag("universal-search-input-row").fetchSemanticsNode().boundsInWindow
+                input.bottom <= decor.height - keyboard + 1f
+            }
+        }.onFailure { capture("library-search-keyboard-failure.png") }.getOrThrow()
+        activity.scenario.onActivity {
+            assertEquals(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE,
+                it.window.attributes.softInputMode and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST)
+        }
     }
 
     private fun dismissSearchKeyboard() {

@@ -107,6 +107,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
 import androidx.core.net.toUri
+import chromahub.rhythm.app.util.findActivity
 import chromahub.rhythm.app.util.windowScreenWidthDp
 import chromahub.rhythm.app.util.windowScreenHeightDp
 
@@ -130,9 +131,12 @@ fun UniversalSearchScreen(
     val showKeyboardOnSearchOpen by appSettings.showKeyboardOnSearchOpen.collectAsState()
 
     DisposableEffect(context) {
-        val activity = context as? android.app.Activity
+        val activity = context.findActivity()
         val originalMode = activity?.window?.attributes?.softInputMode
-        activity?.window?.setSoftInputMode(16 /* WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE */)
+        activity?.window?.setSoftInputMode(
+            (originalMode ?: 0) and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST.inv() or
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        )
         onDispose {
             if (originalMode != null) {
                 activity.window?.setSoftInputMode(originalMode)
@@ -275,13 +279,15 @@ fun UniversalSearchScreen(
     val navigationBarsBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val density = LocalDensity.current
     var controlsHeight by remember { mutableStateOf(156.dp) }
-    val keyboardBottom = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
-    val totalBottomPadding = controlsHeight + maxOf(navigationBarsBottom, keyboardBottom) + 16.dp
+    // Constrain the list and controls together above the IME, so lazy lists can scroll
+    // items into the actual visible viewport rather than behind the keyboard.
+    val totalBottomPadding = controlsHeight + navigationBarsBottom + 16.dp
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .imePadding()
     ) {
         if (genreTab) {
             GenreBrowseContent(
@@ -1089,7 +1095,6 @@ fun UniversalSearchScreen(
                     )
                 )
                 .navigationBarsPadding()
-                .imePadding()
         ) {
         Column(
             modifier = Modifier
