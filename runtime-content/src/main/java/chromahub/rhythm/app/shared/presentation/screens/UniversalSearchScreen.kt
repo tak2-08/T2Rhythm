@@ -108,6 +108,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
 import androidx.core.net.toUri
 import chromahub.rhythm.app.util.findActivity
+import chromahub.rhythm.app.util.rememberKeyboardOverlap
 import chromahub.rhythm.app.util.windowScreenWidthDp
 import chromahub.rhythm.app.util.windowScreenHeightDp
 
@@ -278,6 +279,7 @@ fun UniversalSearchScreen(
     val statusBarsTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navigationBarsBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val density = LocalDensity.current
+    val keyboardOverlap = rememberKeyboardOverlap()
     var controlsHeight by remember { mutableStateOf(156.dp) }
     // Constrain the list and controls together above the IME, so lazy lists can scroll
     // items into the actual visible viewport rather than behind the keyboard.
@@ -287,7 +289,7 @@ fun UniversalSearchScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .imePadding()
+            .padding(bottom = keyboardOverlap)
     ) {
         if (genreTab) {
             GenreBrowseContent(

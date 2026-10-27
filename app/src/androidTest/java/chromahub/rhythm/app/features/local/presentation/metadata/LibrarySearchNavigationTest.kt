@@ -261,10 +261,12 @@ class LibrarySearchNavigationTest {
         runCatching {
             compose.waitUntil(10_000) {
                 val decor = compose.activity.window.decorView
-                val keyboard = androidx.core.view.ViewCompat.getRootWindowInsets(decor)
-                    ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime())?.bottom ?: return@waitUntil false
+                val visible = android.graphics.Rect()
+                decor.getWindowVisibleDisplayFrame(visible)
+                val windowPosition = IntArray(2)
+                decor.getLocationOnScreen(windowPosition)
                 val input = compose.onNodeWithTag("universal-search-input-row").fetchSemanticsNode().boundsInWindow
-                input.bottom <= decor.height - keyboard + 1f
+                input.bottom + windowPosition[1] <= visible.bottom + 1f
             }
         }.onFailure { capture("library-search-keyboard-failure.png") }.getOrThrow()
         activity.scenario.onActivity {
