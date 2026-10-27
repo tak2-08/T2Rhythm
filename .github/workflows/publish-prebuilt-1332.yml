@@ -19,7 +19,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api 'repos/tak2-08/T2Rhythm/actions/runs?head_sha=3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e&event=pull_request&per_page=100' > /tmp/source-checks.json
+          gh api 'repos/tak2-08/T2Rhythm/actions/runs?head_sha=4032e1807fc863d4daff710a11af4d78b568bcc1&event=pull_request&per_page=100' > /tmp/source-checks.json
           python3 - <<'PY'
           import json
           runs = json.load(open('/tmp/source-checks.json'))['workflow_runs']
@@ -31,7 +31,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: rhythm-pr-33
-          run-id: 40496539001
+          run-id: 40509478273
           github-token: ${{ github.token }}
           path: source-ci
       - name: Reconstruct the signed APK from CI and public signature metadata
@@ -43,7 +43,7 @@ jobs:
           import hashlib, json, shutil, zipfile
           root = Path('release-prebuilt/1332').resolve()
           manifest = json.loads((root / 'manifest.json').read_text())
-          assert manifest['source_revision'] == '3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e'
+          assert manifest['source_revision'] == '4032e1807fc863d4daff710a11af4d78b568bcc1'
           out = Path('release-assets')
           apk = out / 'T2Rhythm-5.5.499.1332.apk'
           for asset in manifest['assets']:
@@ -81,7 +81,7 @@ jobs:
           root = Path('release-assets')
           apk = root / 'T2Rhythm-5.5.499.1332.apk'
           verification = json.loads((root / 'verification.json').read_text())
-          assert verification['source_revision'] == '3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e'
+          assert verification['source_revision'] == '4032e1807fc863d4daff710a11af4d78b568bcc1'
           assert verification['apkSha256'] == hashlib.sha256(apk.read_bytes()).hexdigest()
           public = Path('runtime-contract/module-public.der').read_bytes()
           assert (root / 'module-public.der').read_bytes() == public
@@ -116,6 +116,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@v8
         with:
           name: T2Rhythm-1332-production
@@ -136,6 +139,7 @@ jobs:
           api-level: 29
           arch: x86_64
           target: google_apis
+          profile: pixel_2
           disable-animations: true
           ram-size: 3072M
           heap-size: 512M
@@ -157,43 +161,7 @@ jobs:
             adb shell pidof chromahub.rhythm.app
             adb logcat -d > upgrade-logcat.txt
             if grep -E 'FATAL EXCEPTION|Fatal signal|Unable to instantiate application|Native startup failed|Unable to commit healthy startup' upgrade-logcat.txt; then exit 1; fi
-            adb pull /data/user/0/chromahub.rhythm.app/no_backup/native-runtime/activation/activation.bin upgrade-activation.bin
-            adb shell uiautomator dump /sdcard/upgrade-ui.xml
-            adb pull /sdcard/upgrade-ui.xml upgrade-ui.xml
-            adb shell screencap -p /sdcard/upgrade-startup.png
-            adb pull /sdcard/upgrade-startup.png upgrade-startup.png
-      - name: Verify the upgraded app activated the exact 1332 module
-        run: |
-          python3 - <<'PYCODE'
-          from pathlib import Path
-          import hashlib, io, json, struct, xml.etree.ElementTree as ET
-          raw = Path('upgrade-activation.bin').read_bytes()
-          payload, checksum = raw[:-32], raw[-32:]
-          assert hashlib.sha256(payload).digest() == checksum
-          stream = io.BytesIO(payload)
-          assert struct.unpack('>II', stream.read(8)) == (0x54325253, 1)
-          def text():
-              length = struct.unpack('>H', stream.read(2))[0]
-              return stream.read(length).decode('ascii')
-          def flag():
-              value = stream.read(1); assert value in (b'\0', b'\1')
-              return value == b'\1'
-          active = text()
-          if flag(): text()
-          assert not flag(), 'Unexpected staged candidate'
-          assert not flag(), 'Unexpected approved candidate'
-          assert not flag(), 'Unfinished module startup trial'
-          highest = struct.unpack('>q', stream.read(8))[0]
-          assert highest == 554991332
-          assert not flag(), 'Module failed after the APK upgrade'
-          assert stream.read() == b''
-          module = next(Path('release-assets').glob('*.t2module'))
-          assert active == hashlib.sha256(module.read_bytes()).hexdigest()
-          ui = ET.parse('upgrade-ui.xml').getroot()
-          assert any(node.attrib.get('package') == 'chromahub.rhythm.app' for node in ui.iter('node'))
-          Path('upgrade-verification.json').write_text(json.dumps({'versionCode': highest, 'activeModuleSha256': active, 'retainedData': True, 'startupUiRendered': True}, indent=2) + '\n')
-          print('Actual 1331-to-1332 install retained app data and activated the exact new module with a rendered UI.')
-          PYCODE
+            python3 release-prebuilt/1332/verify_upgrade.py --assets release-assets
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -205,7 +173,31 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
+    timeout-minutes: 40
     steps:
+      - name: Require successful Android 15 and 17 keyboard regression
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PYKEYBOARD'
+          import json, os, time, urllib.request
+          url = 'https://api.github.com/repos/tak2-08/T2Rhythm/actions/runs/40509915055/jobs'
+          for attempt in range(60):
+              request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  jobs = json.load(response)['jobs']
+              selected = [job for job in jobs if job['name'] in ['keyboard (35)', 'keyboard (37.0)']]
+              assert len(selected) == 2, 'Missing modern keyboard test jobs'
+              if all(job['status'] == 'completed' for job in selected):
+                  assert all(job['conclusion'] == 'success' for job in selected), [(job['name'], job['conclusion']) for job in selected]
+                  print('Android 15 and 17 keyboard regressions passed for the exact 4032 source.')
+                  break
+              print('Waiting for modern keyboard regression completion', flush=True)
+              time.sleep(30)
+          else:
+              raise SystemExit('Modern keyboard regression is still incomplete; refusing publication.')
+          PYKEYBOARD
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -222,5 +214,5 @@ jobs:
             echo '::error::Release exists; refusing to replace public assets.'
             exit 1
           fi
-          gh release create v5.5.499.1332 release-assets/* --repo "$GITHUB_REPOSITORY" --target 3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e --title 'T2Rhythm 5.5.499.1332' --notes-file app/src/main/res/raw-ko/current_release_notes.txt --draft
+          gh release create v5.5.499.1332 release-assets/* --repo "$GITHUB_REPOSITORY" --target 4032e1807fc863d4daff710a11af4d78b568bcc1 --title 'T2Rhythm 5.5.499.1332' --notes-file app/src/main/res/raw-ko/current_release_notes.txt --draft
           gh release edit v5.5.499.1332 --repo "$GITHUB_REPOSITORY" --draft=false --latest

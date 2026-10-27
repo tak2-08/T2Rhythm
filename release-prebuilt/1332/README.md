@@ -1,6 +1,6 @@
 # Verified public release reconstruction: 1332
 
-Source revision: `3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e`.
+Source revision: `4032e1807fc863d4daff710a11af4d78b568bcc1`.
 
 GitHub's already public CI artifact supplies all executable code and resource payloads.
 The small `rebuild.json` recipe contains public ZIP fields, public APK/module signatures,
@@ -13,6 +13,6 @@ signed feature manifest and public signature are included explicitly for verific
 
 The workflow requires four successful source checks, verifies the original APK
 certificate and the complete signed embedded module, then installs over the actual
-1331 APK and checks retained data, exact 1332 module activation and rendered startup UI.
+1331 APK and checks retained data, exact mapped 1332 module code and rendered startup UI.
 The release tag points to the tested source commit. `metadata/` contains only public
 checksums, contracts, certificates and the module public key.

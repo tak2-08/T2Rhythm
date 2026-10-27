@@ -185,8 +185,11 @@ class LibrarySearchNavigationTest {
         compose.onNodeWithTag("search-clear-query").assertWidthIsAtLeast(48.dp)
             .assertHeightIsAtLeast(48.dp).performClick()
         awaitNode(label(R.string.local_search_hint))
+        compose.onAllNodes(hasSetTextAction()).onFirst().performClick()
         enter("김광석 편지")
         awaitNode("이등병의 편지")
+        awaitInputAboveKeyboard()
+        compose.onNodeWithText("이등병의 편지").assertIsDisplayed()
         assertNull(locate("서른 즈음에"))
         capture("library-search-tokens.png")
         click(label(R.string.genre_search_tab))
@@ -258,6 +261,7 @@ class LibrarySearchNavigationTest {
             androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
                 ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
         }
+        var lastGeometry = ""
         runCatching {
             compose.waitUntil(10_000) {
                 val decor = compose.activity.window.decorView
@@ -266,9 +270,17 @@ class LibrarySearchNavigationTest {
                 val windowPosition = IntArray(2)
                 decor.getLocationOnScreen(windowPosition)
                 val input = compose.onNodeWithTag("universal-search-input-row").fetchSemanticsNode().boundsInWindow
-                input.bottom + windowPosition[1] <= visible.bottom + 1f
+                val tabs = compose.onNodeWithTag("universal-search-tabs").fetchSemanticsNode().boundsInWindow
+                val gap = visible.bottom - input.bottom - windowPosition[1]
+                val maximumGap = with(compose.density) { 96.dp.toPx() }
+                val viewport = compose.onNodeWithTag("universal-search-viewport").fetchSemanticsNode().boundsInWindow
+                lastGeometry = "frame=$visible input=$input tabs=$tabs viewport=$viewport windowY=${windowPosition[1]} decor=${decor.height} gap=$gap"
+                gap >= -1f && gap <= maximumGap && tabs.top + windowPosition[1] >= visible.top
             }
-        }.onFailure { capture("library-search-keyboard-failure.png") }.getOrThrow()
+        }.onFailure {
+            android.util.Log.e("SearchKeyboardLayout", lastGeometry)
+            capture("library-search-keyboard-failure.png")
+        }.getOrThrow()
         activity.scenario.onActivity {
             assertEquals(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE,
                 it.window.attributes.softInputMode and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST)

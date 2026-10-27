@@ -1,22 +1,22 @@
 {
-  "source_revision": "3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e",
+  "source_revision": "4032e1807fc863d4daff710a11af4d78b568bcc1",
   "assets": [
     {
       "name": "SHA256SUMS",
       "size": 1123,
-      "sha256": "99574901f79e029a58cf8da6ab0c3690ac833381339deec5026b6c7a0c57826d",
+      "sha256": "872ac3ce6d6e73b66e4de645165c610bc0b190e3c650d701e57c6ca9b02d1bd4",
       "derivation": "metadata"
     },
     {
       "name": "T2Rhythm-5.5.499.1332.apk",
-      "size": 102345411,
-      "sha256": "f8a1e2d0ebcf53a3ca88365d79605774cf8b47c3936d9de7c3247d7d03496d63",
+      "size": 102347663,
+      "sha256": "7960ba681d5f96afab3b17a7d6816fa9b3cb0a7c7a577bd9b43357b4075b9e2c",
       "derivation": "recipe"
     },
     {
       "name": "T2Rhythm-5.5.499.1332.apk.sha256",
       "size": 92,
-      "sha256": "990b9156138506ae470e6a59b87cf8fee8ffb28cde41e518f8d5c40a741c1382",
+      "sha256": "08d9d11571ba6529acddb4284c27a5a0105d277a8d76a755bf7a6dfe5a2b9f48",
       "derivation": "metadata"
     },
     {
@@ -27,14 +27,14 @@
     },
     {
       "name": "T2Rhythm-feature-554991332-c80b2049d5b7cd85e1ce86b3ceb5d6baaad870f2cb040367d6a967aaa89901af.t2module",
-      "size": 26364502,
-      "sha256": "56173346f3a90859586c0aa4c8d347ddbfa6c9d521c43644659ee4ceba87e9bd",
+      "size": 26367705,
+      "sha256": "640ee684f54a0f978f6268c7d64a6d194a8bfc2c6ede0f8828e927459b87d116",
       "derivation": "embedded-module"
     },
     {
       "name": "T2Rhythm-feature-554991332-c80b2049d5b7cd85e1ce86b3ceb5d6baaad870f2cb040367d6a967aaa89901af.t2module.sha256",
       "size": 167,
-      "sha256": "74a02dba99cfd4bb5cb94d590393a948d7e1d971784b068b919a9ae8909befb5",
+      "sha256": "ede57642e4c02bb270b3766cc0b361f771af6c79cf73feca9113a5a2e1814370",
       "derivation": "metadata"
     },
     {
@@ -46,7 +46,7 @@
     {
       "name": "classpath.json",
       "size": 115,
-      "sha256": "e5abc12bedbcf385695968066b1608c15a63259cb61f411b7522dbe835079081",
+      "sha256": "782916d2674c457c617f25654339e3a2a0b169562a4175fed7e0e8915be40339",
       "derivation": "metadata"
     },
     {
@@ -64,7 +64,7 @@
     {
       "name": "verification.json",
       "size": 464,
-      "sha256": "8681d3ddd3a44a08cbffaab6bddf90cb749d1192c52b7ad534a8e636e7ec237e",
+      "sha256": "c71b191f78852316661def3763bdb40956ec7977f74f85bb8c8bb08a09a6aa85",
       "derivation": "metadata"
     }
   ]

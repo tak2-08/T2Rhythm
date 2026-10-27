@@ -1,16 +1,16 @@
 {
-  "source_revision": "3122d1b6cc27ebc6eb01a90b4cfe0717ef9dad8e",
+  "source_revision": "4032e1807fc863d4daff710a11af4d78b568bcc1",
   "transport": "Existing public GitHub CI artifact plus public signatures and ZIP/build metadata",
-  "sourceArtifactId": 12732626109,
-  "sourceApkSha256": "e84b6063da87ee27dfd56ffcb73211268b52744391b71f621d5188ccab228f84",
-  "targetApkSha256": "f8a1e2d0ebcf53a3ca88365d79605774cf8b47c3936d9de7c3247d7d03496d63",
+  "sourceArtifactId": 12737408302,
+  "sourceApkSha256": "58766b801658e09b670b5cb21e8de349ae896d2b50d3e0e1a6c346b33303c1bd",
+  "targetApkSha256": "7960ba681d5f96afab3b17a7d6816fa9b3cb0a7c7a577bd9b43357b4075b9e2c",
   "reconstructedByteForByte": true,
   "privateSigningMaterialIncluded": false,
   "applicationCodeTransferred": false,
   "onlyFeaturePayloadDifference": [
     "META-INF/version-control-info.textproto"
   ],
-  "moduleMetadataEditBytes": 661,
-  "recipeSha256": "e8900fc0531704d8d7324db7dc4996a634356987c3a179bd2212264208b14ead",
+  "moduleMetadataEditBytes": 662,
+  "recipeSha256": "a0f512e19cb7edfad0bda6927d3ccdf13124318f9fd74196c53bab02c34e6c7b",
   "publicSigningCertificateSha256": "c55ec7843dd8190f2ce249ddc1562c616647c50c317930076e2e98bf7e304c18"
 }
