@@ -293,8 +293,11 @@ fun UniversalSearchScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .onGloballyPositioned { viewportBottom = it.boundsInWindow().bottom }
-            .padding(bottom = keyboard.bottomPadding)
+            .testTag("universal-search-viewport")
     ) {
+        // Measure an unpadded layout node. Measuring the node whose own padding changes
+        // feeds its reduced bounds back into IME compensation and makes the viewport jump.
+        Box(Modifier.fillMaxSize().padding(bottom = keyboard.bottomPadding)) {
         if (genreTab) {
             GenreBrowseContent(
                 index = genreBrowse, results = genreResults, selectedGenre = selectedGenre,
@@ -1363,6 +1366,8 @@ fun UniversalSearchScreen(
             }
         }
     }
+
+        }
 
         AnimatedVisibility(
             visible = showAllSongsPage,
