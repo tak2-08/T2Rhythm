@@ -17,7 +17,7 @@ jobs:
       - name: Cancel the superseded keyboard run
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api -X POST repos/tak2-08/T2Rhythm/actions/runs/40506123388/cancel || true
+        run: gh api -X POST repos/tak2-08/T2Rhythm/actions/runs/40509915055/cancel || true
       - uses: actions/checkout@v7
         with:
           ref: 4032e1807fc863d4daff710a11af4d78b568bcc1
@@ -36,6 +36,7 @@ jobs:
           s = p.read_text()
           s = re.sub(r'classes=\(.*?\n\)', 'classes=(chromahub.rhythm.app.features.local.presentation.metadata.LibrarySearchNavigationTest)', s, count=1, flags=re.S)
           s = re.sub(r'expected_counts=\([^\n]*\)', 'expected_counts=(1)', s, count=1)
+          s = s.replace('--max-workers=2 -Dorg.gradle.jvmargs=-Xmx3g', '--max-workers=1 -Dorg.gradle.jvmargs=-Xmx1536m')
           p.write_text(s)
           PY
       - name: Enable KVM
@@ -51,11 +52,15 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_2
-          ram-size: 4096M
+          ram-size: ${{ matrix.api == '37.0' && '4096M' || '2048M' }}
           heap-size: 512M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -no-snapshot-save
-          script: bash scripts/run_personal_experience_regression.sh
+          script: |
+            mkdir -p app/build/outputs/experience-screenshots
+            free -m > app/build/outputs/experience-screenshots/host-memory.txt
+            adb logcat -b all -v threadtime > app/build/outputs/experience-screenshots/continuous-logcat.txt &
+            timeout --kill-after=15s 360s bash scripts/run_personal_experience_regression.sh
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -64,3 +69,4 @@ jobs:
             app/build/outputs/experience-regression/
             app/build/outputs/experience-screenshots/
           retention-days: 7
+          overwrite: true
