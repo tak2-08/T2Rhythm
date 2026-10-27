@@ -4,6 +4,7 @@ on:
     branches: [codex/keyboard-1332-modern]
 permissions:
   contents: read
+  actions: write
 jobs:
   keyboard:
     runs-on: ubuntu-latest
@@ -13,9 +14,13 @@ jobs:
       matrix:
         api: ['35', '37.0']
     steps:
+      - name: Cancel the superseded keyboard run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST repos/tak2-08/T2Rhythm/actions/runs/40506123388/cancel || true
       - uses: actions/checkout@v7
         with:
-          ref: 7f7f94ba59345c9c2a8714f81a56e00653a8eb2a
+          ref: 4032e1807fc863d4daff710a11af4d78b568bcc1
       - uses: actions/setup-java@v6
         with:
           java-version: '17'
@@ -54,7 +59,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: keyboard-1332-7f7f-api${{ matrix.api }}
+          name: keyboard-1332-4032-api${{ matrix.api }}
           path: |
             app/build/outputs/experience-regression/
             app/build/outputs/experience-screenshots/

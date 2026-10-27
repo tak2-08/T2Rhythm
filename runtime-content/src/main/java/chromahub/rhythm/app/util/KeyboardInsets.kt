@@ -32,6 +32,7 @@ internal fun rememberKeyboardOverlap(bottomInWindow: Float): KeyboardOverlap {
         val frame = Rect()
         val screen = IntArray(2)
         val window = IntArray(2)
+        var lastDiagnostic = 0L
         fun update() {
             val visible = ViewCompat.getRootWindowInsets(view)
                 ?.isVisible(WindowInsetsCompat.Type.ime()) == true
@@ -45,6 +46,12 @@ internal fun rememberKeyboardOverlap(bottomInWindow: Float): KeyboardOverlap {
                 (bottomInWindow + screen[1] - window[1] - frame.bottom)
                     .roundToInt().coerceIn(0, view.height)
             else 0
+            if (chromahub.rhythm.app.BuildConfig.DEBUG &&
+                android.os.SystemClock.elapsedRealtime() - lastDiagnostic >= 1000) {
+                lastDiagnostic = android.os.SystemClock.elapsedRealtime()
+                android.util.Log.d("SearchKeyboardLayout",
+                    "visible=$visible bottom=$bottomInWindow frame=$frame screen=${screen[1]} window=${window[1]} view=${view.height} overlap=$overlap")
+            }
         }
         val observer = view.viewTreeObserver
         val listener = ViewTreeObserver.OnGlobalLayoutListener { update() }
