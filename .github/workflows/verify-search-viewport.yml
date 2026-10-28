@@ -1,7 +1,7 @@
-name: Verify search viewport relocation across repeated recreation
+name: Verify Android 15 search with guest MSR compatibility
 on:
   push:
-    branches: [codex/search-window-viewport]
+    branches: [codex/search-viewport-google35]
 permissions:
   contents: read
 jobs:
@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: ['29', '37.0']
+        api: ['35']
     steps:
       - uses: actions/checkout@v7
         with:
@@ -39,6 +39,10 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - name: Allow unsupported guest performance registers
+        run: |
+          echo 1 | sudo tee /sys/module/kvm/parameters/ignore_msrs
+          cat /sys/module/kvm/parameters/ignore_msrs
       - name: Build the exact source APKs
         run: ./gradlew :app:assembleGithubDebug :app:assembleGithubDebugAndroidTest --no-daemon --max-workers=1 -Dorg.gradle.jvmargs=-Xmx3g -Pkotlin.compiler.execution.strategy=in-process --console=plain
       - uses: reactivecircus/android-emulator-runner@v2
@@ -65,7 +69,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: keyboard-viewport-fix-api${{ matrix.api }}
+          name: keyboard-viewport-google-api${{ matrix.api }}
           path: |
             app/build/outputs/experience-regression/
             app/build/outputs/experience-screenshots/
