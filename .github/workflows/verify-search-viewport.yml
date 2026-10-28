@@ -1,7 +1,7 @@
-name: Verify search viewport relocation across repeated recreation
+name: Verify Android 15 search with rendering enabled
 on:
   push:
-    branches: [codex/search-window-viewport]
+    branches: [codex/search-viewport-atd35]
 permissions:
   contents: read
 jobs:
@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: ['29', '37.0']
+        api: ['35']
     steps:
       - uses: actions/checkout@v7
         with:
@@ -45,7 +45,7 @@ jobs:
         with:
           api-level: ${{ matrix.api }}
           arch: x86_64
-          target: google_apis
+          target: aosp_atd
           profile: pixel_2
           ram-size: ${{ matrix.api == '37.0' && '4096M' || '2048M' }}
           heap-size: 512M
@@ -56,6 +56,8 @@ jobs:
             free -m > app/build/outputs/experience-screenshots/host-memory.txt
             adb shell ime list -s > app/build/outputs/experience-screenshots/input-methods.txt
             adb shell settings put secure show_ime_with_hard_keyboard 1
+            adb shell setprop debug.hwui.drawing_enabled true
+            adb shell getprop debug.hwui.drawing_enabled > app/build/outputs/experience-screenshots/rendering-enabled.txt
             adb logcat -b all -v threadtime > app/build/outputs/experience-screenshots/continuous-logcat.txt &
             for pass in 1 2 3; do
               timeout --kill-after=15s 360s bash scripts/run_personal_experience_regression.sh
@@ -65,7 +67,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: keyboard-viewport-fix-api${{ matrix.api }}
+          name: keyboard-viewport-rendered-api${{ matrix.api }}
           path: |
             app/build/outputs/experience-regression/
             app/build/outputs/experience-screenshots/
