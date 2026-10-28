@@ -1,0 +1,144 @@
+{
+  "source_revision": "8f22aec3783be68ecdb0cffceba9779934938795",
+  "runs": {
+    "api29": 40624437280,
+    "api35": 40624510918,
+    "api37": 40624510918
+  },
+  "devices": {
+    "api29": {
+      "tests": [
+        {
+          "counts": {
+            "tests": "1",
+            "failures": "1",
+            "errors": "0",
+            "skipped": "0",
+            "time": "0.000",
+            "timestamp": "2026-10-28T03:16:14",
+            "hostname": "localhost"
+          },
+          "failures": [
+            "androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 10000 ms\n\tat androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:901)\n\tat androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:500)\n\tat chromahub.rhythm.app.features.local.presentation.metadata.LibrarySearchNavigationTest.awaitInputAboveKeyboard(LibrarySearchNavigationTest.kt:266)\n\tat chromahub.rhythm.app.features.local.presentation.metadata.LibrarySearchNavigationTest.koreanSearchFiltersAndRestorationUseTheRealAppNavigation(LibrarySearchNavigationTest.kt:191)\n"
+          ]
+        }
+      ],
+      "geometry": [
+        "10-28 03:15:53.255  5004  5004 D SearchKeyboardLayout: visible=false bottom=0.0 frame=Rect(0, 63 - 1080, 1794) ime=0 top=1794 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:15:53.406  5004  5004 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 63 - 1080, 1794) ime=0 top=1794 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:15:54.386  5004  5004 D SearchKeyboardLayout: visible=false bottom=1794.0 frame=Rect(0, 63 - 1080, 1794) ime=0 top=1794 screen=63 window=63 view=1731 overlap=0",
+        "10-28 03:15:55.390  5004  5004 D SearchKeyboardLayout: visible=true bottom=1794.0 frame=Rect(0, 63 - 1080, 1053) ime=867 top=1053 screen=63 window=63 view=990 overlap=741",
+        "10-28 03:15:55.652  5004  5004 D SearchKeyboardLayout: visible=true bottom=1053.0 frame=Rect(0, 63 - 1080, 1053) ime=867 top=1053 screen=63 window=63 view=990 overlap=0",
+        "10-28 03:15:56.712  5004  5004 D SearchKeyboardLayout: visible=true bottom=1053.0 frame=Rect(0, 63 - 1080, 1053) ime=867 top=1053 screen=63 window=63 view=990 overlap=0",
+        "10-28 03:15:57.079  5004  5004 D SearchKeyboardLayout: visible=false bottom=1794.0 frame=Rect(0, 63 - 1080, 1794) ime=0 top=1794 screen=63 window=63 view=1731 overlap=0",
+        "10-28 03:15:58.081  5004  5004 D SearchKeyboardLayout: visible=false bottom=1794.0 frame=Rect(0, 63 - 1080, 1794) ime=0 top=1794 screen=63 window=63 view=1731 overlap=0",
+        "10-28 03:15:59.685  5004  5004 D SearchKeyboardLayout: visible=false bottom=0.0 frame=Rect(0, 0 - 0, 0) ime=0 top=0 screen=0 window=0 view=0 overlap=0",
+        "10-28 03:15:59.877  5004  5004 D SearchKeyboardLayout: visible=false bottom=1794.0 frame=Rect(0, 63 - 1080, 1794) ime=0 top=1794 screen=63 window=63 view=1731 overlap=0",
+        "10-28 03:16:01.124  5004  5004 D SearchKeyboardLayout: visible=false bottom=1794.0 frame=Rect(0, 63 - 1080, 1794) ime=0 top=1794 screen=63 window=63 view=1731 overlap=0",
+        "10-28 03:16:03.579  5004  5004 D SearchKeyboardLayout: visible=true bottom=1794.0 frame=Rect(0, 63 - 1080, 1053) ime=867 top=1053 screen=-602 window=-602 view=1731 overlap=741",
+        "10-28 03:16:05.179  5004  5004 D SearchKeyboardLayout: visible=true bottom=1794.0 frame=Rect(0, 63 - 1080, 1053) ime=867 top=1053 screen=-602 window=-602 view=1731 overlap=741",
+        "10-28 03:16:06.745  5004  5004 D SearchKeyboardLayout: visible=true bottom=1794.0 frame=Rect(0, 63 - 1080, 1053) ime=867 top=1053 screen=-602 window=-602 view=1731 overlap=741",
+        "10-28 03:16:08.412  5004  5004 D SearchKeyboardLayout: visible=true bottom=1794.0 frame=Rect(0, 63 - 1080, 1053) ime=867 top=1053 screen=-602 window=-602 view=1731 overlap=741",
+        "10-28 03:16:09.995  5004  5004 D SearchKeyboardLayout: visible=true bottom=1794.0 frame=Rect(0, 63 - 1080, 1053) ime=867 top=1053 screen=-602 window=-602 view=1731 overlap=741",
+        "10-28 03:16:11.644  5004  5986 E SearchKeyboardLayout: frame=Rect(0, 63 - 1080, 1053) ime=867 top=1053 input=Rect.fromLTRB(63.0, 219.0, 1017.0, 356.0) tabs=Rect.fromLTRB(63.0, 61.0, 1017.0, 187.0) viewport=Rect.fromLTRB(0.0, -602.0, 1080.0, 1129.0) windowY=-665 decor=1920 flags=8208 gap=1362.0",
+        "10-28 03:16:11.646  5004  5004 D SearchKeyboardLayout: visible=true bottom=1794.0 frame=Rect(0, 63 - 1080, 1053) ime=867 top=1053 screen=-602 window=-602 view=1731 overlap=741",
+        "10-28 03:16:12.721  5004  5004 D SearchKeyboardLayout: visible=true bottom=1794.0 frame=Rect(0, 63 - 1080, 1053) ime=867 top=1053 screen=63 window=63 view=1731 overlap=741"
+      ],
+      "screenshots": [
+        {
+          "path": "release-proof/1332-8f22/api29/library-search-keyboard-failure.png",
+          "sha256": "244d39763df086cafc7ef5d4bd247678e9c0a2ca8c480ecbc6d9a42c43c914da"
+        }
+      ]
+    },
+    "api35": {
+      "tests": [
+        {
+          "counts": {
+            "tests": "1",
+            "failures": "0",
+            "errors": "0",
+            "skipped": "0",
+            "time": "0.000",
+            "timestamp": "2026-10-28T03:15:54",
+            "hostname": "localhost"
+          },
+          "failures": []
+        }
+      ],
+      "geometry": [
+        "10-28 03:15:40.885  1963  1963 D SearchKeyboardLayout: visible=false bottom=0.0 frame=Rect(0, 0 - 1080, 1920) ime=0 top=1920 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:15:40.951  1963  1963 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 0 - 1080, 1920) ime=0 top=1920 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:15:42.045  1963  1963 D SearchKeyboardLayout: visible=true bottom=1920.0 frame=Rect(0, 0 - 1080, 1920) ime=775 top=1145 screen=0 window=0 view=1920 overlap=775",
+        "10-28 03:15:43.047  1963  1963 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 0 - 1080, 1920) ime=0 top=1920 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:15:44.317  1963  1963 D SearchKeyboardLayout: visible=false bottom=0.0 frame=Rect(0, 0 - 1080, 1920) ime=0 top=1920 screen=0 window=0 view=0 overlap=0",
+        "10-28 03:15:44.349  1963  1963 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 0 - 1080, 1920) ime=0 top=1920 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:15:45.364  1963  1963 D SearchKeyboardLayout: visible=true bottom=1920.0 frame=Rect(0, 0 - 1080, 1145) ime=775 top=440 screen=-705 window=-705 view=1920 overlap=1480",
+        "10-28 03:15:46.445  1963  1963 D SearchKeyboardLayout: visible=true bottom=1920.0 frame=Rect(0, 0 - 1080, 1145) ime=775 top=1145 screen=0 window=0 view=1920 overlap=775",
+        "10-28 03:15:47.511  1963  1963 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 0 - 1080, 1920) ime=0 top=1920 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:15:48.767  1963  1963 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 0 - 1080, 1920) ime=0 top=1920 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:15:49.796  1963  1963 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 0 - 1080, 1920) ime=0 top=1920 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:15:51.407  1963  1963 D SearchKeyboardLayout: visible=true bottom=0.0 frame=Rect(0, 0 - 1080, 1145) ime=775 top=1145 screen=0 window=0 view=0 overlap=0",
+        "10-28 03:15:51.436  1963  1963 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 0 - 1080, 1920) ime=0 top=1920 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:15:52.743  1963  1963 D SearchKeyboardLayout: visible=false bottom=0.0 frame=Rect(0, 0 - 1080, 1920) ime=0 top=1920 screen=0 window=0 view=0 overlap=0",
+        "10-28 03:15:53.204  1963  1963 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 0 - 1080, 1920) ime=0 top=1920 screen=0 window=0 view=1920 overlap=0"
+      ],
+      "screenshots": [
+        {
+          "path": "release-proof/1332-8f22/api35/library-search-tokens.png",
+          "sha256": "99eef6d3c69cac3889e825524faef0b2d76adb505e36f1d027adc406db3bb784"
+        },
+        {
+          "path": "release-proof/1332-8f22/api35/library-search-genre-tags.png",
+          "sha256": "99eef6d3c69cac3889e825524faef0b2d76adb505e36f1d027adc406db3bb784"
+        },
+        {
+          "path": "release-proof/1332-8f22/api35/library-search-genre-songs.png",
+          "sha256": "99eef6d3c69cac3889e825524faef0b2d76adb505e36f1d027adc406db3bb784"
+        }
+      ]
+    },
+    "api37": {
+      "tests": [
+        {
+          "counts": {
+            "tests": "1",
+            "failures": "1",
+            "errors": "0",
+            "skipped": "0",
+            "time": "0.000",
+            "timestamp": "2026-10-28T03:14:55",
+            "hostname": "localhost"
+          },
+          "failures": [
+            "androidx.compose.ui.test.ComposeTimeoutException: Condition still not satisfied after 10000 ms\n\tat androidx.compose.ui.test.AndroidComposeUiTestEnvironment$AndroidComposeUiTestImpl.waitUntil(ComposeUiTest.android.kt:901)\n\tat androidx.compose.ui.test.junit4.AndroidComposeTestRule.waitUntil(AndroidComposeTestRule.android.kt:500)\n\tat chromahub.rhythm.app.features.local.presentation.metadata.LibrarySearchNavigationTest.awaitInputAboveKeyboard(LibrarySearchNavigationTest.kt:266)\n\tat chromahub.rhythm.app.features.local.presentation.metadata.LibrarySearchNavigationTest.koreanSearchFiltersAndRestorationUseTheRealAppNavigation(LibrarySearchNavigationTest.kt:191)\n"
+          ]
+        }
+      ],
+      "geometry": [
+        "10-28 03:14:35.830  4415  4415 D SearchKeyboardLayout: visible=false bottom=0.0 frame=Rect(0, 63 - 1080, 1857) ime=0 top=1857 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:14:35.914  4415  4415 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 63 - 1080, 1857) ime=0 top=1857 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:14:36.972  4415  4415 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 63 - 1080, 1857) ime=0 top=1857 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:14:37.999  4415  4415 D SearchKeyboardLayout: visible=true bottom=1920.0 frame=Rect(0, 63 - 1080, 1857) ime=872 top=1048 screen=0 window=0 view=1920 overlap=872",
+        "10-28 03:14:39.284  4415  4415 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 63 - 1080, 1857) ime=0 top=1857 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:14:40.288  4415  4415 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 63 - 1080, 1857) ime=0 top=1857 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:14:41.208  4415  4415 D SearchKeyboardLayout: visible=false bottom=0.0 frame=Rect(0, 63 - 1080, 1857) ime=0 top=1857 screen=0 window=0 view=0 overlap=0",
+        "10-28 03:14:41.270  4415  4415 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 63 - 1080, 1857) ime=0 top=1857 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:14:42.402  4415  4415 D SearchKeyboardLayout: visible=false bottom=1920.0 frame=Rect(0, 63 - 1080, 1857) ime=0 top=1857 screen=0 window=0 view=1920 overlap=0",
+        "10-28 03:14:44.838  4415  4415 D SearchKeyboardLayout: visible=true bottom=1920.0 frame=Rect(0, 63 - 1080, 1048) ime=872 top=309 screen=-739 window=-739 view=1920 overlap=1611",
+        "10-28 03:14:46.472  4415  4415 D SearchKeyboardLayout: visible=true bottom=1920.0 frame=Rect(0, 63 - 1080, 1048) ime=872 top=309 screen=-739 window=-739 view=1920 overlap=1611",
+        "10-28 03:14:48.038  4415  4415 D SearchKeyboardLayout: visible=true bottom=1920.0 frame=Rect(0, 63 - 1080, 1048) ime=872 top=309 screen=-739 window=-739 view=1920 overlap=1611",
+        "10-28 03:14:49.622  4415  4415 D SearchKeyboardLayout: visible=true bottom=1920.0 frame=Rect(0, 63 - 1080, 1048) ime=872 top=309 screen=-739 window=-739 view=1920 overlap=1611",
+        "10-28 03:14:51.188  4415  4415 D SearchKeyboardLayout: visible=true bottom=1920.0 frame=Rect(0, 63 - 1080, 1048) ime=872 top=309 screen=-739 window=-739 view=1920 overlap=1611",
+        "10-28 03:14:52.799  4415  4532 E SearchKeyboardLayout: frame=Rect(0, 63 - 1080, 1048) ime=872 top=309 input=Rect.fromLTRB(63.0, -539.0, 1017.0, -462.0) tabs=Rect.fromLTRB(63.0, -697.0, 1017.0, -571.0) viewport=Rect.fromLTRB(0.0, -739.0, 1080.0, 1181.0) windowY=-739 decor=1920 flags=16 gap=1510.0",
+        "10-28 03:14:52.805  4415  4415 D SearchKeyboardLayout: visible=true bottom=1920.0 frame=Rect(0, 63 - 1080, 1048) ime=872 top=309 screen=-739 window=-739 view=1920 overlap=1611"
+      ],
+      "screenshots": [
+        {
+          "path": "release-proof/1332-8f22/api37/library-search-keyboard-failure.png",
+          "sha256": "10e77de6e508ec00b813a679241189054c5835482315a82e1b48d14ed1ebcc10"
+        }
+      ]
+    }
+  }
+}
