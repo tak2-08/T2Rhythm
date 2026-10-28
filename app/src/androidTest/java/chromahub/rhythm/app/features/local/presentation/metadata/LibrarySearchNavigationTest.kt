@@ -269,18 +269,21 @@ class LibrarySearchNavigationTest {
                 decor.getWindowVisibleDisplayFrame(visible)
                 val windowPosition = IntArray(2)
                 decor.getLocationOnScreen(windowPosition)
+                val decorInWindow = IntArray(2)
+                decor.getLocationInWindow(decorInWindow)
+                val windowOrigin = windowPosition[1] - decorInWindow[1]
                 val input = compose.onNodeWithTag("universal-search-input-row").fetchSemanticsNode().boundsInWindow
                 val tabs = compose.onNodeWithTag("universal-search-tabs").fetchSemanticsNode().boundsInWindow
                 val imeBottom = androidx.core.view.ViewCompat.getRootWindowInsets(decor)
                     ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime())?.bottom ?: 0
                 val keyboardTop = if (android.os.Build.VERSION.SDK_INT >= 30 && imeBottom > 0)
-                    minOf(visible.bottom, windowPosition[1] + decor.height - imeBottom)
+                    minOf(visible.bottom, windowOrigin + decor.height - imeBottom)
                 else visible.bottom
-                val gap = keyboardTop - input.bottom - windowPosition[1]
+                val gap = keyboardTop - input.bottom - windowOrigin
                 val maximumGap = with(compose.density) { 96.dp.toPx() }
                 val viewport = compose.onNodeWithTag("universal-search-viewport").fetchSemanticsNode().boundsInWindow
                 lastGeometry = "frame=$visible ime=$imeBottom top=$keyboardTop input=$input tabs=$tabs viewport=$viewport windowY=${windowPosition[1]} decor=${decor.height} flags=${decor.systemUiVisibility} softInput=${compose.activity.window.attributes.softInputMode} rootSoftInput=${(decor.layoutParams as? android.view.WindowManager.LayoutParams)?.softInputMode} scrollY=${decor.scrollY} gap=$gap"
-                gap >= -1f && gap <= maximumGap && tabs.top + windowPosition[1] >= visible.top
+                gap >= -1f && gap <= maximumGap && tabs.top + windowOrigin >= visible.top
             }
         }.onFailure {
             android.util.Log.e("SearchKeyboardLayout", lastGeometry)

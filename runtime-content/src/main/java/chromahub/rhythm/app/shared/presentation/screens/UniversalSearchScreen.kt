@@ -61,7 +61,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -111,7 +111,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.core.net.toUri
 import chromahub.rhythm.app.util.findActivity
 import chromahub.rhythm.app.util.rememberKeyboardOverlap
-import chromahub.rhythm.app.util.relocateSearchWithinViewport
 import chromahub.rhythm.app.util.windowScreenWidthDp
 import chromahub.rhythm.app.util.windowScreenHeightDp
 
@@ -303,7 +302,8 @@ fun UniversalSearchScreen(
     val navigationBarsBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val density = LocalDensity.current
     var viewportBottom by remember { mutableFloatStateOf(0f) }
-    val keyboard = rememberKeyboardOverlap(viewportBottom)
+    var inputBounds by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    val keyboard = rememberKeyboardOverlap(viewportBottom, inputBounds)
     var controlsHeight by remember { mutableStateOf(156.dp) }
     // Constrain the list and controls together above the IME, so lazy lists can scroll
     // items into the actual visible viewport rather than behind the keyboard.
@@ -313,9 +313,8 @@ fun UniversalSearchScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .onGloballyPositioned { viewportBottom = it.boundsInWindow().bottom }
+            .onGloballyPositioned { viewportBottom = it.boundsInRoot().bottom }
             .testTag("universal-search-viewport")
-            .relocateSearchWithinViewport()
     ) {
         // Measure an unpadded layout node. Measuring the node whose own padding changes
         // feeds its reduced bounds back into IME compensation and makes the viewport jump.
@@ -1157,7 +1156,8 @@ fun UniversalSearchScreen(
             }
             Spacer(Modifier.height(12.dp))
             Row(
-                modifier = Modifier.fillMaxWidth().testTag("universal-search-input-row"),
+                modifier = Modifier.fillMaxWidth().testTag("universal-search-input-row")
+                    .onGloballyPositioned { inputBounds = it.boundsInRoot() },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
