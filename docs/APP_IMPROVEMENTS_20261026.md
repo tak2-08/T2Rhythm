@@ -57,20 +57,12 @@
 
 ## 키보드가 열린 검색 화면
 
-Android 10의 실제 화면에서 검색 입력 행의 하단이 키보드에 가려지고 장르 결과가 표시 영역 밖에 놓이는 것을 확인했습니다. 검색창에만 키보드 여백을 주던 처리를 목록과 검색창의 공통 부모로 이동해 두 영역이 같은 가용 높이를 사용하게 합니다. 목록은 실제 표시 영역 안으로 항목을 스크롤할 수 있습니다. Activity가 ContextWrapper 안에 있어도 창의 resize 설정을 적용하고 기존 상태 플래그를 유지합니다.
+실제 Android 화면 검토에서 검색창이 키보드에 가려지거나, 화면 재생성 뒤 입력창과 탭이 화면 위로 밀리는 문제를 확인했습니다. 검색 목록과 하단 조작부가 같은 가용 높이를 사용하도록 하고, 바깥의 독립된 레이아웃에서 검색 화면의 크기를 측정합니다. 여백을 주는 안쪽 레이아웃을 측정해서 크기와 여백이 서로 바뀌는 순환을 방지합니다.
 
-기기 테스트는 키보드를 실제로 열고 검색 입력 행의 창 좌표가 키보드 위에 있는지 검사합니다. 작은 표시 영역의 장르 항목은 스크롤해서 접근합니다. 회귀 스크립트는 클래스별 실패와 실행 건수를 모두 검사하고, 다른 클래스까지 실행한 뒤 하나라도 실패하면 실패로 종료합니다.
+Android 11 이상은 명시적인 IME 인셋과 `adjustNothing`을 사용합니다. 이전 버전은 이미 줄어든 창을 고려한 표시 영역 측정과 `adjustResize`를 사용하며, 검색 중에만 decor fitting을 켭니다. 검색을 닫으면 원래 창 모드와 레이아웃 플래그를 복원하고 현재의 밝은/어두운 시스템 바 설정을 유지합니다. 전체 곡 목록을 열 때는 검색창의 포커스를 해제합니다.
 
-## Android 10 keyboard and regression environment follow-up
+Compose가 IME 여백을 반영하기 전에 입력창의 이전 위치를 Android에 전달하면, Android가 앱의 여백 처리와 별도로 창 전체를 이동시킬 수 있습니다. 검색 루트는 하위 스크롤 목록이 위치 요청을 처리한 후 자신의 전체 영역을 상위에 전달합니다. 오래된 입력창 좌표가 창 전체를 밀어 올리는 경로를 막으면서 목록 내부의 항목 스크롤은 유지합니다.
 
-Search now measures the part of its Compose view actually obscured by the keyboard in screen coordinates, accounting for already resized and edge-to-edge windows. The list and bottom input share that remaining viewport. The navigation regression compares the complete input row with the visible window frame, avoiding double subtraction of the IME height after resize.
+기기 검사는 실제 키보드를 열고 화면을 재생성한 뒤에도 입력창이 키보드 바로 위에 있고, 탭과 일치하는 곡이 실제 표시되는지 확인합니다. Android 10·15·17의 별도 CI에서 같은 시나리오를 세 번씩 실행하며, 실패 시 창 모드·좌표와 화면을 남깁니다. 실행 건수와 모든 반복의 성공을 요구합니다. Android 15 일반 에뮬레이터에는 기존 검사와 같은 KVM MSR 호환 설정을 적용합니다.
 
-The experience emulator now explicitly uses 3 GB RAM and a 512 MB heap. The previous image default limited system_server to 16 MB, caused memory pressure to defer the lyric worker, and restarted Android before the artwork regression could execute. All expected test counts remain required; failed or missing tests block publication.
-
-The final screenshot review found a case that the original keyboard assertion missed: the input could be above the IME yet displaced to the top of an already resized destination. The layout now measures the actual search destination bounds rather than the full Compose view. Navigation-bar padding is omitted while the IME is visible. Regression assertions require the tabs to stay inside the visible frame, the input to remain near the keyboard, and the matching song to be visibly rendered with the keyboard open. Publication is held until these stronger checks and the screenshots pass.
-
-The viewport measurement now belongs to an independent, unpadded outer layout node. Keyboard compensation applies to a separate inner node, so changing padding cannot feed reduced content bounds back into the measurement. Debug-only geometry diagnostics and failure screenshots record frame/input/tab/viewport coordinates without query text or credentials.
-
-Repeated modern-device runs exposed an additional platform pan: the window moved up 739 px while the app also applied its 872 px IME inset. On Android 11+ search now uses `adjustNothing` and explicit IME insets so only the app positions its controls; older Android retains resize-aware visible-frame measurement. Insets are sampled before drawing even when the window size stays unchanged. Opening the complete song list clears search focus. The original window mode is restored on exit, and regression checks still require visible results and tabs plus input near the real IME edge.
-
-Android 10 can also pan an edge-to-edge window despite `adjustResize`. Search temporarily enables decor fitting on pre-R devices so their window actually resizes, then restores the previous layout flags on exit while preserving current light/dark system-bar flags. The legacy regression also verifies that fullscreen layout flags are cleared while search owns resize.
+전체 경험 회귀 검사는 3 GB RAM과 512 MB 힙을 명시합니다. 클래스 하나가 실패해도 나머지를 실행해 결과를 모으고, 실패하거나 누락된 검사가 있으면 배포를 차단합니다.

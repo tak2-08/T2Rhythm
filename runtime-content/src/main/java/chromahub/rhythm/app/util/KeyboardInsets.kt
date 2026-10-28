@@ -10,6 +10,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.relocation.BringIntoViewModifierNode
+import androidx.compose.ui.relocation.bringIntoView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
@@ -58,7 +64,7 @@ internal fun rememberKeyboardOverlap(bottomInWindow: Float): KeyboardOverlap {
                 android.os.SystemClock.elapsedRealtime() - lastDiagnostic >= 1000) {
                 lastDiagnostic = android.os.SystemClock.elapsedRealtime()
                 android.util.Log.d("SearchKeyboardLayout",
-                    "visible=$visible bottom=$bottomInWindow frame=$frame ime=$imeBottom top=$keyboardTop screen=${screen[1]} window=${window[1]} view=${view.height} overlap=$overlap")
+                    "visible=$visible bottom=$bottomInWindow frame=$frame ime=$imeBottom top=$keyboardTop screen=${screen[1]} window=${window[1]} view=${view.height} overlap=$overlap mode=${view.context.findActivity()?.window?.attributes?.softInputMode} rootMode=${(root.layoutParams as? android.view.WindowManager.LayoutParams)?.softInputMode} scroll=${root.scrollY}")
             }
         }
         val observer = view.viewTreeObserver
@@ -71,4 +77,29 @@ internal fun rememberKeyboardOverlap(bottomInWindow: Float): KeyboardOverlap {
         }
     }
     return KeyboardOverlap(with(LocalDensity.current) { overlap.toDp() }, keyboardVisible)
+}
+
+/**
+ * Search already fits its list and bottom controls above the keyboard. Child scroll containers
+ * handle relocation first; the Android owner only needs to see the full destination viewport.
+ * Forwarding the text field's old rectangle while IME padding is settling can make ViewRoot pan
+ * the entire window, independently of softInputMode, and leave the search controls off screen.
+ */
+internal fun Modifier.relocateSearchWithinViewport(): Modifier = then(SearchViewportElement)
+
+private data object SearchViewportElement : ModifierNodeElement<SearchViewportNode>() {
+    override fun create() = SearchViewportNode()
+    override fun update(node: SearchViewportNode) = Unit
+    override fun InspectorInfo.inspectableProperties() { name = "relocateSearchWithinViewport" }
+}
+
+private class SearchViewportNode : Modifier.Node(), BringIntoViewModifierNode {
+    override suspend fun bringIntoView(
+        childCoordinates: LayoutCoordinates,
+        boundsProvider: () -> androidx.compose.ui.geometry.Rect?,
+    ) {
+        // Propagate our stable viewport, rather than the pre-IME position of a focused child.
+        // Lazy lists below this node still receive and satisfy their own scrolling requests.
+        bringIntoView()
+    }
 }

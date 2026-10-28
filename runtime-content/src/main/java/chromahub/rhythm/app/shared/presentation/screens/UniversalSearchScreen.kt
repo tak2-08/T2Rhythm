@@ -111,6 +111,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.core.net.toUri
 import chromahub.rhythm.app.util.findActivity
 import chromahub.rhythm.app.util.rememberKeyboardOverlap
+import chromahub.rhythm.app.util.relocateSearchWithinViewport
 import chromahub.rhythm.app.util.windowScreenWidthDp
 import chromahub.rhythm.app.util.windowScreenHeightDp
 
@@ -314,6 +315,7 @@ fun UniversalSearchScreen(
             .background(MaterialTheme.colorScheme.background)
             .onGloballyPositioned { viewportBottom = it.boundsInWindow().bottom }
             .testTag("universal-search-viewport")
+            .relocateSearchWithinViewport()
     ) {
         // Measure an unpadded layout node. Measuring the node whose own padding changes
         // feeds its reduced bounds back into IME compensation and makes the viewport jump.
