@@ -1,0 +1,67 @@
+name: Inspect 1332 search verification evidence
+on:
+  push:
+    branches: [codex/inspect-1332-8f22]
+permissions:
+  contents: write
+  actions: read
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: keyboard-1332-8f22
+          run-id: 40624437280
+          github-token: ${{ github.token }}
+          path: proof-input/api29
+      - uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: keyboard-1332-8f22-api35
+          run-id: 40624510918
+          github-token: ${{ github.token }}
+          path: proof-input/api35
+      - uses: actions/download-artifact@v8
+        with:
+          name: keyboard-1332-8f22-api37.0
+          run-id: 40624510918
+          github-token: ${{ github.token }}
+          path: proof-input/api37
+      - name: Inspect and retain only synthetic search screenshots and geometry
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,shutil,xml.etree.ElementTree as E
+          result={'source_revision':'8f22aec3783be68ecdb0cffceba9779934938795','runs':{'api29':40624437280,'api35':40624510918,'api37':40624510918},'devices':{}}
+          out=Path('release-proof/1332-8f22');out.mkdir(parents=True,exist_ok=True)
+          for api in ['api29','api35','api37']:
+              source=Path('proof-input')/api
+              device={'tests':[],'geometry':[],'screenshots':[]}
+              for path in source.rglob('TEST*.xml'):
+                  root=E.parse(path).getroot()
+                  device['tests'].append({'counts':root.attrib,'failures':[f.text for f in root.iter('failure')]})
+              logs=list(source.rglob('continuous-logcat.txt')) or list(source.rglob('logcat.txt'))
+              if logs:device['geometry']=[line for line in logs[0].read_text(errors='replace').splitlines() if 'SearchKeyboardLayout' in line][-24:]
+              for name in ['library-search-keyboard-failure.png','library-search-tokens.png','library-search-genre-tags.png','library-search-genre-songs.png']:
+                  paths=list(source.rglob(name))
+                  if not paths:continue
+                  assert len(paths)==1
+                  target=out/api/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(paths[0],target)
+                  device['screenshots'].append({'path':str(target),'sha256':hashlib.sha256(target.read_bytes()).hexdigest()})
+              result['devices'][api]=device
+          (out/'inspection.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result,indent=2))
+          PY
+      - name: Make the synthetic visual proof directly reviewable
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add release-proof/1332-8f22
+          git commit -m 'Record synthetic source 8f22 search screenshots and failure geometry'
+          git push origin HEAD:codex/inspect-1332-8f22
