@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: 7a71f3bc2b3a4b43a82cb4cdb69b53a82959d5bb
+          ref: 8f22aec3783be68ecdb0cffceba9779934938795
       - uses: actions/setup-java@v6
         with:
           java-version: '17'
@@ -50,7 +50,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: keyboard-1332-7a71
+          name: keyboard-1332-8f22
           path: |
             app/build/outputs/experience-regression/
             app/build/outputs/experience-screenshots/
