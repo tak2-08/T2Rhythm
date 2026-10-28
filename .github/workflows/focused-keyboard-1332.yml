@@ -4,7 +4,6 @@ on:
     branches: [codex/keyboard-1332-modern]
 permissions:
   contents: read
-  actions: write
 jobs:
   keyboard:
     runs-on: ubuntu-latest
@@ -14,13 +13,9 @@ jobs:
       matrix:
         api: ['35', '37.0']
     steps:
-      - name: Cancel the superseded keyboard run
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh api -X POST repos/tak2-08/T2Rhythm/actions/runs/40509915055/cancel || true
       - uses: actions/checkout@v7
         with:
-          ref: 4032e1807fc863d4daff710a11af4d78b568bcc1
+          ref: 7a71f3bc2b3a4b43a82cb4cdb69b53a82959d5bb
       - uses: actions/setup-java@v6
         with:
           java-version: '17'
@@ -55,7 +50,7 @@ jobs:
           ram-size: ${{ matrix.api == '37.0' && '4096M' || '2048M' }}
           heap-size: 512M
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -noaudio -no-boot-anim -no-snapshot-save
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save
           script: |
             mkdir -p app/build/outputs/experience-screenshots
             free -m > app/build/outputs/experience-screenshots/host-memory.txt
@@ -64,7 +59,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: keyboard-1332-4032-api${{ matrix.api }}
+          name: keyboard-1332-7a71-api${{ matrix.api }}
           path: |
             app/build/outputs/experience-regression/
             app/build/outputs/experience-screenshots/
