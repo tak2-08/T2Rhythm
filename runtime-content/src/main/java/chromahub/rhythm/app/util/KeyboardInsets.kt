@@ -58,7 +58,7 @@ internal fun rememberKeyboardOverlap(bottomInWindow: Float): KeyboardOverlap {
                 android.os.SystemClock.elapsedRealtime() - lastDiagnostic >= 1000) {
                 lastDiagnostic = android.os.SystemClock.elapsedRealtime()
                 android.util.Log.d("SearchKeyboardLayout",
-                    "visible=$visible bottom=$bottomInWindow frame=$frame ime=$imeBottom top=$keyboardTop screen=${screen[1]} window=${window[1]} view=${view.height} overlap=$overlap")
+                    "visible=$visible bottom=$bottomInWindow frame=$frame ime=$imeBottom top=$keyboardTop screen=${screen[1]} window=${window[1]} view=${view.height} overlap=$overlap mode=${view.context.findActivity()?.window?.attributes?.softInputMode} rootMode=${(root.layoutParams as? android.view.WindowManager.LayoutParams)?.softInputMode} scroll=${root.scrollY}")
             }
         }
         val observer = view.viewTreeObserver
