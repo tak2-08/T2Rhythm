@@ -9,14 +9,16 @@ class LibrarySearchIndex<T>
 private constructor(val source: List<T>, private val entries: List<Entry<T>>) {
     private data class Text(val plain: String, val initials: String)
 
+    private data class Query(val plain: String, val initialPattern: String?)
+
     private data class Entry<T>(val value: T, val title: Text, val fields: Text)
 
     fun search(query: String, checkActive: () -> Unit = {}): List<T> {
         val raw = query.take(256).trim()
         if (raw.isEmpty()) return emptyList()
-        val words = raw.split(WORDS).map(::normalize).filter(String::isNotEmpty)
+        val words = raw.split(WORDS).map(::query).filter { it.plain.isNotEmpty() }
         if (words.isEmpty()) return emptyList()
-        val compact = normalize(raw)
+        val compact = query(raw)
         // Four stable buckets avoid sorting a large set of matches on each keystroke.
         val buckets = Array(4) { ArrayList<T>() }
         entries.forEachIndexed { index, entry ->
@@ -24,9 +26,9 @@ private constructor(val source: List<T>, private val entries: List<Entry<T>>) {
             if (words.all { matches(entry.fields, it) }) {
                 val rank =
                     when {
-                        entry.title.plain == compact || entry.title.initials == compact -> 0
-                        entry.title.plain.startsWith(compact) ||
-                            entry.title.initials.startsWith(compact) -> 1
+                        entry.title.plain.length == compact.plain.length &&
+                            matchesAt(entry.title, compact, 0) -> 0
+                        matchesAt(entry.title, compact, 0) -> 1
                         words.all { matches(entry.title, it) } -> 2
                         else -> 3
                     }
@@ -51,18 +53,48 @@ private constructor(val source: List<T>, private val entries: List<Entry<T>>) {
 
         private fun text(value: String): Text {
             val plain = normalize(value)
-            if (plain.none { it in '가'..'힣' }) return Text(plain, plain)
-            val initials =
-                buildString(plain.length) {
-                    plain.forEach { c ->
-                        append(if (c in '가'..'힣') INITIALS[(c - '가') / 588] else c)
-                    }
-                }
-            return Text(plain, initials)
+            return Text(plain, initials(plain))
         }
 
-        private fun matches(text: Text, word: String): Boolean =
-            text.plain.contains(word) || text.initials.contains(word)
+        private fun initials(plain: String): String {
+            if (plain.none { it in '가'..'힣' }) return plain
+            return buildString(plain.length) {
+                plain.forEach { c ->
+                    append(if (c in '가'..'힣') INITIALS[(c - '가') / 588] else c)
+                }
+            }
+        }
+
+        private fun query(value: String): Query {
+            val plain = normalize(value)
+            // Prepare once per token, not once per library item. Ordinary queries keep indexOf.
+            return Query(plain, if (plain.any { it in INITIALS }) initials(plain) else null)
+        }
+
+        private fun matchesAt(text: Text, word: Query, offset: Int): Boolean {
+            if (text.plain.startsWith(word.plain, offset)) return true
+            val pattern = word.initialPattern ?: return false
+            if (pattern == word.plain) return text.initials.startsWith(pattern, offset)
+            if (offset + word.plain.length > text.plain.length) return false
+            return word.plain.indices.all { i ->
+                val c = word.plain[i]
+                // Only an initial can stand in for a syllable; completed syllables stay exact.
+                c == text.plain[offset + i] || c == text.initials[offset + i]
+            }
+        }
+
+        private fun matches(text: Text, word: Query): Boolean {
+            if (text.plain.contains(word.plain)) return true
+            val pattern = word.initialPattern ?: return false
+            if (pattern == word.plain) return text.initials.contains(pattern)
+            // Initials narrow the candidates; verify the completed syllables at each position.
+            var offset = text.initials.indexOf(pattern)
+            while (offset >= 0) {
+                if (matchesAt(text, word, offset)) return true
+                offset = text.initials.indexOf(pattern, offset + 1)
+            }
+            return false
+        }
 
         fun <T> build(
             source: List<T>,

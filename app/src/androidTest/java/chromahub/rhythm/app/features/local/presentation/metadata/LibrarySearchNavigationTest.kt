@@ -39,6 +39,7 @@ class LibrarySearchNavigationTest {
             )
             .use { it.readBytes() }
 
+    private var previousAutoCheck = true
     private val preparation =
         object : ExternalResource() {
             override fun before() {
@@ -47,6 +48,8 @@ class LibrarySearchNavigationTest {
                     else Manifest.permission.READ_EXTERNAL_STORAGE
                 shell("pm grant ${context.packageName} $permission")
                 val settings = AppSettings.getInstance(context)
+                previousAutoCheck = settings.autoCheckForUpdates.value
+                settings.setAutoCheckForUpdates(false)
                 settings.setOnboardingCompleted(true)
                 context.getSharedPreferences("installed_release_notes", 0).edit().putInt("seen", chromahub.rhythm.app.BuildConfig.VERSION_CODE).commit()
                 settings.setDefaultScreen("home")
@@ -59,6 +62,7 @@ class LibrarySearchNavigationTest {
             override fun after() {
                 shell("settings put system font_scale 1.0")
                 AppSettings.getInstance(context).setShowKeyboardOnSearchOpen(true)
+                AppSettings.getInstance(context).setAutoCheckForUpdates(previousAutoCheck)
             }
         }
     @get:Rule val rules: RuleChain = RuleChain.outerRule(preparation).around(compose)
@@ -157,24 +161,50 @@ class LibrarySearchNavigationTest {
         awaitNode("서른 즈음에")
         assertNull(locate("이등병의 편지"))
         capture("library-search-initials.png")
+        enter("서른ㅈㅇㅇ")
+        awaitNode("서른 즈음에")
+        dismissSearchKeyboard()
+        compose.onNodeWithTag("search-toggle-filters").performClick()
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithTag("search-filter-songs").fetchSemanticsNodes().isNotEmpty()
+        }
+        listOf("songs", "albums", "artists", "playlists").forEach { type ->
+            compose.onNodeWithTag("search-filter-$type").performScrollTo().performClick()
+        }
+        awaitNode(label(R.string.no_results_found))
+        compose.onNodeWithTag("search-toggle-filters").performClick()
+        compose.onNodeWithTag("search-filter-summary").assertIsDisplayed()
+        capture("library-search-collapsed-filters.png")
+        // A recreated screen must explain why its restored query has no results.
+        activity.scenario.recreate()
+        awaitNode(label(R.string.no_results_found))
+        compose.onNodeWithTag("search-filter-summary").assertIsDisplayed()
+        compose.onNodeWithTag("search-reset-filters").performClick()
+        awaitNode("서른 즈음에")
+        compose.onNodeWithTag("search-filter-summary").assertDoesNotExist()
+        compose.onNodeWithTag("search-clear-query").assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp).performClick()
+        awaitNode(label(R.string.local_search_hint))
+        compose.onAllNodes(hasSetTextAction()).onFirst().performClick()
         enter("김광석 편지")
         awaitNode("이등병의 편지")
+        awaitInputAboveKeyboard()
+        compose.onNodeWithText("이등병의 편지").assertIsDisplayed()
         assertNull(locate("서른 즈음에"))
         capture("library-search-tokens.png")
         click(label(R.string.genre_search_tab))
+        compose.onAllNodes(hasSetTextAction()).onFirst().performClick()
         enter("folk")
+        awaitInputAboveKeyboard()
         compose.waitUntil(10_000) { compose.onAllNodesWithTag("genre-result:FOLK").fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithTag("genre-result:FOLK").assertIsDisplayed()
-        compose.onNodeWithTag("genre-result:FOLK ROCK").assertIsDisplayed()
+        compose.onNodeWithTag("genre-result:FOLK").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithTag("genre-result:FOLK ROCK").performScrollTo().assertIsDisplayed()
         assertNull(locate("서른 즈음에"))
         assertNull(locate("이등병의 편지"))
         assertNull(locate("기억의 습작"))
         capture("library-search-genre-tags.png")
-        compose.runOnUiThread {
-            androidx.core.view.WindowCompat.getInsetsController(compose.activity.window, compose.activity.window.decorView)
-                .hide(androidx.core.view.WindowInsetsCompat.Type.ime())
-        }
-        compose.onNodeWithTag("genre-result:FOLK").performClick()
+        dismissSearchKeyboard()
+        compose.onNodeWithTag("genre-result:FOLK").performScrollTo().performClick()
         awaitSelectedGenre("FOLK")
         awaitNode(label(R.string.genre_browse_children))
         compose.onNodeWithTag("genre-result:FOLK ROCK").assertIsDisplayed().performClick()
@@ -224,6 +254,67 @@ class LibrarySearchNavigationTest {
             MusicViewModel::class.java.getDeclaredField(field).apply { isAccessible = true }.get(vm)
                 as kotlinx.coroutines.flow.MutableStateFlow<T>
         flow.value = value
+    }
+
+    private fun awaitInputAboveKeyboard() {
+        compose.waitUntil(10_000) {
+            androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) == true
+        }
+        var lastGeometry = ""
+        runCatching {
+            compose.waitUntil(10_000) {
+                val decor = compose.activity.window.decorView
+                val visible = android.graphics.Rect()
+                decor.getWindowVisibleDisplayFrame(visible)
+                val windowPosition = IntArray(2)
+                decor.getLocationOnScreen(windowPosition)
+                val decorInWindow = IntArray(2)
+                decor.getLocationInWindow(decorInWindow)
+                val windowOrigin = windowPosition[1] - decorInWindow[1]
+                val input = compose.onNodeWithTag("universal-search-input-row").fetchSemanticsNode().boundsInWindow
+                val tabs = compose.onNodeWithTag("universal-search-tabs").fetchSemanticsNode().boundsInWindow
+                val imeBottom = androidx.core.view.ViewCompat.getRootWindowInsets(decor)
+                    ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime())?.bottom ?: 0
+                val keyboardTop = if (android.os.Build.VERSION.SDK_INT >= 30 && imeBottom > 0)
+                    minOf(visible.bottom, windowOrigin + decor.height - imeBottom)
+                else visible.bottom
+                val gap = keyboardTop - input.bottom - windowOrigin
+                val maximumGap = with(compose.density) { 96.dp.toPx() }
+                val viewport = compose.onNodeWithTag("universal-search-viewport").fetchSemanticsNode().boundsInWindow
+                lastGeometry = "frame=$visible ime=$imeBottom top=$keyboardTop input=$input tabs=$tabs viewport=$viewport windowY=${windowPosition[1]} decor=${decor.height} flags=${decor.systemUiVisibility} softInput=${compose.activity.window.attributes.softInputMode} rootSoftInput=${(decor.layoutParams as? android.view.WindowManager.LayoutParams)?.softInputMode} scrollY=${decor.scrollY} gap=$gap"
+                gap >= -1f && gap <= maximumGap && tabs.top + windowOrigin >= visible.top
+            }
+        }.onFailure {
+            android.util.Log.e("SearchKeyboardLayout", lastGeometry)
+            chromahub.rhythm.app.testing.snapshotTestUi(compose.activity, "library-search-keyboard-state")
+            capture("library-search-keyboard-failure.png")
+        }.getOrThrow()
+        activity.scenario.onActivity {
+            val expectedMode = if (android.os.Build.VERSION.SDK_INT >= 30)
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+            else android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            assertEquals(expectedMode,
+                it.window.attributes.softInputMode and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST)
+            if (android.os.Build.VERSION.SDK_INT < 30) {
+                val layoutFlags = android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                assertEquals(0, it.window.decorView.systemUiVisibility and layoutFlags)
+            }
+        }
+    }
+
+    private fun dismissSearchKeyboard() {
+        // Use the screen's Search action to clear focus, so the IME cannot reconnect while
+        // its asynchronous dismissal moves the bottom controls under the next test click.
+        compose.onAllNodes(hasSetTextAction()).onFirst().performImeAction()
+        androidx.test.espresso.Espresso.closeSoftKeyboard()
+        compose.waitUntil(10_000) {
+            androidx.core.view.ViewCompat.getRootWindowInsets(compose.activity.window.decorView)
+                ?.isVisible(androidx.core.view.WindowInsetsCompat.Type.ime()) != true
+        }
+        compose.waitForIdle()
     }
 
     private fun enter(text: String) {

@@ -128,26 +128,7 @@ object QueueUtils {
         originalOrder: List<T>,
         idSelector: (T) -> String
     ): List<T> {
-        if (currentSongs.isEmpty()) return emptyList()
-
-        val safeIndex = currentIndex.coerceIn(0, currentSongs.size - 1)
-        val played = if (safeIndex > 0) currentSongs.subList(0, safeIndex) else emptyList()
-        val current = currentSongs[safeIndex]
-        val upcoming = if (safeIndex + 1 < currentSongs.size) {
-            currentSongs.subList(safeIndex + 1, currentSongs.size)
-        } else {
-            emptyList()
-        }
-
-        val upcomingIds = upcoming.map(idSelector).toSet()
-        val restoredUpcoming = originalOrder.filter { idSelector(it) in upcomingIds } +
-            upcoming.filter { song -> originalOrder.none { idSelector(it) == idSelector(song) } }
-
-        return buildList(currentSongs.size) {
-            addAll(played)
-            add(current)
-            addAll(restoredUpcoming)
-        }
+        return restoreUpcomingQueueOrder(currentSongs, currentIndex, originalOrder, idSelector)
     }
 
     /**
@@ -158,46 +139,5 @@ object QueueUtils {
         currentIndex: Int,
         originalOrder: List<Song>
     ): List<Song> = restoreQueueOrderOnShuffleDisable(currentSongs, currentIndex, originalOrder) { it.id }
-}
-
-/**
- * Represents an entry in a playback queue paired with a stable, persistent entryId
- * that survives reordering, removals, and duplicate items.
- */
-data class QueueEntry<T>(
-    val entryId: Long,
-    val item: T
-)
-
-/**
- * Tracks and preserves stable entry IDs for queue items across updates and reorders,
- * even when identical items / duplicate song IDs are present.
- */
-class QueueEntryKeyTracker<T>(private val idSelector: (T) -> String) {
-    private var nextEntryId = 1L
-    private var currentEntries = listOf<QueueEntry<T>>()
-
-    fun sync(items: List<T>): List<QueueEntry<T>> {
-        val pool = currentEntries.toMutableList()
-        val result = ArrayList<QueueEntry<T>>(items.size)
-        for (item in items) {
-            val key = idSelector(item)
-            val idx = pool.indexOfFirst { idSelector(it.item) == key }
-            if (idx >= 0) {
-                val matched = pool.removeAt(idx)
-                result.add(matched.copy(item = item))
-            } else {
-                result.add(QueueEntry(entryId = nextEntryId++, item = item))
-            }
-        }
-        currentEntries = result
-        return result
-    }
-
-    fun updateEntries(entries: List<QueueEntry<T>>) {
-        currentEntries = entries
-    }
-
-    fun currentEntries(): List<QueueEntry<T>> = currentEntries
 }
 

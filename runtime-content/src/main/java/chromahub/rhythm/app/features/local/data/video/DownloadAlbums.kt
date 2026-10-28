@@ -24,10 +24,18 @@ object DownloadAlbums {
         DownloadRegistry.revision.value++
         PersonalArchive.enqueue(context)
     }
+    internal fun readAlbum(file: File): DownloadAlbum? = runCatching {
+        require(file.isFile && file.length() in 1..512_000)
+        Gson().fromJson(file.readText(), DownloadAlbum::class.java).also { album ->
+            require(album.source.isNotBlank() && album.tracks.size in 1..200)
+            require(album.title.isNotBlank())
+            require(album.tracks.all { track -> track.url.isNotBlank() && track.title.isNotBlank() })
+        }
+    }.getOrNull()
+
     fun list(context: Context): List<DownloadAlbumStatus> {
-        val albums = root(context).listFiles().orEmpty().filter { it.length() in 1..512_000 }.sortedByDescending { it.lastModified() }.take(20)
-            .mapNotNull { runCatching { Gson().fromJson(it.readText(), DownloadAlbum::class.java) }.getOrNull() }
-            .filter { it.tracks.size in 1..200 }
+        val albums = root(context).listFiles().orEmpty().filter { it.isFile && it.extension == "json" && it.length() in 1..512_000 }.sortedByDescending { it.lastModified() }.take(20)
+            .mapNotNull(::readAlbum)
         val sources = albums.flatMap { it.tracks }.map { MusicVideoLinks.youtubeId(it.url) ?: it.url.trim() }.toSet()
         val completed = sources.mapNotNull { id -> DownloadRegistry.completedAudioPointer(context, id)?.let { id to it } }.toMap().toMutableMap()
         if (completed.size < sources.size) DownloadRegistry.recent(context, 1000).filter { it.kind == "AUDIO" && it.state == "SUCCEEDED" && it.sourceId in sources }

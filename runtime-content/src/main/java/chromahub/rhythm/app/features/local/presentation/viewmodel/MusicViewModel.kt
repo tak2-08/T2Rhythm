@@ -6629,9 +6629,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                         controller.play()
                     }
                 } else {
-                    val currentIndex = currentMediaId
-                        ?.let { mediaId -> currentSongs.indexOfFirst { it.id == mediaId }.takeIf { it >= 0 } }
-                        ?: controller.currentMediaItemIndex.coerceIn(0, (currentSongs.size - 1).coerceAtLeast(0))
+                    val currentIndex = chromahub.rhythm.app.util.resolveQueueAnchor(
+                        currentSongs, controller.currentMediaItemIndex, currentMediaId) { it.id }
 
                     // Run heavy shuffle work off main to keep UI and playback responsive.
                     viewModelScope.launch {
@@ -6643,11 +6642,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                             // For large queues, use bulk replace (1 IPC call) instead of
                             // per-item moveMediaItem (n IPC calls) which freezes the UI.
                             if (currentSongs.size > BULK_REPLACE_THRESHOLD) {
-                                replacePlayerQueue(controller, shuffledQueue, currentMediaId, currentPosition)
+                                replacePlayerQueue(controller, shuffledQueue, currentMediaId, currentPosition, currentIndex)
                             } else {
                                 val reordered = reorderQueueInPlace(controller, shuffledQueue)
                                 if (!reordered) {
-                                    replacePlayerQueue(controller, shuffledQueue, currentMediaId, currentPosition)
+                                    replacePlayerQueue(controller, shuffledQueue, currentMediaId, currentPosition, currentIndex)
                                 }
                             }
 
@@ -6693,9 +6692,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val currentMediaId = controller.currentMediaItem?.mediaId ?: _currentSong.value?.id
-                val currentIndex = currentMediaId
-                    ?.let { mediaId -> currentSongs.indexOfFirst { it.id == mediaId }.takeIf { it >= 0 } }
-                    ?: controller.currentMediaItemIndex.coerceIn(0, (currentSongs.size - 1).coerceAtLeast(0))
+                val currentIndex = chromahub.rhythm.app.util.resolveQueueAnchor(
+                        currentSongs, controller.currentMediaItemIndex, currentMediaId) { it.id }
 
                 val originalOrder = queueStateHolder.getFilteredOriginalQueue(currentSongs)
                 val wasPlaying = controller.isPlaying
@@ -6710,11 +6708,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 )
 
                 if (restoredQueue.size > BULK_REPLACE_THRESHOLD) {
-                    replacePlayerQueue(controller, restoredQueue, currentMediaId, currentPosition)
+                    replacePlayerQueue(controller, restoredQueue, currentMediaId, currentPosition, currentIndex)
                 } else {
                     val reordered = reorderQueueInPlace(controller, restoredQueue)
                     if (!reordered) {
-                        replacePlayerQueue(controller, restoredQueue, currentMediaId, currentPosition)
+                        replacePlayerQueue(controller, restoredQueue, currentMediaId, currentPosition, currentIndex)
                     }
                 }
 
@@ -6781,11 +6779,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      * preserving the currently playing song and its position. This is O(1) IPC calls
      * versus O(n) for reorderQueueInPlace, making it suitable for large queue shuffles.
      */
-    private fun replacePlayerQueue(player: androidx.media3.common.Player, newQueue: List<Song>, currentSongId: String?, currentPosition: Long) {
+    private fun replacePlayerQueue(player: androidx.media3.common.Player, newQueue: List<Song>, currentSongId: String?, currentPosition: Long, currentIndex: Int) {
         val wasPlaying = player.isPlaying
-        val targetIndex = if (currentSongId != null) {
-            newQueue.indexOfFirst { it.id == currentSongId }.takeIf { it != -1 } ?: 0
-        } else 0
+        val targetIndex = chromahub.rhythm.app.util.resolveQueueAnchor(newQueue, currentIndex, currentSongId) { it.id }
 
         val mediaItems = newQueue.map { it.toMediaItem() }
 
@@ -6846,11 +6842,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun updateQueueState(newQueue: List<Song>) {
         val currentSong = _currentSong.value
-        val currentIndex = if (currentSong != null) {
-            newQueue.indexOfFirst { it.id == currentSong.id }.coerceAtLeast(0)
-        } else {
-            0
-        }
+        val controller = mediaController
+        val currentIndex = chromahub.rhythm.app.util.resolveQueueAnchor(
+            newQueue, controller?.currentMediaItemIndex ?: -1,
+            controller?.currentMediaItem?.mediaId ?: currentSong?.id) { it.id }
 
         _currentQueue.value = Queue(newQueue, currentIndex)
         saveQueueToPersistence()

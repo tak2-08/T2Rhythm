@@ -76,7 +76,10 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: runtime-core-test-results
-        path: runtime-core/build/test-results/test/*.xml
+        path: |
+          runtime-core/build/test-results/test/*.xml
+          crawler/build/test-results/test/*.xml
+          runtime-content/build/test-results/testGithubDebugUnitTest/*.xml
         retention-days: 7
 
     - name: Generate build info

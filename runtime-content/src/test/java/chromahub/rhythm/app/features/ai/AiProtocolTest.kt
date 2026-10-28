@@ -42,4 +42,10 @@ class AiProtocolTest {
         assertFalse(payload.toString().contains("uri"))
         assertFalse(AiConnection("one", AiProvider.OPENAI, "model", "private-key").toString().contains("private-key"))
     }
+    @Test fun acceptsCompleteReasoningEnvelopeButNeverPartialThoughtsOrArbitraryProse() {
+        val answer = "<think>Internal reasoning</think>\n```json\n" + response() + "\n```"
+        assertEquals(listOf("t1"), AiProtocol.parse(answer, AiOperation.PLAYLIST, setOf("t1")).ids)
+        rejected { AiProtocol.parse("<think>" + response(), AiOperation.PLAYLIST, setOf("t1")) }
+        rejected { AiProtocol.parse("Here is a result: " + response(), AiOperation.PLAYLIST, setOf("t1")) }
+    }
 }

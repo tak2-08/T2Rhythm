@@ -5,13 +5,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 enum class AiProvider(val label: String, val endpoint: String, val defaultModel: String, val anthropic: Boolean = false) {
-    GOOGLE("Google AI Studio", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "gemini-2.5-flash"),
+    GOOGLE("Google AI Studio", "https://generativelanguage.googleapis.com/v1beta/models", "gemini-3.5-flash-lite"),
     GROQ("Groq", "https://api.groq.com/openai/v1/chat/completions", "llama-3.3-70b-versatile"),
     CEREBRAS("Cerebras", "https://api.cerebras.ai/v1/chat/completions", "gpt-oss-120b"),
     HUGGING_FACE("Hugging Face", "https://router.huggingface.co/v1/chat/completions", "Qwen/Qwen3-32B"),
-    OPENAI("ChatGPT · OpenAI API", "https://api.openai.com/v1/chat/completions", "gpt-4.1-mini"),
-    ANTHROPIC("Claude · Anthropic API", "https://api.anthropic.com/v1/messages", "claude-sonnet-4-5", true),
-    XAI("Grok · xAI", "https://api.x.ai/v1/chat/completions", "grok-3-mini"),
+    OPENAI("ChatGPT · OpenAI API", "https://api.openai.com/v1/responses", "gpt-4.1-mini"),
+    ANTHROPIC("Claude · Anthropic API", "https://api.anthropic.com/v1/messages", "claude-sonnet-5-5", true),
+    XAI("Grok · xAI", "https://api.x.ai/v1/responses", "grok-4.7"),
 }
 
 /** Deliberately not a data class: keys must not leak through generated toString(). */
@@ -52,7 +52,15 @@ object AiProtocol {
     /** No repairing hallucinated IDs, silent truncation, executable tools or action escalation. */
     fun parse(raw: String, expected: AiOperation, allowed: Set<String>): AiPlan {
         require(raw.toByteArray().size <= MAX_RESPONSE_BYTES)
-        val text = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+        // Some HF reasoning models put a complete thinking block before the answer.
+        // Remove only that defined envelope; never salvage arbitrary surrounding prose or partial JSON.
+        var text = raw.trim()
+        if (text.startsWith("<think>")) {
+            val end = text.indexOf("</think>")
+            require(end >= 0)
+            text = text.substring(end + "</think>".length).trim()
+        }
+        text = text.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         val json = JSONObject(text)
         require(json.keys().asSequence().toSet().all { it in setOf("operation", "title", "explanation", "ids", "edits") })
         require(json.getString("operation") == expected.name)

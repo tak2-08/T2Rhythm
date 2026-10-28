@@ -32,10 +32,21 @@ import kotlinx.coroutines.sync.withPermit
 data class NetworkTrack(val source: StreamConnection, val track: StreamTrack) { fun song() = track.song(source.server) }
 data class NetworkPlaylist(val source: StreamConnection, val playlist: StreamPlaylist)
 data class NetworkSource(val connection: StreamConnection, val page: StreamPage? = null, val tracks: List<StreamTrack> = emptyList(),
-    val playlists: List<StreamPlaylist> = emptyList(), val error: String? = null, val busy: Boolean = false, val playlistError: Boolean = false)
+    val playlists: List<StreamPlaylist> = emptyList(), val error: String? = null, val busy: Boolean = false, val playlistError: Boolean = false, val pageError: String? = null)
+
+interface StreamBrowserClient {
+    suspend fun page(connection: StreamConnection, query: String, genre: String, offset: Int): StreamPage
+    suspend fun playlists(connection: StreamConnection): List<StreamPlaylist>
+    suspend fun revision(connection: StreamConnection): String
+    companion object : StreamBrowserClient {
+        override suspend fun page(connection: StreamConnection, query: String, genre: String, offset: Int) = StreamingClient.page(connection, query, genre, offset)
+        override suspend fun playlists(connection: StreamConnection) = StreamingClient.playlists(connection)
+        override suspend fun revision(connection: StreamConnection) = StreamingClient.revision(connection)
+    }
+}
 
 /** Independent, bounded requests let reachable peers work while another device is offline. */
-@Stable class StreamNetworkBrowserState(val connections: List<StreamConnection>, private val scope: CoroutineScope) {
+@Stable class StreamNetworkBrowserState(val connections: List<StreamConnection>, private val scope: CoroutineScope, private val client: StreamBrowserClient = StreamBrowserClient) {
     var query by mutableStateOf("")
     var genre by mutableStateOf("")
     val sources = mutableStateMapOf<String, NetworkSource>()
@@ -54,12 +65,13 @@ data class NetworkSource(val connection: StreamConnection, val page: StreamPage?
     }
     private suspend fun fetch(c: StreamConnection, attempt: Int) = permits.withPermit { fetchInside(c, attempt) }
     private suspend fun fetchInside(c: StreamConnection, attempt: Int) {
+        if (attempt != generation) return
         try {
-            val page = withTimeout(12_000) { StreamingClient.page(c, query, genre) }
+            val page = withTimeout(12_000) { client.page(c, query, genre, 0) }
             if (attempt != generation) return
             sources[c.server] = NetworkSource(c, page, page.tracks, busy = true)
             var listError = false
-            val lists = if ("playlists-v1" in page.features) try { withTimeout(8_000) { StreamingClient.playlists(c) } }
+            val lists = if ("playlists-v1" in page.features) try { withTimeout(8_000) { client.playlists(c) } }
                 catch (e: TimeoutCancellationException) { listError = true; emptyList() } catch (e: CancellationException) { throw e } catch (_: Exception) { listError = true; emptyList() } else emptyList()
             if (attempt == generation) sources[c.server] = sources.getValue(c.server).copy(playlists = lists, busy = false, playlistError = listError)
         } catch (e: TimeoutCancellationException) { failed(c, attempt, e) }
@@ -69,20 +81,33 @@ data class NetworkSource(val connection: StreamConnection, val page: StreamPage?
     private fun failed(c: StreamConnection, attempt: Int, error: Exception) {
         if (attempt == generation) sources[c.server] = NetworkSource(c, error = StreamingClient.friendlyError(error))
     }
+    fun retry(server: String) {
+        val old = sources[server] ?: return
+        if (old.busy) return
+        if (old.pageError != null) { more(server); return }
+        val attempt = generation
+        sources[server] = old.copy(busy = true)
+        jobs.removeAll { it.isCompleted }
+        jobs += scope.launch { fetch(old.connection, attempt) }
+    }
+    private fun pageFailed(old: NetworkSource, attempt: Int, error: Exception) {
+        if (attempt == generation) sources[old.connection.server] = old.copy(
+            busy = false, pageError = StreamingClient.friendlyError(error))
+    }
     fun more(server: String) {
         val old = sources[server] ?: return
         if (old.busy || old.tracks.size >= 2000) return
-        val attempt = generation; sources[server] = old.copy(busy = true)
+        val attempt = generation; sources[server] = old.copy(busy = true, pageError = null)
         jobs += scope.launch { permits.withPermit {
             try {
-                var next = withTimeout(12_000) { StreamingClient.page(old.connection, query, genre, old.tracks.size) }
+                val next = withTimeout(12_000) { client.page(old.connection, query, genre, old.tracks.size) }
                 val reset = next.revision != old.page?.revision
                 if (reset) { fetchInside(old.connection, attempt); return@withPermit }
                 if (attempt == generation) sources[server] = old.copy(page = next,
-                    tracks = if (reset) next.tracks else (old.tracks + next.tracks).distinctBy { it.id }, busy = false)
-            } catch (e: TimeoutCancellationException) { failed(old.connection, attempt, e) }
+                    tracks = (old.tracks + next.tracks).distinctBy { it.id }, busy = false, pageError = null)
+            } catch (e: TimeoutCancellationException) { pageFailed(old, attempt, e) }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { failed(old.connection, attempt, e) }
+            catch (e: Exception) { pageFailed(old, attempt, e) }
         } }
     }
     suspend fun refreshChanges() = coroutineScope {
@@ -90,9 +115,14 @@ data class NetworkSource(val connection: StreamConnection, val page: StreamPage?
         connections.map { c -> launch {
             val old = sources[c.server] ?: return@launch
             if (old.busy) return@launch
-            val changed = try { permits.withPermit { withTimeout(4_000) { StreamingClient.revision(c) } } != old.page?.revision }
+            val changed = try { permits.withPermit { withTimeout(4_000) { client.revision(c) } } != old.page?.revision }
                 catch (e: TimeoutCancellationException) { true } catch (e: CancellationException) { throw e } catch (_: Exception) { true }
-            if (changed || old.error != null) fetch(c, attempt)
+            // A user action may have started a page request while revision was in flight.
+            if (attempt != generation || sources[c.server]?.busy == true) return@launch
+            if (changed || old.error != null) {
+                sources[c.server] = (sources[c.server] ?: old).copy(busy = true)
+                fetch(c, attempt)
+            }
         } }.joinAll()
     }
 }
@@ -125,8 +155,11 @@ fun LazyListScope.streamNetworkBrowser(state: StreamNetworkBrowserState, playlis
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             state.connections.forEach { connection -> state.sources[connection.server]?.let { source ->
-                if (source.error != null) Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp)) { Text(connection.name, fontWeight = FontWeight.Bold); Text(source.error, style = MaterialTheme.typography.bodySmall) }
+                val error = source.error ?: source.pageError
+                if (error != null) Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp)) { Text(connection.name, fontWeight = FontWeight.Bold); Text(error, style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { state.retry(connection.server) }, enabled = !source.busy) { Text(stringResource(R.string.mv_retry)) }
+                    }
                 }
                 if (playlistsTab && source.playlistError) Text(stringResource(R.string.network_playlist_error, connection.name), color = MaterialTheme.colorScheme.error)
             } }
