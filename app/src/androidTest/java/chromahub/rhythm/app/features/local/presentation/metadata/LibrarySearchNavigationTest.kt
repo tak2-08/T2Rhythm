@@ -279,7 +279,7 @@ class LibrarySearchNavigationTest {
                 val gap = keyboardTop - input.bottom - windowPosition[1]
                 val maximumGap = with(compose.density) { 96.dp.toPx() }
                 val viewport = compose.onNodeWithTag("universal-search-viewport").fetchSemanticsNode().boundsInWindow
-                lastGeometry = "frame=$visible ime=$imeBottom top=$keyboardTop input=$input tabs=$tabs viewport=$viewport windowY=${windowPosition[1]} decor=${decor.height} gap=$gap"
+                lastGeometry = "frame=$visible ime=$imeBottom top=$keyboardTop input=$input tabs=$tabs viewport=$viewport windowY=${windowPosition[1]} decor=${decor.height} flags=${decor.systemUiVisibility} gap=$gap"
                 gap >= -1f && gap <= maximumGap && tabs.top + windowPosition[1] >= visible.top
             }
         }.onFailure {
@@ -292,6 +292,12 @@ class LibrarySearchNavigationTest {
             else android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
             assertEquals(expectedMode,
                 it.window.attributes.softInputMode and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST)
+            if (android.os.Build.VERSION.SDK_INT < 30) {
+                val layoutFlags = android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                assertEquals(0, it.window.decorView.systemUiVisibility and layoutFlags)
+            }
         }
     }
 

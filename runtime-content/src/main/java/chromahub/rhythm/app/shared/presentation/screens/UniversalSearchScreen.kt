@@ -135,19 +135,34 @@ fun UniversalSearchScreen(
 
     DisposableEffect(context) {
         val activity = context.findActivity()
-        val originalMode = activity?.window?.attributes?.softInputMode
+        val window = activity?.window
+        val originalMode = window?.attributes?.softInputMode
+        val legacyResize = android.os.Build.VERSION.SDK_INT < 30
+        val layoutFlags = android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+            android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+            android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+        val originalLayoutFlags = window?.decorView?.systemUiVisibility?.and(layoutFlags)
+        // Pre-R needs a fitting decor for resize to actually resize an edge-to-edge window.
+        // Otherwise ViewRoot can pan the field while our IME compensation also moves it.
+        if (legacyResize && window != null) {
+            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, true)
+        }
         // R+ edge-to-edge windows can still pan a focused field under adjustResize.
         // Search owns IME padding, so disable that second movement on those platforms.
         val adjustMode = if (android.os.Build.VERSION.SDK_INT >= 30)
             android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
         else android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-        activity?.window?.setSoftInputMode(
+        window?.setSoftInputMode(
             (originalMode ?: 0) and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST.inv() or
                 adjustMode
         )
         onDispose {
-            if (originalMode != null) {
-                activity.window?.setSoftInputMode(originalMode)
+            if (window != null) {
+                if (originalMode != null) window.setSoftInputMode(originalMode)
+                if (legacyResize && originalLayoutFlags != null) {
+                    val decor = window.decorView
+                    decor.systemUiVisibility = (decor.systemUiVisibility and layoutFlags.inv()) or originalLayoutFlags
+                }
             }
         }
     }
