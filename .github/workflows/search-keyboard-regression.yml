@@ -7,6 +7,7 @@ on:
       - 'runtime-*/**'
       - 'gradle/**'
       - 'scripts/run_personal_experience_regression.sh'
+      - 'scripts/run_search_keyboard_regression.sh'
       - '.github/workflows/search-keyboard-regression.yml'
   workflow_dispatch:
 permissions:
@@ -69,11 +70,7 @@ jobs:
             adb shell ime list -s > app/build/outputs/experience-screenshots/input-methods.txt
             adb shell settings put secure show_ime_with_hard_keyboard 1
             adb logcat -b all -v threadtime > app/build/outputs/experience-screenshots/continuous-logcat.txt &
-            for pass in 1 2 3; do
-              timeout --kill-after=15s 360s bash scripts/run_personal_experience_regression.sh
-              mkdir -p app/build/outputs/experience-screenshots/pass-$pass
-              cp app/build/outputs/experience-screenshots/*.png app/build/outputs/experience-screenshots/pass-$pass/
-            done
+            bash scripts/run_search_keyboard_regression.sh
       - uses: actions/upload-artifact@v7
         if: always()
         with:
