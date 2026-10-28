@@ -279,11 +279,12 @@ class LibrarySearchNavigationTest {
                 val gap = keyboardTop - input.bottom - windowPosition[1]
                 val maximumGap = with(compose.density) { 96.dp.toPx() }
                 val viewport = compose.onNodeWithTag("universal-search-viewport").fetchSemanticsNode().boundsInWindow
-                lastGeometry = "frame=$visible ime=$imeBottom top=$keyboardTop input=$input tabs=$tabs viewport=$viewport windowY=${windowPosition[1]} decor=${decor.height} flags=${decor.systemUiVisibility} gap=$gap"
+                lastGeometry = "frame=$visible ime=$imeBottom top=$keyboardTop input=$input tabs=$tabs viewport=$viewport windowY=${windowPosition[1]} decor=${decor.height} flags=${decor.systemUiVisibility} softInput=${compose.activity.window.attributes.softInputMode} rootSoftInput=${(decor.layoutParams as? android.view.WindowManager.LayoutParams)?.softInputMode} scrollY=${decor.scrollY} gap=$gap"
                 gap >= -1f && gap <= maximumGap && tabs.top + windowPosition[1] >= visible.top
             }
         }.onFailure {
             android.util.Log.e("SearchKeyboardLayout", lastGeometry)
+            chromahub.rhythm.app.testing.snapshotTestUi(compose.activity, "library-search-keyboard-state")
             capture("library-search-keyboard-failure.png")
         }.getOrThrow()
         activity.scenario.onActivity {
